@@ -34,4 +34,6 @@ public interface AdminService {
     AdminDtos.ParkingCommandResponse activateParking(CurrentUser currentUser, UUID parkingLotId);
 
     AdminDtos.ParkingCommandResponse approveClosure(CurrentUser currentUser, UUID parkingLotId);
+
+    AdminDtos.ParkingCommandResponse rejectClosure(CurrentUser currentUser, UUID parkingLotId, AdminDtos.ReasonRequest request);
 }

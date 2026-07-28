@@ -99,4 +99,10 @@ public class AdminController {
     ApiResponse<AdminDtos.ParkingCommandResponse> approveClosure(@PathVariable UUID parkingLotId) {
         return ApiResponse.ok(adminService.approveClosure(SecurityUtils.currentUser(), parkingLotId), RequestContext.requestId());
     }
+
+    @PostMapping("/parking-lots/{parkingLotId}/reject-closure")
+    ApiResponse<AdminDtos.ParkingCommandResponse> rejectClosure(@PathVariable UUID parkingLotId,
+                                                               @Valid @RequestBody AdminDtos.ReasonRequest request) {
+        return ApiResponse.ok(adminService.rejectClosure(SecurityUtils.currentUser(), parkingLotId, request), RequestContext.requestId());
+    }
 }

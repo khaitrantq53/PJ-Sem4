@@ -95,8 +95,8 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     public ParkingDtos.ParkingLotResponse update(CurrentUser currentUser, UUID parkingLotId, ParkingDtos.ParkingLotRequest request) {
         ParkingLot parkingLot = getManaged(currentUser, parkingLotId);
         assertVersion(parkingLot.getVersion(), request.version());
-        if (parkingLot.getStatus() == ParkingLotStatus.CLOSED) {
-            throw new BusinessException(ErrorCode.PARKING_LOT_ACCESS_DENIED, "Parking CLOSED không nhận update nghiệp vụ");
+        if (parkingLot.getStatus() != ParkingLotStatus.DRAFT) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Parking lot chỉ được update thông tin ở trạng thái DRAFT");
         }
         parkingLot.setName(request.name());
         parkingLot.setAddress(request.address());
@@ -133,6 +133,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
             throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Parking lot không thể request closure từ trạng thái hiện tại");
         }
         ParkingLotStatus old = parkingLot.getStatus();
+        parkingLot.setPreviousStatus(old);
         parkingLot.setStatus(ParkingLotStatus.CLOSURE_REQUESTED);
         auditService.record(currentUser.id(), currentUser.role(), "REQUEST_CLOSURE", "PARKING_LOT", parkingLot.getId().toString(), old.name(), parkingLot.getStatus().name(), reason);
         return mapper.toResponse(parkingLot);
@@ -207,6 +208,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
         if (parkingLot.getStatus() != expected) {
             throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Parking lot không đúng trạng thái yêu cầu");
         }
+        parkingLot.setPreviousStatus(null);
         parkingLot.setStatus(next);
         auditService.record(user.id(), user.role(), action, "PARKING_LOT", parkingLotId.toString(), expected.name(), next.name(), reason);
         return mapper.toResponse(parkingLot);

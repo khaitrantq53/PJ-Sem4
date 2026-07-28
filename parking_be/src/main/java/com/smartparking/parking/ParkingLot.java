@@ -33,6 +33,9 @@ public class ParkingLot extends BaseEntity {
     @Column(nullable = false)
     private ParkingLotStatus status;
 
+    @Enumerated(EnumType.STRING)
+    private ParkingLotStatus previousStatus;
+
     @Column(columnDefinition = "text")
     private String description;
 }

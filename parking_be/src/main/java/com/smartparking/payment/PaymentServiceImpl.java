@@ -3,6 +3,8 @@ package com.smartparking.payment;
 import com.smartparking.audit.AuditService;
 import com.smartparking.booking.Booking;
 import com.smartparking.booking.BookingRepository;
+import com.smartparking.booking.BookingStatusHistory;
+import com.smartparking.booking.BookingStatusHistoryRepository;
 import com.smartparking.common.BookingStatus;
 import com.smartparking.common.PaymentStatus;
 import com.smartparking.common.PaymentTransactionStatus;
@@ -31,6 +33,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentTransactionRepository transactionRepository;
     private final RefundRepository refundRepository;
     private final BookingRepository bookingRepository;
+    private final BookingStatusHistoryRepository bookingStatusHistoryRepository;
     private final PaymentMapper mapper;
     private final AuditService auditService;
     private final SmartParkingProperties properties;
@@ -39,6 +42,7 @@ public class PaymentServiceImpl implements PaymentService {
                               PaymentTransactionRepository transactionRepository,
                               RefundRepository refundRepository,
                               BookingRepository bookingRepository,
+                              BookingStatusHistoryRepository bookingStatusHistoryRepository,
                               PaymentMapper mapper,
                               AuditService auditService,
                               SmartParkingProperties properties) {
@@ -46,6 +50,7 @@ public class PaymentServiceImpl implements PaymentService {
         this.transactionRepository = transactionRepository;
         this.refundRepository = refundRepository;
         this.bookingRepository = bookingRepository;
+        this.bookingStatusHistoryRepository = bookingStatusHistoryRepository;
         this.mapper = mapper;
         this.auditService = auditService;
         this.properties = properties;
@@ -103,6 +108,9 @@ public class PaymentServiceImpl implements PaymentService {
         }
         Payment payment = paymentRepository.findById(UUID.fromString(request.paymentId()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND, "Payment không tồn tại"));
+        if (payment.getStatus() != PaymentStatus.PENDING) {
+            throw new BusinessException(ErrorCode.PAYMENT_ALREADY_COMPLETED, "Payment không ở trạng thái PENDING");
+        }
         PaymentTransaction transaction = new PaymentTransaction();
         transaction.setPayment(payment);
         transaction.setProvider(provider);
@@ -113,12 +121,20 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setProvider(provider);
         payment.setProviderTransactionId(request.providerTransactionId());
         if (request.status() == PaymentTransactionStatus.SUCCESS) {
+            Booking booking = payment.getBooking();
+            if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+                throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Booking không ở trạng thái PENDING_PAYMENT");
+            }
+            BookingStatus previous = booking.getStatus();
             payment.setStatus(PaymentStatus.PAID);
-            payment.getBooking().setPaymentStatus(PaymentStatus.PAID);
-            payment.getBooking().setStatus(BookingStatus.CONFIRMED);
+            booking.setPaymentStatus(PaymentStatus.PAID);
+            booking.setStatus(BookingStatus.CONFIRMED);
+            history(booking, previous, BookingStatus.CONFIRMED, "Payment callback success");
+            auditService.record(null, null, "PAYMENT_SUCCESS", "BOOKING", booking.getId().toString(), previous.name(), BookingStatus.CONFIRMED.name(), provider);
         } else if (request.status() == PaymentTransactionStatus.FAILED) {
             payment.setStatus(PaymentStatus.FAILED);
             payment.getBooking().setPaymentStatus(PaymentStatus.FAILED);
+            auditService.record(null, null, "PAYMENT_FAILED", "PAYMENT", payment.getId().toString(), PaymentStatus.PENDING.name(), PaymentStatus.FAILED.name(), provider);
         }
         return mapper.toResponse(payment);
     }
@@ -188,6 +204,15 @@ public class PaymentServiceImpl implements PaymentService {
         } catch (Exception exception) {
             throw new IllegalStateException(exception);
         }
+    }
+
+    private void history(Booking booking, BookingStatus previous, BookingStatus current, String reason) {
+        BookingStatusHistory history = new BookingStatusHistory();
+        history.setBooking(booking);
+        history.setPreviousStatus(previous);
+        history.setCurrentStatus(current);
+        history.setReason(reason);
+        bookingStatusHistoryRepository.save(history);
     }
 
     private static final class MessageDigestSafe {

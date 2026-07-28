@@ -116,8 +116,14 @@ public class AdminServiceImpl implements AdminService {
         Account account = account(userId);
         assertVersion(account.getVersion(), request.expectedVersion());
         AccountStatus previous = account.getStatus();
-        account.setStatus(request.status());
-        auditService.record(currentUser.id(), currentUser.role(), "UPDATE_ACCOUNT_STATUS", "ACCOUNT", account.getId().toString(), previous.name(), account.getStatus().name(), request.reason());
+        if (request.status() != AccountStatus.SUSPENDED) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Admin chỉ được suspend account qua command này");
+        }
+        if (previous != AccountStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Account chỉ được suspend từ ACTIVE");
+        }
+        account.setStatus(AccountStatus.SUSPENDED);
+        auditService.record(currentUser.id(), currentUser.role(), "SUSPEND_ACCOUNT", "ACCOUNT", account.getId().toString(), previous.name(), account.getStatus().name(), request.reason());
         return userResponse(account);
     }
 
@@ -149,7 +155,12 @@ public class AdminServiceImpl implements AdminService {
     @Transactional
     public AdminDtos.ParkingCommandResponse suspendParking(CurrentUser currentUser, UUID parkingLotId, AdminDtos.ReasonRequest request) {
         ParkingLot parkingLot = parking(parkingLotId);
+        assertVersion(parkingLot.getVersion(), request.expectedVersion());
+        if (parkingLot.getStatus() != ParkingLotStatus.ACTIVE && parkingLot.getStatus() != ParkingLotStatus.PAUSED) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Parking lot chỉ được suspend từ ACTIVE hoặc PAUSED");
+        }
         ParkingLotStatus previous = parkingLot.getStatus();
+        parkingLot.setPreviousStatus(previous);
         parkingLot.setStatus(ParkingLotStatus.SUSPENDED);
         auditService.record(currentUser.id(), currentUser.role(), "SUSPEND_PARKING", "PARKING_LOT", parkingLotId.toString(), previous.name(), parkingLot.getStatus().name(), request.reason());
         return parkingCommand(parkingLot, previous);
@@ -158,13 +169,49 @@ public class AdminServiceImpl implements AdminService {
     @Override
     @Transactional
     public AdminDtos.ParkingCommandResponse activateParking(CurrentUser currentUser, UUID parkingLotId) {
-        return transition(currentUser, parkingLotId, ParkingLotStatus.SUSPENDED, ParkingLotStatus.ACTIVE, "ACTIVATE_PARKING", null);
+        ParkingLot parkingLot = parking(parkingLotId);
+        if (parkingLot.getStatus() != ParkingLotStatus.SUSPENDED) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Parking lot không ở trạng thái SUSPENDED");
+        }
+        ParkingLotStatus previous = parkingLot.getStatus();
+        ParkingLotStatus next = parkingLot.getPreviousStatus() == ParkingLotStatus.PAUSED ? ParkingLotStatus.PAUSED : ParkingLotStatus.ACTIVE;
+        parkingLot.setStatus(next);
+        parkingLot.setPreviousStatus(null);
+        auditService.record(currentUser.id(), currentUser.role(), "ACTIVATE_PARKING", "PARKING_LOT", parkingLotId.toString(), previous.name(), next.name(), null);
+        return parkingCommand(parkingLot, previous);
     }
 
     @Override
     @Transactional
     public AdminDtos.ParkingCommandResponse approveClosure(CurrentUser currentUser, UUID parkingLotId) {
-        return transition(currentUser, parkingLotId, ParkingLotStatus.CLOSURE_REQUESTED, ParkingLotStatus.CLOSED, "APPROVE_CLOSURE", null);
+        ParkingLot parkingLot = parking(parkingLotId);
+        if (parkingLot.getStatus() != ParkingLotStatus.CLOSURE_REQUESTED) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Parking lot không ở trạng thái CLOSURE_REQUESTED");
+        }
+        ParkingLotStatus previous = parkingLot.getStatus();
+        parkingLot.setStatus(ParkingLotStatus.CLOSED);
+        parkingLot.setPreviousStatus(null);
+        auditService.record(currentUser.id(), currentUser.role(), "APPROVE_CLOSURE", "PARKING_LOT", parkingLotId.toString(), previous.name(), ParkingLotStatus.CLOSED.name(), null);
+        return parkingCommand(parkingLot, previous);
+    }
+
+    @Override
+    @Transactional
+    public AdminDtos.ParkingCommandResponse rejectClosure(CurrentUser currentUser, UUID parkingLotId, AdminDtos.ReasonRequest request) {
+        ParkingLot parkingLot = parking(parkingLotId);
+        assertVersion(parkingLot.getVersion(), request.expectedVersion());
+        if (parkingLot.getStatus() != ParkingLotStatus.CLOSURE_REQUESTED) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Parking lot không ở trạng thái CLOSURE_REQUESTED");
+        }
+        ParkingLotStatus previous = parkingLot.getStatus();
+        ParkingLotStatus restored = parkingLot.getPreviousStatus();
+        if (restored != ParkingLotStatus.ACTIVE && restored != ParkingLotStatus.PAUSED) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Parking lot thiếu trạng thái trước closure");
+        }
+        parkingLot.setStatus(restored);
+        parkingLot.setPreviousStatus(null);
+        auditService.record(currentUser.id(), currentUser.role(), "REJECT_CLOSURE", "PARKING_LOT", parkingLotId.toString(), previous.name(), restored.name(), request.reason());
+        return parkingCommand(parkingLot, previous);
     }
 
     private AdminDtos.ParkingCommandResponse transition(CurrentUser currentUser, UUID parkingLotId, ParkingLotStatus expected,
@@ -173,6 +220,7 @@ public class AdminServiceImpl implements AdminService {
         if (parkingLot.getStatus() != expected) {
             throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Parking lot không đúng trạng thái yêu cầu");
         }
+        parkingLot.setPreviousStatus(null);
         parkingLot.setStatus(next);
         auditService.record(currentUser.id(), currentUser.role(), action, "PARKING_LOT", parkingLotId.toString(), expected.name(), next.name(), reason);
         return parkingCommand(parkingLot, expected);
