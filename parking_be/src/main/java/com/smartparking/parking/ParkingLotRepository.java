@@ -15,6 +15,8 @@ import java.util.UUID;
 public interface ParkingLotRepository extends JpaRepository<ParkingLot, UUID> {
     Page<ParkingLot> findByStatus(ParkingLotStatus status, Pageable pageable);
 
+    long countByStatus(ParkingLotStatus status);
+
     @Query("""
             select p
             from ParkingLot p

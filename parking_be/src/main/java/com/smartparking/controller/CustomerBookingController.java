@@ -43,7 +43,7 @@ public class CustomerBookingController {
     }
 
     @GetMapping
-    PageResponse<BookingDtos.BookingResponse> list(Pageable pageable) {
+    PageResponse<BookingDtos.BookingListResponse> list(Pageable pageable) {
         return PageResponse.of(bookingService.customerBookings(SecurityUtils.currentUser(), pageable), RequestContext.requestId());
     }
 

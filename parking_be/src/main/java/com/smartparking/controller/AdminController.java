@@ -64,7 +64,7 @@ public class AdminController {
     }
 
     @GetMapping("/parking-lots/pending")
-    PageResponse<ParkingDtos.ParkingLotResponse> pendingParking(Pageable pageable) {
+    PageResponse<ParkingDtos.ParkingLotListResponse> pendingParking(Pageable pageable) {
         return PageResponse.of(adminService.pendingParkingLots(pageable), RequestContext.requestId());
     }
 

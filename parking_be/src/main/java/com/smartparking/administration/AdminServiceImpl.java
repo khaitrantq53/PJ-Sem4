@@ -8,23 +8,40 @@ import com.smartparking.account.StaffProfile;
 import com.smartparking.account.StaffProfileRepository;
 import com.smartparking.administration.dto.AdminDtos;
 import com.smartparking.audit.AuditService;
+import com.smartparking.booking.Booking;
+import com.smartparking.booking.BookingCapacityReservationRepository;
+import com.smartparking.booking.BookingMapper;
+import com.smartparking.booking.BookingRepository;
+import com.smartparking.booking.BookingStatusHistory;
+import com.smartparking.booking.BookingStatusHistoryRepository;
+import com.smartparking.booking.dto.BookingDtos;
 import com.smartparking.common.AccountStatus;
+import com.smartparking.common.BookingStatus;
 import com.smartparking.common.ParkingLotStatus;
 import com.smartparking.common.Role;
+import com.smartparking.common.config.SmartParkingProperties;
 import com.smartparking.common.exception.BusinessException;
 import com.smartparking.common.exception.ErrorCode;
 import com.smartparking.common.security.CurrentUser;
+import com.smartparking.device.OccupancyDiscrepancyAlertRepository;
 import com.smartparking.parking.ParkingLot;
 import com.smartparking.parking.ParkingLotMapper;
 import com.smartparking.parking.ParkingLotRepository;
+import com.smartparking.parking.ParkingStatusHistory;
+import com.smartparking.parking.ParkingStatusHistoryRepository;
 import com.smartparking.parking.dto.ParkingDtos;
+import com.smartparking.payment.PaymentRepository;
+import com.smartparking.payment.RefundRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.UUID;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 
 @Service
 public class AdminServiceImpl implements AdminService {
@@ -32,24 +49,51 @@ public class AdminServiceImpl implements AdminService {
     private final AccountCredentialRepository credentialRepository;
     private final StaffProfileRepository staffProfileRepository;
     private final ParkingLotRepository parkingLotRepository;
+    private final ParkingStatusHistoryRepository parkingStatusHistoryRepository;
     private final ParkingLotMapper parkingLotMapper;
+    private final BookingRepository bookingRepository;
+    private final BookingMapper bookingMapper;
+    private final BookingStatusHistoryRepository bookingStatusHistoryRepository;
+    private final BookingCapacityReservationRepository reservationRepository;
+    private final PaymentRepository paymentRepository;
+    private final RefundRepository refundRepository;
+    private final OccupancyDiscrepancyAlertRepository alertRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final SmartParkingProperties properties;
 
     public AdminServiceImpl(AccountRepository accountRepository,
                             AccountCredentialRepository credentialRepository,
                             StaffProfileRepository staffProfileRepository,
                             ParkingLotRepository parkingLotRepository,
+                            ParkingStatusHistoryRepository parkingStatusHistoryRepository,
                             ParkingLotMapper parkingLotMapper,
+                            BookingRepository bookingRepository,
+                            BookingMapper bookingMapper,
+                            BookingStatusHistoryRepository bookingStatusHistoryRepository,
+                            BookingCapacityReservationRepository reservationRepository,
+                            PaymentRepository paymentRepository,
+                            RefundRepository refundRepository,
+                            OccupancyDiscrepancyAlertRepository alertRepository,
                             PasswordEncoder passwordEncoder,
-                            AuditService auditService) {
+                            AuditService auditService,
+                            SmartParkingProperties properties) {
         this.accountRepository = accountRepository;
         this.credentialRepository = credentialRepository;
         this.staffProfileRepository = staffProfileRepository;
         this.parkingLotRepository = parkingLotRepository;
+        this.parkingStatusHistoryRepository = parkingStatusHistoryRepository;
         this.parkingLotMapper = parkingLotMapper;
+        this.bookingRepository = bookingRepository;
+        this.bookingMapper = bookingMapper;
+        this.bookingStatusHistoryRepository = bookingStatusHistoryRepository;
+        this.reservationRepository = reservationRepository;
+        this.paymentRepository = paymentRepository;
+        this.refundRepository = refundRepository;
+        this.alertRepository = alertRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
+        this.properties = properties;
     }
 
     @Override
@@ -129,8 +173,8 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ParkingDtos.ParkingLotResponse> pendingParkingLots(Pageable pageable) {
-        return parkingLotRepository.findByStatus(ParkingLotStatus.PENDING_APPROVAL, pageable).map(parkingLotMapper::toResponse);
+    public Page<ParkingDtos.ParkingLotListResponse> pendingParkingLots(Pageable pageable) {
+        return parkingLotRepository.findByStatus(ParkingLotStatus.PENDING_APPROVAL, pageable).map(parkingLotMapper::toListResponse);
     }
 
     @Override
@@ -148,7 +192,11 @@ public class AdminServiceImpl implements AdminService {
     @Override
     @Transactional
     public AdminDtos.ParkingCommandResponse rejectParking(CurrentUser currentUser, UUID parkingLotId, AdminDtos.ReasonRequest request) {
-        return transition(currentUser, parkingLotId, ParkingLotStatus.PENDING_APPROVAL, ParkingLotStatus.DRAFT, "REJECT_PARKING", request.reason());
+        ParkingLotStatus targetStatus = adminRejectParkingTargetStatus();
+        if (targetStatus != ParkingLotStatus.DRAFT) {
+            throw new BusinessException(ErrorCode.BUSINESS_DECISION_REQUIRED, "Parking lot reject target status chưa được hỗ trợ bởi schema hiện tại");
+        }
+        return transition(currentUser, parkingLotId, ParkingLotStatus.PENDING_APPROVAL, targetStatus, "REJECT_PARKING", request.reason());
     }
 
     @Override
@@ -162,6 +210,7 @@ public class AdminServiceImpl implements AdminService {
         ParkingLotStatus previous = parkingLot.getStatus();
         parkingLot.setPreviousStatus(previous);
         parkingLot.setStatus(ParkingLotStatus.SUSPENDED);
+        parkingHistory(parkingLot, previous, ParkingLotStatus.SUSPENDED, currentUser, request.reason());
         auditService.record(currentUser.id(), currentUser.role(), "SUSPEND_PARKING", "PARKING_LOT", parkingLotId.toString(), previous.name(), parkingLot.getStatus().name(), request.reason());
         return parkingCommand(parkingLot, previous);
     }
@@ -174,9 +223,13 @@ public class AdminServiceImpl implements AdminService {
             throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Parking lot không ở trạng thái SUSPENDED");
         }
         ParkingLotStatus previous = parkingLot.getStatus();
-        ParkingLotStatus next = parkingLot.getPreviousStatus() == ParkingLotStatus.PAUSED ? ParkingLotStatus.PAUSED : ParkingLotStatus.ACTIVE;
+        ParkingLotStatus next = parkingLot.getPreviousStatus();
+        if (next != ParkingLotStatus.ACTIVE && next != ParkingLotStatus.PAUSED) {
+            throw new BusinessException(ErrorCode.BUSINESS_DECISION_REQUIRED, "Parking SUSPENDED thiếu trạng thái trước đó để activate");
+        }
         parkingLot.setStatus(next);
         parkingLot.setPreviousStatus(null);
+        parkingHistory(parkingLot, previous, next, currentUser, null);
         auditService.record(currentUser.id(), currentUser.role(), "ACTIVATE_PARKING", "PARKING_LOT", parkingLotId.toString(), previous.name(), next.name(), null);
         return parkingCommand(parkingLot, previous);
     }
@@ -191,6 +244,7 @@ public class AdminServiceImpl implements AdminService {
         ParkingLotStatus previous = parkingLot.getStatus();
         parkingLot.setStatus(ParkingLotStatus.CLOSED);
         parkingLot.setPreviousStatus(null);
+        parkingHistory(parkingLot, previous, ParkingLotStatus.CLOSED, currentUser, null);
         auditService.record(currentUser.id(), currentUser.role(), "APPROVE_CLOSURE", "PARKING_LOT", parkingLotId.toString(), previous.name(), ParkingLotStatus.CLOSED.name(), null);
         return parkingCommand(parkingLot, previous);
     }
@@ -210,8 +264,70 @@ public class AdminServiceImpl implements AdminService {
         }
         parkingLot.setStatus(restored);
         parkingLot.setPreviousStatus(null);
+        parkingHistory(parkingLot, previous, restored, currentUser, request.reason());
         auditService.record(currentUser.id(), currentUser.role(), "REJECT_CLOSURE", "PARKING_LOT", parkingLotId.toString(), previous.name(), restored.name(), request.reason());
         return parkingCommand(parkingLot, previous);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<BookingDtos.BookingListResponse> bookings(AdminDtos.AdminBookingFilter filter, Pageable pageable) {
+        return bookingRepository.searchForAdmin(filter.parkingLotId(), filter.status(), filter.startFrom(), filter.endTo(),
+                filter.vehicleType(), blankToNull(filter.bookingCode()), blankToNull(filter.plateNumber()), pageable)
+                .map(bookingMapper::toListResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BookingDtos.BookingResponse booking(UUID bookingId) {
+        return bookingMapper.toResponse(getBooking(bookingId));
+    }
+
+    @Override
+    @Transactional
+    public AdminDtos.BookingExceptionCommandResponse resolveBookingException(CurrentUser currentUser, UUID bookingId,
+                                                                             AdminDtos.ResolveBookingExceptionRequest request) {
+        Booking booking = getBooking(bookingId);
+        assertVersion(booking.getVersion(), request.expectedVersion());
+        BookingStatus previous = booking.getStatus();
+        OffsetDateTime now = OffsetDateTime.now();
+        switch (request.action()) {
+            case EXPIRE_PENDING_APPROVAL -> expirePendingApproval(booking, now);
+            case EXPIRE_PENDING_PAYMENT -> expirePendingPayment(booking, now);
+            case MARK_NO_SHOW -> markNoShow(booking, now);
+            case MARK_OVERDUE -> markOverdue(booking, now);
+            case RELEASE_RESERVATION -> releaseTerminalReservation(booking);
+        }
+        if (booking.getStatus() != previous) {
+            bookingHistory(booking, previous, booking.getStatus(), currentUser, request.reason());
+        }
+        auditService.record(currentUser.id(), currentUser.role(), "RESOLVE_BOOKING_EXCEPTION_" + request.action().name(),
+                "BOOKING", bookingId.toString(), previous.name(), booking.getStatus().name(), request.reason());
+        return new AdminDtos.BookingExceptionCommandResponse(booking.getId(), previous, booking.getStatus(),
+                booking.getVersion(), booking.getUpdatedAt());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminDtos.SystemDashboardSummaryResponse dashboardSummary() {
+        ZoneId zoneId = ZoneId.systemDefault();
+        OffsetDateTime startOfDay = LocalDate.now(zoneId).atStartOfDay(zoneId).toOffsetDateTime();
+        OffsetDateTime nextDay = startOfDay.plusDays(1);
+        long accountPendingApprovals = accountRepository.countByStatus(AccountStatus.PENDING_APPROVAL);
+        long parkingPendingApprovals = parkingLotRepository.countByStatus(ParkingLotStatus.PENDING_APPROVAL);
+        return new AdminDtos.SystemDashboardSummaryResponse(
+                accountRepository.count(),
+                accountRepository.countByRoleAndStatus(Role.CUSTOMER, AccountStatus.ACTIVE),
+                accountRepository.countByRoleAndStatus(Role.STAFF, AccountStatus.ACTIVE),
+                parkingLotRepository.countByStatus(ParkingLotStatus.ACTIVE),
+                accountPendingApprovals + parkingPendingApprovals,
+                bookingRepository.countTodayAll(startOfDay, nextDay),
+                paymentRepository.revenueTodayAll(startOfDay, nextDay),
+                refundRepository.refundTodayAll(startOfDay, nextDay),
+                accountRepository.countByStatus(AccountStatus.SUSPENDED),
+                parkingLotRepository.countByStatus(ParkingLotStatus.SUSPENDED),
+                alertRepository.count()
+        );
     }
 
     private AdminDtos.ParkingCommandResponse transition(CurrentUser currentUser, UUID parkingLotId, ParkingLotStatus expected,
@@ -222,8 +338,84 @@ public class AdminServiceImpl implements AdminService {
         }
         parkingLot.setPreviousStatus(null);
         parkingLot.setStatus(next);
+        parkingHistory(parkingLot, expected, next, currentUser, reason);
         auditService.record(currentUser.id(), currentUser.role(), action, "PARKING_LOT", parkingLotId.toString(), expected.name(), next.name(), reason);
         return parkingCommand(parkingLot, expected);
+    }
+
+    private void expirePendingApproval(Booking booking, OffsetDateTime now) {
+        if (booking.getStatus() != BookingStatus.PENDING_APPROVAL
+                || booking.getApprovalExpiresAt() == null
+                || booking.getApprovalExpiresAt().isAfter(now)) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Booking không đủ điều kiện hết hạn duyệt");
+        }
+        booking.setStatus(BookingStatus.EXPIRED);
+        releaseReservation(booking);
+    }
+
+    private void expirePendingPayment(Booking booking, OffsetDateTime now) {
+        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT
+                || booking.getHoldExpiresAt() == null
+                || booking.getHoldExpiresAt().isAfter(now)) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Booking không đủ điều kiện hết hạn thanh toán");
+        }
+        booking.setStatus(BookingStatus.EXPIRED);
+        releaseReservation(booking);
+    }
+
+    private void markNoShow(Booking booking, OffsetDateTime now) {
+        if (booking.getStatus() != BookingStatus.CONFIRMED || booking.getStartTime().isAfter(now)) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Booking không đủ điều kiện no-show");
+        }
+        booking.setStatus(BookingStatus.NO_SHOW);
+        releaseReservation(booking);
+    }
+
+    private void markOverdue(Booking booking, OffsetDateTime now) {
+        if (booking.getStatus() != BookingStatus.CHECKED_IN || booking.getEndTime().isAfter(now)) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Booking không đủ điều kiện overdue");
+        }
+        booking.setStatus(BookingStatus.OVERDUE);
+    }
+
+    private void releaseTerminalReservation(Booking booking) {
+        if (booking.getStatus() != BookingStatus.CANCELLED
+                && booking.getStatus() != BookingStatus.DECLINED
+                && booking.getStatus() != BookingStatus.EXPIRED
+                && booking.getStatus() != BookingStatus.CHECKED_OUT
+                && booking.getStatus() != BookingStatus.NO_SHOW) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Chỉ release reservation cho booking đã kết thúc");
+        }
+        releaseReservation(booking);
+    }
+
+    private void releaseReservation(Booking booking) {
+        reservationRepository.findByBookingIdAndReleasedFalse(booking.getId())
+                .ifPresentOrElse(reservation -> reservation.setReleased(true), () -> {
+                    throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Capacity reservation không tồn tại hoặc đã release");
+                });
+    }
+
+    private void bookingHistory(Booking booking, BookingStatus previous, BookingStatus current, CurrentUser user, String reason) {
+        BookingStatusHistory history = new BookingStatusHistory();
+        history.setBooking(booking);
+        history.setPreviousStatus(previous);
+        history.setCurrentStatus(current);
+        history.setActorId(user.id());
+        history.setActorRole(user.role());
+        history.setReason(reason);
+        bookingStatusHistoryRepository.save(history);
+    }
+
+    private void parkingHistory(ParkingLot parkingLot, ParkingLotStatus previous, ParkingLotStatus current, CurrentUser user, String reason) {
+        ParkingStatusHistory history = new ParkingStatusHistory();
+        history.setParkingLot(parkingLot);
+        history.setPreviousStatus(previous);
+        history.setCurrentStatus(current);
+        history.setActorId(user.id());
+        history.setActorRole(user.role());
+        history.setReason(reason);
+        parkingStatusHistoryRepository.save(history);
     }
 
     private Account account(UUID userId) {
@@ -234,6 +426,11 @@ public class AdminServiceImpl implements AdminService {
     private ParkingLot parking(UUID parkingLotId) {
         return parkingLotRepository.findById(parkingLotId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PARKING_LOT_NOT_FOUND, "Parking lot không tồn tại"));
+    }
+
+    private Booking getBooking(UUID bookingId) {
+        return bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BOOKING_NOT_FOUND, "Booking không tồn tại"));
     }
 
     private AdminDtos.UserResponse userResponse(Account account) {
@@ -249,5 +446,17 @@ public class AdminServiceImpl implements AdminService {
         if (expectedVersion != null && !expectedVersion.equals(currentVersion)) {
             throw new BusinessException(ErrorCode.RESOURCE_VERSION_CONFLICT, "Version không khớp");
         }
+    }
+
+    private ParkingLotStatus adminRejectParkingTargetStatus() {
+        if (properties.businessDecisions() == null
+                || properties.businessDecisions().adminRejectParkingTargetStatus() == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_DECISION_REQUIRED, "Admin reject parking target status chưa được chốt");
+        }
+        return properties.businessDecisions().adminRejectParkingTargetStatus();
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 }

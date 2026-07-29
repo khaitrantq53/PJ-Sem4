@@ -28,6 +28,8 @@ public class PaymentTransaction extends BaseEntity {
     @Column(nullable = false)
     private String providerTransactionId;
 
+    private String idempotencyKey;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentTransactionStatus status;

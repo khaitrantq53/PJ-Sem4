@@ -12,7 +12,10 @@ import com.smartparking.common.RefundStatus;
 import com.smartparking.common.config.SmartParkingProperties;
 import com.smartparking.common.exception.BusinessException;
 import com.smartparking.common.exception.ErrorCode;
+import com.smartparking.common.idempotency.IdempotencyKey;
 import com.smartparking.common.security.CurrentUser;
+import com.smartparking.notification.Notification;
+import com.smartparking.notification.NotificationRepository;
 import com.smartparking.payment.dto.PaymentDtos;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,6 +39,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final BookingStatusHistoryRepository bookingStatusHistoryRepository;
     private final PaymentMapper mapper;
     private final AuditService auditService;
+    private final NotificationRepository notificationRepository;
     private final SmartParkingProperties properties;
 
     public PaymentServiceImpl(PaymentRepository paymentRepository,
@@ -45,6 +49,7 @@ public class PaymentServiceImpl implements PaymentService {
                               BookingStatusHistoryRepository bookingStatusHistoryRepository,
                               PaymentMapper mapper,
                               AuditService auditService,
+                              NotificationRepository notificationRepository,
                               SmartParkingProperties properties) {
         this.paymentRepository = paymentRepository;
         this.transactionRepository = transactionRepository;
@@ -53,12 +58,14 @@ public class PaymentServiceImpl implements PaymentService {
         this.bookingStatusHistoryRepository = bookingStatusHistoryRepository;
         this.mapper = mapper;
         this.auditService = auditService;
+        this.notificationRepository = notificationRepository;
         this.properties = properties;
     }
 
     @Override
     @Transactional
     public PaymentDtos.PaymentResponse create(CurrentUser currentUser, UUID bookingId, PaymentDtos.CreatePaymentRequest request, String idempotencyKey) {
+        idempotencyKey = IdempotencyKey.normalize(idempotencyKey);
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             var existing = paymentRepository.findByIdempotencyKey(idempotencyKey);
             if (existing.isPresent()) {
@@ -69,6 +76,9 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.BOOKING_NOT_FOUND, "Booking không tồn tại"));
         if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
             throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Booking chưa ở trạng thái PENDING_PAYMENT");
+        }
+        if (request.paymentMethod() != booking.getPaymentMethod()) {
+            throw new BusinessException(ErrorCode.PAYMENT_PROVIDER_ERROR, "Payment method không khớp booking");
         }
         Payment payment = new Payment();
         payment.setBooking(booking);
@@ -101,7 +111,16 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public PaymentDtos.PaymentResponse webhook(String provider, PaymentDtos.WebhookRequest request, String signature, String idempotencyKey) {
-        verifySignature(request.providerTransactionId(), signature);
+        idempotencyKey = IdempotencyKey.normalize(idempotencyKey);
+        verifySignature(request.rawPayload() == null || request.rawPayload().isBlank()
+                ? request.providerTransactionId()
+                : request.rawPayload(), signature);
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            var existingByIdempotency = transactionRepository.findByIdempotencyKey(idempotencyKey);
+            if (existingByIdempotency.isPresent()) {
+                return mapper.toResponse(existingByIdempotency.get().getPayment());
+            }
+        }
         var existingTransaction = transactionRepository.findByProviderAndProviderTransactionId(provider, request.providerTransactionId());
         if (existingTransaction.isPresent()) {
             return mapper.toResponse(existingTransaction.get().getPayment());
@@ -115,6 +134,7 @@ public class PaymentServiceImpl implements PaymentService {
         transaction.setPayment(payment);
         transaction.setProvider(provider);
         transaction.setProviderTransactionId(request.providerTransactionId());
+        transaction.setIdempotencyKey(blankToNull(idempotencyKey));
         transaction.setStatus(request.status());
         transaction.setRawPayload(request.rawPayload());
         transactionRepository.save(transaction);
@@ -123,6 +143,9 @@ public class PaymentServiceImpl implements PaymentService {
         if (request.status() == PaymentTransactionStatus.SUCCESS) {
             Booking booking = payment.getBooking();
             if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+                if (booking.getStatus() == BookingStatus.EXPIRED) {
+                    throw new BusinessException(ErrorCode.BUSINESS_DECISION_REQUIRED, "Payment success sau booking expired chưa được chốt nghiệp vụ");
+                }
                 throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Booking không ở trạng thái PENDING_PAYMENT");
             }
             BookingStatus previous = booking.getStatus();
@@ -131,10 +154,12 @@ public class PaymentServiceImpl implements PaymentService {
             booking.setStatus(BookingStatus.CONFIRMED);
             history(booking, previous, BookingStatus.CONFIRMED, "Payment callback success");
             auditService.record(null, null, "PAYMENT_SUCCESS", "BOOKING", booking.getId().toString(), previous.name(), BookingStatus.CONFIRMED.name(), provider);
+            notifyCustomer(booking, "PAYMENT_SUCCESS", "Thanh toán thành công", "Booking " + booking.getBookingCode() + " đã được xác nhận");
         } else if (request.status() == PaymentTransactionStatus.FAILED) {
             payment.setStatus(PaymentStatus.FAILED);
             payment.getBooking().setPaymentStatus(PaymentStatus.FAILED);
             auditService.record(null, null, "PAYMENT_FAILED", "PAYMENT", payment.getId().toString(), PaymentStatus.PENDING.name(), PaymentStatus.FAILED.name(), provider);
+            notifyCustomer(payment.getBooking(), "PAYMENT_FAILED", "Thanh toán thất bại", "Thanh toán cho booking " + payment.getBooking().getBookingCode() + " thất bại");
         }
         return mapper.toResponse(payment);
     }
@@ -142,6 +167,7 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public PaymentDtos.RefundResponse refund(CurrentUser currentUser, UUID paymentId, PaymentDtos.RefundRequest request, String idempotencyKey) {
+        idempotencyKey = IdempotencyKey.normalize(idempotencyKey);
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             var existing = refundRepository.findByIdempotencyKey(idempotencyKey);
             if (existing.isPresent()) {
@@ -153,10 +179,7 @@ public class PaymentServiceImpl implements PaymentService {
         if (payment.getStatus() != PaymentStatus.PAID && payment.getStatus() != PaymentStatus.PARTIALLY_REFUNDED) {
             throw new BusinessException(ErrorCode.REFUND_AMOUNT_INVALID, "Payment không đủ điều kiện refund");
         }
-        BigDecimal refunded = refundRepository.findAll().stream()
-                .filter(refund -> refund.getPayment().getId().equals(paymentId) && refund.getStatus() == RefundStatus.SUCCEEDED)
-                .map(Refund::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal refunded = refundRepository.sumSucceededAmountByPaymentId(paymentId);
         if (refunded.add(request.amount()).compareTo(payment.getAmount()) > 0) {
             throw new BusinessException(ErrorCode.REFUND_AMOUNT_INVALID, "Amount vượt quá refundable amount");
         }
@@ -213,6 +236,19 @@ public class PaymentServiceImpl implements PaymentService {
         history.setCurrentStatus(current);
         history.setReason(reason);
         bookingStatusHistoryRepository.save(history);
+    }
+
+    private void notifyCustomer(Booking booking, String type, String title, String content) {
+        Notification notification = new Notification();
+        notification.setRecipient(booking.getCustomer());
+        notification.setType(type);
+        notification.setTitle(title);
+        notification.setContent(content);
+        notificationRepository.save(notification);
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private static final class MessageDigestSafe {

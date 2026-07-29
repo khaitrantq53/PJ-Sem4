@@ -102,8 +102,8 @@ public class ParkingLotServiceImpl implements ParkingLotService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ParkingDtos.ParkingLotResponse> listMine(CurrentUser currentUser, Pageable pageable) {
-        return parkingLotRepository.findManagedByStaff(currentUser.id(), pageable).map(mapper::toResponse);
+    public Page<ParkingDtos.ParkingLotListResponse> listMine(CurrentUser currentUser, Pageable pageable) {
+        return parkingLotRepository.findManagedByStaff(currentUser.id(), pageable).map(mapper::toListResponse);
     }
 
     @Override
@@ -163,13 +163,13 @@ public class ParkingLotServiceImpl implements ParkingLotService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ParkingDtos.ParkingLotResponse> publicActive(Pageable pageable) {
+    public Page<ParkingDtos.ParkingLotListResponse> publicActive(Pageable pageable) {
         return publicSearch(new ParkingDtos.ParkingLotSearchCriteria(null, null, null, null, null, null, null, null, null, null, null), pageable);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ParkingDtos.ParkingLotResponse> publicSearch(ParkingDtos.ParkingLotSearchCriteria criteria, Pageable pageable) {
+    public Page<ParkingDtos.ParkingLotListResponse> publicSearch(ParkingDtos.ParkingLotSearchCriteria criteria, Pageable pageable) {
         validateSearchTime(criteria.startTime(), criteria.endTime());
         return parkingLotRepository.searchPublic(
                         criteria.latitude(),
@@ -185,7 +185,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
                         criteria.minRating(),
                         activeStatuses().stream().map(BookingStatus::name).toList(),
                         pageable)
-                .map(mapper::toResponse);
+                .map(mapper::toListResponse);
     }
 
     @Override

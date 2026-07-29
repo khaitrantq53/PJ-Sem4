@@ -28,6 +28,25 @@ public class BookingMapper {
         );
     }
 
+    public BookingDtos.BookingListResponse toListResponse(Booking booking) {
+        return new BookingDtos.BookingListResponse(
+                booking.getId(),
+                booking.getBookingCode(),
+                booking.getParkingLot().getId(),
+                booking.getVehicle().getId(),
+                booking.getStatus(),
+                booking.getPaymentStatus(),
+                booking.getPaymentMethod(),
+                booking.getStartTime(),
+                booking.getEndTime(),
+                money(booking.getTotalAmount(), booking.getCurrency()),
+                availableActions(booking),
+                booking.getVersion(),
+                booking.getCreatedAt(),
+                booking.getUpdatedAt()
+        );
+    }
+
     public BookingDtos.CommandResponse command(Booking booking, BookingStatus previousStatus) {
         return new BookingDtos.CommandResponse(
                 booking.getId(),

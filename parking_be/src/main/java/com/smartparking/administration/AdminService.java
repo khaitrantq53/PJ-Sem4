@@ -1,6 +1,7 @@
 package com.smartparking.administration;
 
 import com.smartparking.administration.dto.AdminDtos;
+import com.smartparking.booking.dto.BookingDtos;
 import com.smartparking.common.security.CurrentUser;
 import com.smartparking.parking.dto.ParkingDtos;
 import org.springframework.data.domain.Page;
@@ -21,7 +22,7 @@ public interface AdminService {
 
     AdminDtos.UserResponse updateUserStatus(CurrentUser currentUser, UUID userId, AdminDtos.StatusRequest request);
 
-    Page<ParkingDtos.ParkingLotResponse> pendingParkingLots(Pageable pageable);
+    Page<ParkingDtos.ParkingLotListResponse> pendingParkingLots(Pageable pageable);
 
     ParkingDtos.ParkingLotResponse parkingLot(UUID parkingLotId);
 
@@ -36,4 +37,13 @@ public interface AdminService {
     AdminDtos.ParkingCommandResponse approveClosure(CurrentUser currentUser, UUID parkingLotId);
 
     AdminDtos.ParkingCommandResponse rejectClosure(CurrentUser currentUser, UUID parkingLotId, AdminDtos.ReasonRequest request);
+
+    Page<BookingDtos.BookingListResponse> bookings(AdminDtos.AdminBookingFilter filter, Pageable pageable);
+
+    BookingDtos.BookingResponse booking(UUID bookingId);
+
+    AdminDtos.BookingExceptionCommandResponse resolveBookingException(CurrentUser currentUser, UUID bookingId,
+                                                                      AdminDtos.ResolveBookingExceptionRequest request);
+
+    AdminDtos.SystemDashboardSummaryResponse dashboardSummary();
 }

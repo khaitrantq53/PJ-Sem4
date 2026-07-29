@@ -13,7 +13,7 @@ import java.util.UUID;
 public interface ParkingLotService {
     ParkingDtos.ParkingLotResponse create(CurrentUser currentUser, ParkingDtos.CreateParkingLotRequest request);
 
-    Page<ParkingDtos.ParkingLotResponse> listMine(CurrentUser currentUser, Pageable pageable);
+    Page<ParkingDtos.ParkingLotListResponse> listMine(CurrentUser currentUser, Pageable pageable);
 
     ParkingDtos.ParkingLotResponse getForStaff(CurrentUser currentUser, UUID parkingLotId);
 
@@ -27,9 +27,9 @@ public interface ParkingLotService {
 
     ParkingDtos.ParkingLotResponse requestClosure(CurrentUser currentUser, UUID parkingLotId, String reason);
 
-    Page<ParkingDtos.ParkingLotResponse> publicActive(Pageable pageable);
+    Page<ParkingDtos.ParkingLotListResponse> publicActive(Pageable pageable);
 
-    Page<ParkingDtos.ParkingLotResponse> publicSearch(ParkingDtos.ParkingLotSearchCriteria criteria, Pageable pageable);
+    Page<ParkingDtos.ParkingLotListResponse> publicSearch(ParkingDtos.ParkingLotSearchCriteria criteria, Pageable pageable);
 
     ParkingDtos.ParkingLotResponse publicDetail(UUID parkingLotId);
 

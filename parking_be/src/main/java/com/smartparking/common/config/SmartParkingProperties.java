@@ -1,6 +1,7 @@
 package com.smartparking.common.config;
 
 import com.smartparking.common.BookingStatus;
+import com.smartparking.common.ParkingLotStatus;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.math.BigDecimal;
@@ -13,6 +14,9 @@ public record SmartParkingProperties(
         Pricing pricing,
         Payment payment,
         Otp otp,
+        Operation operation,
+        Jobs jobs,
+        BusinessDecisions businessDecisions,
         Minio minio,
         Upload upload
 ) {
@@ -29,6 +33,18 @@ public record SmartParkingProperties(
     }
 
     public record Otp(long ttlMinutes, int length) {
+    }
+
+    public record Operation(long checkInEarlyMinutes, long checkInLateMinutes, long checkoutGraceMinutes,
+                            long deviceOfflineThresholdMinutes, boolean requireVehicleConditionNotes) {
+    }
+
+    public record Jobs(int batchSize, String expirePendingPaymentCron, String expirePendingApprovalCron,
+                       String markNoShowCron, String markOverdueCron, String markDeviceOfflineCron,
+                       String expirePromotionCron) {
+    }
+
+    public record BusinessDecisions(ParkingLotStatus adminRejectParkingTargetStatus) {
     }
 
     public record Minio(String endpoint, String accessKey, String secretKey, String bucket) {

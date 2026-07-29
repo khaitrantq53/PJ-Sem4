@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Service
@@ -43,8 +44,11 @@ public class AuditServiceImpl implements AuditService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<AuditDtos.AuditLogResponse> list(Pageable pageable) {
-        return auditLogRepository.findAll(pageable).map(auditMapper::toResponse);
+    public Page<AuditDtos.AuditLogResponse> list(UUID actorId, Role actorRole, String action, String entityType,
+                                                 String entityId, OffsetDateTime from, OffsetDateTime to,
+                                                 String requestId, Pageable pageable) {
+        return auditLogRepository.search(actorId, actorRole, blankToNull(action), blankToNull(entityType),
+                blankToNull(entityId), from, to, blankToNull(requestId), pageable).map(auditMapper::toResponse);
     }
 
     @Override
@@ -53,5 +57,9 @@ public class AuditServiceImpl implements AuditService {
         return auditLogRepository.findById(auditId)
                 .map(auditMapper::toResponse)
                 .orElseThrow(() -> new BusinessException(ErrorCode.AUDIT_LOG_NOT_FOUND, "Audit log không tồn tại"));
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 }

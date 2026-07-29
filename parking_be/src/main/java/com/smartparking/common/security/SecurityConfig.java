@@ -1,5 +1,6 @@
 package com.smartparking.common.security;
 
+import com.smartparking.common.exception.ErrorCode;
 import com.smartparking.common.config.SmartParkingProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -20,10 +21,18 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableConfigurationProperties(SmartParkingProperties.class)
 public class SecurityConfig {
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                            JwtAuthenticationFilter jwtAuthenticationFilter,
+                                            SecurityErrorResponseWriter errorResponseWriter) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint((request, response, authException) ->
+                                errorResponseWriter.write(response, ErrorCode.AUTH_INVALID_CREDENTIALS, "Chưa xác thực"))
+                        .accessDeniedHandler((request, response, accessDeniedException) ->
+                                errorResponseWriter.write(response, ErrorCode.ACCESS_DENIED, "Không có quyền thực hiện thao tác"))
+                )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers(

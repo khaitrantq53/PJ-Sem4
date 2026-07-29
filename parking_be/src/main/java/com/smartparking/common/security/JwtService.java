@@ -3,6 +3,8 @@ package com.smartparking.common.security;
 import com.smartparking.common.AccountStatus;
 import com.smartparking.common.Role;
 import com.smartparking.common.config.SmartParkingProperties;
+import com.smartparking.common.exception.BusinessException;
+import com.smartparking.common.exception.ErrorCode;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -21,6 +23,9 @@ public class JwtService {
 
     public JwtService(SmartParkingProperties properties) {
         this.properties = properties;
+        if (properties.jwt().secret() == null || properties.jwt().secret().getBytes(StandardCharsets.UTF_8).length < 32) {
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, "JWT secret không đạt độ dài tối thiểu");
+        }
         this.signingKey = Keys.hmacShaKeyFor(properties.jwt().secret().getBytes(StandardCharsets.UTF_8));
     }
 

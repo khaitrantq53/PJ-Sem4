@@ -32,14 +32,14 @@ public class StaffBookingController {
     }
 
     @GetMapping
-    PageResponse<BookingDtos.BookingResponse> list(@RequestParam(required = false) UUID parkingLotId,
-                                                   @RequestParam(required = false) BookingStatus status,
-                                                   @RequestParam(required = false) OffsetDateTime startFrom,
-                                                   @RequestParam(required = false) OffsetDateTime endTo,
-                                                   @RequestParam(required = false) VehicleType vehicleType,
-                                                   @RequestParam(required = false) String bookingCode,
-                                                   @RequestParam(required = false) String plateNumber,
-                                                   Pageable pageable) {
+    PageResponse<BookingDtos.BookingListResponse> list(@RequestParam(required = false) UUID parkingLotId,
+                                                       @RequestParam(required = false) BookingStatus status,
+                                                       @RequestParam(required = false) OffsetDateTime startFrom,
+                                                       @RequestParam(required = false) OffsetDateTime endTo,
+                                                       @RequestParam(required = false) VehicleType vehicleType,
+                                                       @RequestParam(required = false) String bookingCode,
+                                                       @RequestParam(required = false) String plateNumber,
+                                                       Pageable pageable) {
         return PageResponse.of(bookingService.staffBookings(SecurityUtils.currentUser(), parkingLotId, status, startFrom, endTo,
                 vehicleType, bookingCode, plateNumber, pageable), RequestContext.requestId());
     }
@@ -60,11 +60,22 @@ public class StaffBookingController {
         return ApiResponse.ok(bookingService.decline(SecurityUtils.currentUser(), bookingId, request.reason()), RequestContext.requestId());
     }
 
+    @PostMapping("/{bookingId}/verify-qr")
+    ApiResponse<BookingDtos.VerifyQrResponse> verifyQr(@PathVariable UUID bookingId,
+                                                       @Valid @RequestBody BookingDtos.VerifyQrRequest request) {
+        return ApiResponse.ok(bookingService.verifyQr(SecurityUtils.currentUser(), bookingId, request), RequestContext.requestId());
+    }
+
     @PostMapping("/{bookingId}/check-in")
     ApiResponse<BookingDtos.CommandResponse> checkIn(@PathVariable UUID bookingId,
                                                      @Valid @RequestBody BookingDtos.CheckInRequest request,
                                                      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         return ApiResponse.ok(bookingService.checkIn(SecurityUtils.currentUser(), bookingId, request, idempotencyKey), RequestContext.requestId());
+    }
+
+    @PostMapping("/{bookingId}/checkout-preview")
+    ApiResponse<BookingDtos.CheckoutPreviewResponse> checkoutPreview(@PathVariable UUID bookingId) {
+        return ApiResponse.ok(bookingService.checkoutPreview(SecurityUtils.currentUser(), bookingId), RequestContext.requestId());
     }
 
     @PostMapping("/{bookingId}/check-out")

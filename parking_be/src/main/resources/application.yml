@@ -77,6 +77,20 @@ smart-parking:
   otp:
     ttl-minutes: ${OTP_TTL_MINUTES:5}
     length: ${OTP_LENGTH:6}
+  operation:
+    check-in-early-minutes: ${CHECK_IN_EARLY_MINUTES:30}
+    check-in-late-minutes: ${CHECK_IN_LATE_MINUTES:30}
+    checkout-grace-minutes: ${CHECKOUT_GRACE_MINUTES:15}
+    device-offline-threshold-minutes: ${DEVICE_OFFLINE_THRESHOLD_MINUTES:5}
+    require-vehicle-condition-notes: ${REQUIRE_VEHICLE_CONDITION_NOTES:false}
+  jobs:
+    batch-size: ${JOB_BATCH_SIZE:100}
+    expire-pending-payment-cron: "${EXPIRE_PENDING_PAYMENT_CRON:0 */5 * * * *}"
+    expire-pending-approval-cron: "${EXPIRE_PENDING_APPROVAL_CRON:0 */5 * * * *}"
+    mark-no-show-cron: "${MARK_NO_SHOW_CRON:0 */5 * * * *}"
+    mark-overdue-cron: "${MARK_OVERDUE_CRON:0 */5 * * * *}"
+    mark-device-offline-cron: "${MARK_DEVICE_OFFLINE_CRON:0 */1 * * * *}"
+    expire-promotion-cron: "${EXPIRE_PROMOTION_CRON:0 */10 * * * *}"
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
     access-key: ${MINIO_ACCESS_KEY:minioadmin}

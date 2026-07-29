@@ -59,7 +59,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException exception) {
-        return ResponseEntity.status(403).body(error("ACCESS_DENIED", "Không có quyền thực hiện thao tác", List.of(), Map.of()));
+        return ResponseEntity.status(ErrorCode.ACCESS_DENIED.status()).body(error(
+                ErrorCode.ACCESS_DENIED.name(),
+                "Không có quyền thực hiện thao tác",
+                List.of(),
+                Map.of()
+        ));
     }
 
     @ExceptionHandler(Exception.class)

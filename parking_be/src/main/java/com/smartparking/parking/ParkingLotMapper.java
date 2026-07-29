@@ -19,4 +19,17 @@ public class ParkingLotMapper {
                 parkingLot.getUpdatedAt()
         );
     }
+
+    public ParkingDtos.ParkingLotListResponse toListResponse(ParkingLot parkingLot) {
+        return new ParkingDtos.ParkingLotListResponse(
+                parkingLot.getId(),
+                parkingLot.getName(),
+                parkingLot.getAddress(),
+                parkingLot.getLatitude(),
+                parkingLot.getLongitude(),
+                parkingLot.getStatus(),
+                parkingLot.getVersion(),
+                parkingLot.getUpdatedAt()
+        );
+    }
 }

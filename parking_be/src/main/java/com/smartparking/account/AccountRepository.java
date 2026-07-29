@@ -1,5 +1,7 @@
 package com.smartparking.account;
 
+import com.smartparking.common.AccountStatus;
+import com.smartparking.common.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
@@ -13,4 +15,8 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
     boolean existsByEmail(String email);
 
     boolean existsByPhone(String phone);
+
+    long countByRoleAndStatus(Role role, AccountStatus status);
+
+    long countByStatus(AccountStatus status);
 }

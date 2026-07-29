@@ -39,7 +39,7 @@ public class StaffParkingController {
     }
 
     @GetMapping
-    PageResponse<ParkingDtos.ParkingLotResponse> list(Pageable pageable) {
+    PageResponse<ParkingDtos.ParkingLotListResponse> list(Pageable pageable) {
         return PageResponse.of(parkingLotService.listMine(SecurityUtils.currentUser(), pageable), RequestContext.requestId());
     }
 

@@ -27,31 +27,31 @@ public class PublicParkingController {
     }
 
     @GetMapping
-    PageResponse<ParkingDtos.ParkingLotResponse> list(@RequestParam(required = false) BigDecimal latitude,
-                                                      @RequestParam(required = false) BigDecimal longitude,
-                                                      @RequestParam(required = false) BigDecimal maxDistanceKm,
-                                                      @RequestParam(required = false) String address,
-                                                      @RequestParam(required = false) VehicleType vehicleType,
-                                                      @RequestParam(required = false) OffsetDateTime startTime,
-                                                      @RequestParam(required = false) OffsetDateTime endTime,
-                                                      @RequestParam(required = false) BigDecimal minPrice,
-                                                      @RequestParam(required = false) BigDecimal maxPrice,
-                                                      @RequestParam(required = false) UUID serviceId,
-                                                      @RequestParam(required = false) BigDecimal minRating,
-                                                      Pageable pageable) {
+    PageResponse<ParkingDtos.ParkingLotListResponse> list(@RequestParam(required = false) BigDecimal latitude,
+                                                          @RequestParam(required = false) BigDecimal longitude,
+                                                          @RequestParam(required = false) BigDecimal maxDistanceKm,
+                                                          @RequestParam(required = false) String address,
+                                                          @RequestParam(required = false) VehicleType vehicleType,
+                                                          @RequestParam(required = false) OffsetDateTime startTime,
+                                                          @RequestParam(required = false) OffsetDateTime endTime,
+                                                          @RequestParam(required = false) BigDecimal minPrice,
+                                                          @RequestParam(required = false) BigDecimal maxPrice,
+                                                          @RequestParam(required = false) UUID serviceId,
+                                                          @RequestParam(required = false) BigDecimal minRating,
+                                                          Pageable pageable) {
         ParkingDtos.ParkingLotSearchCriteria criteria = new ParkingDtos.ParkingLotSearchCriteria(
                 latitude, longitude, maxDistanceKm, address, vehicleType, startTime, endTime, minPrice, maxPrice, serviceId, minRating);
         return PageResponse.of(parkingLotService.publicSearch(criteria, pageable), RequestContext.requestId());
     }
 
     @GetMapping("/nearby")
-    PageResponse<ParkingDtos.ParkingLotResponse> nearby(@RequestParam BigDecimal latitude,
-                                                       @RequestParam BigDecimal longitude,
-                                                       @RequestParam BigDecimal maxDistanceKm,
-                                                       @RequestParam(required = false) VehicleType vehicleType,
-                                                       @RequestParam(required = false) OffsetDateTime startTime,
-                                                       @RequestParam(required = false) OffsetDateTime endTime,
-                                                       Pageable pageable) {
+    PageResponse<ParkingDtos.ParkingLotListResponse> nearby(@RequestParam BigDecimal latitude,
+                                                            @RequestParam BigDecimal longitude,
+                                                            @RequestParam BigDecimal maxDistanceKm,
+                                                            @RequestParam(required = false) VehicleType vehicleType,
+                                                            @RequestParam(required = false) OffsetDateTime startTime,
+                                                            @RequestParam(required = false) OffsetDateTime endTime,
+                                                            Pageable pageable) {
         ParkingDtos.ParkingLotSearchCriteria criteria = new ParkingDtos.ParkingLotSearchCriteria(
                 latitude, longitude, maxDistanceKm, null, vehicleType, startTime, endTime, null, null, null, null);
         return PageResponse.of(parkingLotService.publicSearch(criteria, pageable), RequestContext.requestId());

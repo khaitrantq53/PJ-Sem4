@@ -73,6 +73,24 @@ public final class BookingDtos {
     ) {
     }
 
+    public record BookingListResponse(
+            UUID id,
+            String bookingCode,
+            UUID parkingLotId,
+            UUID vehicleId,
+            BookingStatus status,
+            PaymentStatus paymentStatus,
+            PaymentMethod paymentMethod,
+            OffsetDateTime startTime,
+            OffsetDateTime endTime,
+            Money total,
+            List<AvailableAction> availableActions,
+            Long version,
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt
+    ) {
+    }
+
     public record CommandResponse(
             UUID id,
             BookingStatus previousStatus,
@@ -115,7 +133,20 @@ public final class BookingDtos {
     ) {
     }
 
-    public record CheckInRequest(String qrCode, String conditionNotes, Long expectedVersion) {
+    public record VerifyQrRequest(@NotBlank String qrCode, String plateNumber) {
+    }
+
+    public record VerifyQrResponse(UUID bookingId, String bookingCode, UUID vehicleId, String plateNumber,
+                                   BookingStatus status, OffsetDateTime startTime, OffsetDateTime endTime,
+                                   Long version) {
+    }
+
+    public record CheckoutPreviewResponse(UUID bookingId, BookingStatus status, OffsetDateTime scheduledEndTime,
+                                          OffsetDateTime actualCheckOutTime, long overtimeMinutes,
+                                          Money overtimeFee, Money totalAmount, Long version) {
+    }
+
+    public record CheckInRequest(@NotBlank String qrCode, String plateNumber, String conditionNotes, Long expectedVersion) {
     }
 
     public record CheckOutRequest(String conditionNotes, Long expectedVersion) {

@@ -7,4 +7,6 @@ import java.util.UUID;
 
 public interface PaymentTransactionRepository extends JpaRepository<PaymentTransaction, UUID> {
     Optional<PaymentTransaction> findByProviderAndProviderTransactionId(String provider, String providerTransactionId);
+
+    Optional<PaymentTransaction> findByIdempotencyKey(String idempotencyKey);
 }

@@ -14,6 +14,8 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
     Optional<Payment> findByIdAndBookingCustomerId(UUID paymentId, UUID customerId);
 
+    boolean existsByBookingIdAndPaymentMethod(UUID bookingId, com.smartparking.common.PaymentMethod paymentMethod);
+
     Optional<Payment> findByIdempotencyKey(String idempotencyKey);
 
     Optional<Payment> findByProviderTransactionId(String providerTransactionId);
@@ -29,4 +31,13 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
               and p.createdAt < :nextDay
             """)
     BigDecimal revenueTodayForStaff(UUID staffId, UUID parkingLotId, OffsetDateTime startOfDay, OffsetDateTime nextDay);
+
+    @Query("""
+            select coalesce(sum(p.amount), 0)
+            from Payment p
+            where p.status = com.smartparking.common.PaymentStatus.PAID
+              and p.createdAt >= :startOfDay
+              and p.createdAt < :nextDay
+            """)
+    BigDecimal revenueTodayAll(OffsetDateTime startOfDay, OffsetDateTime nextDay);
 }

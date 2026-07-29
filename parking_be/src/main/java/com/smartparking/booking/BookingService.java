@@ -15,7 +15,7 @@ public interface BookingService {
 
     BookingDtos.BookingResponse create(CurrentUser currentUser, BookingDtos.BookingRequest request, String idempotencyKey);
 
-    Page<BookingDtos.BookingResponse> customerBookings(CurrentUser currentUser, Pageable pageable);
+    Page<BookingDtos.BookingListResponse> customerBookings(CurrentUser currentUser, Pageable pageable);
 
     BookingDtos.BookingResponse customerDetail(CurrentUser currentUser, UUID bookingId);
 
@@ -25,10 +25,10 @@ public interface BookingService {
 
     BookingDtos.BookingRequestResponse requestExtension(CurrentUser currentUser, UUID bookingId, BookingDtos.ExtensionRequest request);
 
-    Page<BookingDtos.BookingResponse> staffBookings(CurrentUser currentUser, UUID parkingLotId, BookingStatus status,
-                                                    OffsetDateTime startFrom, OffsetDateTime endTo,
-                                                    VehicleType vehicleType, String bookingCode, String plateNumber,
-                                                    Pageable pageable);
+    Page<BookingDtos.BookingListResponse> staffBookings(CurrentUser currentUser, UUID parkingLotId, BookingStatus status,
+                                                        OffsetDateTime startFrom, OffsetDateTime endTo,
+                                                        VehicleType vehicleType, String bookingCode, String plateNumber,
+                                                        Pageable pageable);
 
     BookingDtos.BookingResponse staffDetail(CurrentUser currentUser, UUID bookingId);
 
@@ -43,6 +43,10 @@ public interface BookingService {
     BookingDtos.BookingRequestResponse approveExtensionRequest(CurrentUser currentUser, UUID requestId);
 
     BookingDtos.BookingRequestResponse rejectExtensionRequest(CurrentUser currentUser, UUID requestId, String reason);
+
+    BookingDtos.VerifyQrResponse verifyQr(CurrentUser currentUser, UUID bookingId, BookingDtos.VerifyQrRequest request);
+
+    BookingDtos.CheckoutPreviewResponse checkoutPreview(CurrentUser currentUser, UUID bookingId);
 
     BookingDtos.CommandResponse checkIn(CurrentUser currentUser, UUID bookingId, BookingDtos.CheckInRequest request, String idempotencyKey);
 

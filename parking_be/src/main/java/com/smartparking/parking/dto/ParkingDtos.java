@@ -52,6 +52,18 @@ public final class ParkingDtos {
     ) {
     }
 
+    public record ParkingLotListResponse(
+            UUID id,
+            String name,
+            String address,
+            BigDecimal latitude,
+            BigDecimal longitude,
+            ParkingLotStatus status,
+            Long version,
+            OffsetDateTime updatedAt
+    ) {
+    }
+
     public record CapacityRequest(@Min(0) int totalCapacity, @NotNull Long version) {
     }
 

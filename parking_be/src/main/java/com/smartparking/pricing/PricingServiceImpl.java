@@ -46,9 +46,17 @@ public class PricingServiceImpl implements PricingService {
     public BookingDtos.PriceBreakdown calculate(UUID parkingLotId, VehicleType vehicleType, OffsetDateTime startTime,
                                                 OffsetDateTime endTime, DeliveryMethod deliveryMethod,
                                                 List<UUID> serviceIds, String promotionCode) {
-        BigDecimal hourlyRate = pricingRuleRepository.findFirstByParkingLotIdAndVehicleTypeAndActiveTrue(parkingLotId, vehicleType)
-                .map(ParkingPricingRule::getHourlyRate)
-                .orElse(properties.pricing().defaultHourlyRate());
+        return calculateSnapshot(parkingLotId, vehicleType, startTime, endTime, deliveryMethod, serviceIds, promotionCode).breakdown();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PricingCalculation calculateSnapshot(UUID parkingLotId, VehicleType vehicleType, OffsetDateTime startTime,
+                                                OffsetDateTime endTime, DeliveryMethod deliveryMethod,
+                                                List<UUID> serviceIds, String promotionCode) {
+        ParkingPricingRule pricingRule = pricingRuleRepository.findFirstByParkingLotIdAndVehicleTypeAndActiveTrue(parkingLotId, vehicleType)
+                .orElse(null);
+        BigDecimal hourlyRate = pricingRule == null ? properties.pricing().defaultHourlyRate() : pricingRule.getHourlyRate();
         BigDecimal hours = BigDecimal.valueOf(Duration.between(startTime, endTime).toMinutes())
                 .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
         BigDecimal parkingFee = hourlyRate.multiply(hours).setScale(2, RoundingMode.HALF_UP);
@@ -60,24 +68,29 @@ public class PricingServiceImpl implements PricingService {
             throw new BusinessException(ErrorCode.PARKING_LOT_ACCESS_DENIED, "Service không hợp lệ cho parking lot");
         }
         BigDecimal serviceFee = services.stream().map(ParkingServiceEntity::getPrice).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal pickupFee = deliveryMethod == DeliveryMethod.PICKUP ? BigDecimal.ZERO : BigDecimal.ZERO;
+        if (deliveryMethod == DeliveryMethod.PICKUP) {
+            throw new BusinessException(ErrorCode.BUSINESS_DECISION_REQUIRED, "Pickup fee chưa được chốt nghiệp vụ");
+        }
+        BigDecimal pickupFee = BigDecimal.ZERO;
         BigDecimal subtotal = parkingFee.add(serviceFee).add(pickupFee);
-        BigDecimal discount = calculateDiscount(parkingLotId, promotionCode, subtotal);
+        Promotion promotion = promotion(parkingLotId, promotionCode);
+        BigDecimal discount = promotion == null ? BigDecimal.ZERO : promotion.getDiscountAmount().min(subtotal);
         BigDecimal platformFee = subtotal.multiply(properties.pricing().platformFeeRate()).setScale(2, RoundingMode.HALF_UP);
         BigDecimal taxable = subtotal.subtract(discount).add(platformFee).max(BigDecimal.ZERO);
         BigDecimal tax = taxable.multiply(properties.pricing().taxRate()).setScale(2, RoundingMode.HALF_UP);
         BigDecimal total = taxable.add(tax).setScale(2, RoundingMode.HALF_UP);
         String currency = properties.pricing().currency();
-        return new BookingDtos.PriceBreakdown(
+        BookingDtos.PriceBreakdown breakdown = new BookingDtos.PriceBreakdown(
                 money(parkingFee, currency), money(serviceFee, currency), money(pickupFee, currency),
                 money(discount, currency), money(platformFee, currency), money(tax, currency),
                 money(BigDecimal.ZERO, currency), money(total, currency)
         );
+        return new PricingCalculation(breakdown, pricingRule, hourlyRate, promotion, discount);
     }
 
-    private BigDecimal calculateDiscount(UUID parkingLotId, String promotionCode, BigDecimal subtotal) {
+    private Promotion promotion(UUID parkingLotId, String promotionCode) {
         if (promotionCode == null || promotionCode.isBlank()) {
-            return BigDecimal.ZERO;
+            return null;
         }
         Promotion promotion = promotionRepository.findByCodeAndActiveTrue(promotionCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Promotion không hợp lệ"));
@@ -88,7 +101,7 @@ public class PricingServiceImpl implements PricingService {
         if (!promotionParkingLotRepository.existsByPromotionIdAndParkingLotId(promotion.getId(), parkingLotId)) {
             throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Promotion không áp dụng cho parking lot");
         }
-        return promotion.getDiscountAmount().min(subtotal);
+        return promotion;
     }
 
     private BookingDtos.Money money(BigDecimal amount, String currency) {
