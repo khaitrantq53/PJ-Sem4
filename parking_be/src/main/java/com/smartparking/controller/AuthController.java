@@ -39,6 +39,29 @@ public class AuthController {
         return ApiResponse.ok(authService.refresh(request), RequestContext.requestId());
     }
 
+    @PostMapping("/otp/send")
+    ApiResponse<AuthDtos.OtpResponse> sendOtp(@Valid @RequestBody AuthDtos.OtpSendRequest request) {
+        return ApiResponse.ok(authService.sendOtp(request), RequestContext.requestId());
+    }
+
+    @PostMapping("/otp/verify")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void verifyOtp(@Valid @RequestBody AuthDtos.OtpVerifyRequest request) {
+        authService.verifyOtp(request);
+    }
+
+    @PostMapping("/forgot-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void forgotPassword(@Valid @RequestBody AuthDtos.ForgotPasswordRequest request) {
+        authService.forgotPassword(request);
+    }
+
+    @PostMapping("/reset-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void resetPassword(@Valid @RequestBody AuthDtos.ResetPasswordRequest request) {
+        authService.resetPassword(request);
+    }
+
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void logout(@Valid @RequestBody AuthDtos.RefreshRequest request) {

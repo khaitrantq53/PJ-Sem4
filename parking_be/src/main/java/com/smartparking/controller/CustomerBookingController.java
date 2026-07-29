@@ -64,4 +64,18 @@ public class CustomerBookingController {
         String reason = request == null ? null : request.reason();
         return ApiResponse.ok(bookingService.cancel(SecurityUtils.currentUser(), bookingId, reason), RequestContext.requestId());
     }
+
+    @PostMapping("/{bookingId}/change-requests")
+    @ResponseStatus(HttpStatus.CREATED)
+    ApiResponse<BookingDtos.BookingRequestResponse> requestChange(@PathVariable UUID bookingId,
+                                                                  @Valid @RequestBody BookingDtos.ChangeRequest request) {
+        return ApiResponse.ok(bookingService.requestChange(SecurityUtils.currentUser(), bookingId, request), RequestContext.requestId());
+    }
+
+    @PostMapping("/{bookingId}/extension-requests")
+    @ResponseStatus(HttpStatus.CREATED)
+    ApiResponse<BookingDtos.BookingRequestResponse> requestExtension(@PathVariable UUID bookingId,
+                                                                     @Valid @RequestBody BookingDtos.ExtensionRequest request) {
+        return ApiResponse.ok(bookingService.requestExtension(SecurityUtils.currentUser(), bookingId, request), RequestContext.requestId());
+    }
 }

@@ -12,6 +12,14 @@ public interface AuthService {
 
     void logout(AuthDtos.RefreshRequest request);
 
+    AuthDtos.OtpResponse sendOtp(AuthDtos.OtpSendRequest request);
+
+    void verifyOtp(AuthDtos.OtpVerifyRequest request);
+
+    void forgotPassword(AuthDtos.ForgotPasswordRequest request);
+
+    void resetPassword(AuthDtos.ResetPasswordRequest request);
+
     AuthDtos.AccountSummary me(CurrentUser currentUser);
 
     void changePassword(CurrentUser currentUser, AuthDtos.ChangePasswordRequest request);

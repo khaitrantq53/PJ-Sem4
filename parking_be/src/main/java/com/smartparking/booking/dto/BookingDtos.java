@@ -5,6 +5,8 @@ import com.smartparking.common.BookingStatus;
 import com.smartparking.common.DeliveryMethod;
 import com.smartparking.common.PaymentMethod;
 import com.smartparking.common.PaymentStatus;
+import com.smartparking.common.RequestStatus;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
@@ -83,7 +85,34 @@ public final class BookingDtos {
     ) {
     }
 
-    public record ReasonRequest(@NotNull String reason, Long expectedVersion) {
+    public record ReasonRequest(@NotBlank String reason, Long expectedVersion) {
+    }
+
+    public record ChangeRequest(
+            @NotNull OffsetDateTime requestedStartTime,
+            @NotNull OffsetDateTime requestedEndTime,
+            @NotBlank String reason,
+            Long expectedVersion
+    ) {
+    }
+
+    public record ExtensionRequest(
+            @NotNull OffsetDateTime requestedEndTime,
+            @NotBlank String reason,
+            Long expectedVersion
+    ) {
+    }
+
+    public record BookingRequestResponse(
+            UUID id,
+            UUID bookingId,
+            RequestStatus status,
+            OffsetDateTime requestedStartTime,
+            OffsetDateTime requestedEndTime,
+            String reason,
+            Long version,
+            OffsetDateTime createdAt
+    ) {
     }
 
     public record CheckInRequest(String qrCode, String conditionNotes, Long expectedVersion) {

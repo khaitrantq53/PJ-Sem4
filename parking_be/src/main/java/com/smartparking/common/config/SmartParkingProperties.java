@@ -11,7 +11,10 @@ public record SmartParkingProperties(
         Jwt jwt,
         Booking booking,
         Pricing pricing,
-        Payment payment
+        Payment payment,
+        Otp otp,
+        Minio minio,
+        Upload upload
 ) {
     public record Jwt(String issuer, String secret, long accessTokenTtlMinutes, long refreshTokenTtlDays) {
     }
@@ -23,5 +26,14 @@ public record SmartParkingProperties(
     }
 
     public record Payment(String webhookSecret) {
+    }
+
+    public record Otp(long ttlMinutes, int length) {
+    }
+
+    public record Minio(String endpoint, String accessKey, String secretKey, String bucket) {
+    }
+
+    public record Upload(long maxAvatarBytes, List<String> allowedAvatarContentTypes) {
     }
 }

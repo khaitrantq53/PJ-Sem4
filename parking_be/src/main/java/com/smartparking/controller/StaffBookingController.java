@@ -2,6 +2,8 @@ package com.smartparking.controller;
 
 import com.smartparking.booking.BookingService;
 import com.smartparking.booking.dto.BookingDtos;
+import com.smartparking.common.BookingStatus;
+import com.smartparking.common.VehicleType;
 import com.smartparking.common.dto.ApiResponse;
 import com.smartparking.common.dto.PageResponse;
 import com.smartparking.common.security.RequestContext;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @RestController
@@ -29,8 +32,16 @@ public class StaffBookingController {
     }
 
     @GetMapping
-    PageResponse<BookingDtos.BookingResponse> list(@RequestParam UUID parkingLotId, Pageable pageable) {
-        return PageResponse.of(bookingService.staffBookings(SecurityUtils.currentUser(), parkingLotId, pageable), RequestContext.requestId());
+    PageResponse<BookingDtos.BookingResponse> list(@RequestParam(required = false) UUID parkingLotId,
+                                                   @RequestParam(required = false) BookingStatus status,
+                                                   @RequestParam(required = false) OffsetDateTime startFrom,
+                                                   @RequestParam(required = false) OffsetDateTime endTo,
+                                                   @RequestParam(required = false) VehicleType vehicleType,
+                                                   @RequestParam(required = false) String bookingCode,
+                                                   @RequestParam(required = false) String plateNumber,
+                                                   Pageable pageable) {
+        return PageResponse.of(bookingService.staffBookings(SecurityUtils.currentUser(), parkingLotId, status, startFrom, endTo,
+                vehicleType, bookingCode, plateNumber, pageable), RequestContext.requestId());
     }
 
     @GetMapping("/{bookingId}")

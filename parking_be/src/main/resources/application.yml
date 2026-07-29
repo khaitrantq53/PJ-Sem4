@@ -74,3 +74,17 @@ smart-parking:
     default-hourly-rate: ${DEFAULT_HOURLY_RATE:0.00}
   payment:
     webhook-secret: ${PAYMENT_WEBHOOK_SECRET:change-this-payment-webhook-secret}
+  otp:
+    ttl-minutes: ${OTP_TTL_MINUTES:5}
+    length: ${OTP_LENGTH:6}
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    bucket: ${MINIO_BUCKET:smart-parking}
+  upload:
+    max-avatar-bytes: ${MAX_AVATAR_BYTES:5242880}
+    allowed-avatar-content-types:
+      - image/jpeg
+      - image/png
+      - image/webp

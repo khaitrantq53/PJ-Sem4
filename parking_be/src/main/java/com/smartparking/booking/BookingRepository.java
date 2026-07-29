@@ -22,6 +22,44 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     Page<Booking> findByParkingLotId(UUID parkingLotId, Pageable pageable);
 
     @Query("""
+            select b
+            from Booking b
+            join ParkingLotStaff s on s.parkingLot.id = b.parkingLot.id
+            where s.staff.id = :staffId
+              and (:parkingLotId is null or b.parkingLot.id = :parkingLotId)
+              and (:status is null or b.status = :status)
+              and (:startFrom is null or b.startTime >= :startFrom)
+              and (:endTo is null or b.endTime <= :endTo)
+              and (:vehicleType is null or b.vehicleType = :vehicleType)
+              and (:bookingCode is null or lower(b.bookingCode) like concat('%', lower(:bookingCode), '%'))
+              and (:plateNumber is null or lower(b.vehicle.plateNumber) like concat('%', lower(:plateNumber), '%'))
+            """)
+    Page<Booking> searchForStaff(UUID staffId, UUID parkingLotId, BookingStatus status, OffsetDateTime startFrom,
+                                 OffsetDateTime endTo, VehicleType vehicleType, String bookingCode, String plateNumber,
+                                 Pageable pageable);
+
+    @Query("""
+            select count(b)
+            from Booking b
+            join ParkingLotStaff s on s.parkingLot.id = b.parkingLot.id
+            where s.staff.id = :staffId
+              and (:parkingLotId is null or b.parkingLot.id = :parkingLotId)
+              and b.status = :status
+            """)
+    long countForStaffByStatus(UUID staffId, UUID parkingLotId, BookingStatus status);
+
+    @Query("""
+            select count(b)
+            from Booking b
+            join ParkingLotStaff s on s.parkingLot.id = b.parkingLot.id
+            where s.staff.id = :staffId
+              and (:parkingLotId is null or b.parkingLot.id = :parkingLotId)
+              and b.startTime >= :startOfDay
+              and b.startTime < :nextDay
+            """)
+    long countTodayForStaff(UUID staffId, UUID parkingLotId, OffsetDateTime startOfDay, OffsetDateTime nextDay);
+
+    @Query("""
             select count(b) > 0
             from Booking b
             where b.vehicle.id = :vehicleId
@@ -30,6 +68,18 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
               and b.endTime > :startTime
             """)
     boolean existsVehicleOverlap(UUID vehicleId, Collection<BookingStatus> statuses, OffsetDateTime startTime, OffsetDateTime endTime);
+
+    @Query("""
+            select count(b) > 0
+            from Booking b
+            where b.vehicle.id = :vehicleId
+              and b.id <> :excludedBookingId
+              and b.status in :statuses
+              and b.startTime < :endTime
+              and b.endTime > :startTime
+            """)
+    boolean existsVehicleOverlapExcluding(UUID vehicleId, UUID excludedBookingId, Collection<BookingStatus> statuses,
+                                          OffsetDateTime startTime, OffsetDateTime endTime);
 
     @Query("""
             select count(b)
@@ -42,4 +92,17 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             """)
     long countActiveReservations(UUID parkingLotId, VehicleType vehicleType, Collection<BookingStatus> statuses,
                                  OffsetDateTime startTime, OffsetDateTime endTime);
+
+    @Query("""
+            select count(b)
+            from Booking b
+            where b.parkingLot.id = :parkingLotId
+              and b.vehicleType = :vehicleType
+              and b.id <> :excludedBookingId
+              and b.status in :statuses
+              and b.startTime < :endTime
+              and b.endTime > :startTime
+            """)
+    long countActiveReservationsExcluding(UUID parkingLotId, VehicleType vehicleType, UUID excludedBookingId,
+                                          Collection<BookingStatus> statuses, OffsetDateTime startTime, OffsetDateTime endTime);
 }

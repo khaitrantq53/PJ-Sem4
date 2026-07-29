@@ -2,18 +2,23 @@ package com.smartparking.customer;
 
 import com.smartparking.account.CustomerProfile;
 import com.smartparking.account.CustomerProfileRepository;
+import com.smartparking.common.StoredFile;
 import com.smartparking.common.exception.BusinessException;
 import com.smartparking.common.exception.ErrorCode;
 import com.smartparking.common.security.CurrentUser;
+import com.smartparking.common.storage.FileStorageService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class CustomerServiceImpl implements CustomerService {
     private final CustomerProfileRepository customerProfileRepository;
+    private final FileStorageService fileStorageService;
 
-    public CustomerServiceImpl(CustomerProfileRepository customerProfileRepository) {
+    public CustomerServiceImpl(CustomerProfileRepository customerProfileRepository, FileStorageService fileStorageService) {
         this.customerProfileRepository = customerProfileRepository;
+        this.fileStorageService = fileStorageService;
     }
 
     @Override
@@ -30,6 +35,15 @@ public class CustomerServiceImpl implements CustomerService {
             throw new BusinessException(ErrorCode.RESOURCE_VERSION_CONFLICT, "Version không khớp");
         }
         profile.setFullName(request.fullName());
+        return response(profile);
+    }
+
+    @Override
+    @Transactional
+    public CustomerDtos.ProfileResponse uploadAvatar(CurrentUser currentUser, MultipartFile file) {
+        CustomerProfile profile = profile(currentUser);
+        StoredFile storedFile = fileStorageService.storeCustomerAvatar(currentUser.id(), file);
+        profile.setAvatarFileId(storedFile.getId().toString());
         return response(profile);
     }
 

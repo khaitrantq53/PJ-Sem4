@@ -29,6 +29,8 @@ public interface ParkingLotService {
 
     Page<ParkingDtos.ParkingLotResponse> publicActive(Pageable pageable);
 
+    Page<ParkingDtos.ParkingLotResponse> publicSearch(ParkingDtos.ParkingLotSearchCriteria criteria, Pageable pageable);
+
     ParkingDtos.ParkingLotResponse publicDetail(UUID parkingLotId);
 
     ParkingDtos.CapacityResponse updateCapacity(CurrentUser currentUser, UUID parkingLotId, VehicleType vehicleType,
@@ -36,6 +38,36 @@ public interface ParkingLotService {
 
     List<ParkingDtos.CapacityResponse> capacities(CurrentUser currentUser, UUID parkingLotId);
 
+    ParkingDtos.CapacityBlockResponse createCapacityBlock(CurrentUser currentUser, UUID parkingLotId,
+                                                          ParkingDtos.CapacityBlockRequest request);
+
+    void deleteCapacityBlock(CurrentUser currentUser, UUID parkingLotId, UUID blockId);
+
     ParkingDtos.AvailabilityResponse availability(UUID parkingLotId, VehicleType vehicleType, OffsetDateTime startTime,
                                                   OffsetDateTime endTime);
+
+    List<ParkingDtos.PricingRuleResponse> pricingRules(CurrentUser currentUser, UUID parkingLotId);
+
+    ParkingDtos.PricingRuleResponse upsertPricingRule(CurrentUser currentUser, UUID parkingLotId,
+                                                      ParkingDtos.PricingRuleRequest request);
+
+    List<ParkingDtos.ParkingServiceResponse> services(CurrentUser currentUser, UUID parkingLotId);
+
+    ParkingDtos.ParkingServiceResponse createService(CurrentUser currentUser, UUID parkingLotId,
+                                                     ParkingDtos.ParkingServiceRequest request);
+
+    ParkingDtos.ParkingServiceResponse updateService(CurrentUser currentUser, UUID parkingLotId, UUID serviceId,
+                                                     ParkingDtos.ParkingServiceRequest request);
+
+    List<ParkingDtos.PromotionResponse> promotions(CurrentUser currentUser, UUID parkingLotId);
+
+    ParkingDtos.PromotionResponse createPromotion(CurrentUser currentUser, UUID parkingLotId,
+                                                  ParkingDtos.PromotionRequest request);
+
+    ParkingDtos.PromotionResponse updatePromotion(CurrentUser currentUser, UUID parkingLotId, UUID promotionId,
+                                                  ParkingDtos.PromotionRequest request);
+
+    List<ParkingDtos.PolicyResponse> policies(CurrentUser currentUser, UUID parkingLotId);
+
+    ParkingDtos.PolicyResponse upsertPolicy(CurrentUser currentUser, UUID parkingLotId, ParkingDtos.PolicyRequest request);
 }
