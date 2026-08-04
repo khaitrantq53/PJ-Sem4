@@ -96,7 +96,7 @@ com.smartparking
 File: `src/main/resources/application.yml`
 
 - Server port: `${SERVER_PORT:8080}`
-- Datasource mặc định: `jdbc:postgresql://localhost:5432/dparking?currentSchema=smart_parking`
+- Datasource mặc định: `jdbc:postgresql://127.0.0.1:5432/postgres?currentSchema=smart_parking`
 - DB env: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `DB_SCHEMA`
 - JPA: `ddl-auto=validate`, default schema `smart_parking`
 - Flyway: enabled, location `classpath:db/migration`, tự tạo schema.
@@ -116,7 +116,8 @@ File: `src/main/resources/application.yml`
 
 File: `docker-compose.yml`
 
-- `postgres`: `postgres:16-alpine`, DB `smart_parking`, user `postgres`, password `postgres`, port `5432`.
+- App mặc định dùng PostgreSQL local đang quản lý bằng pgAdmin: database `postgres`, user `postgres`, password `12131415`, schema `smart_parking`.
+- `postgres`: `postgres:16-alpine`, DB `smart_parking`, user `postgres`, password `12131415`, host port `5433` -> container port `5432` dùng làm môi trường phụ nếu không dùng PostgreSQL local.
 - `redis`: `redis:7-alpine`, port `6379`.
 - `minio`: `minio/minio:RELEASE.2024-10-13T13-34-11Z`, API `9000`, console `9001`.
 

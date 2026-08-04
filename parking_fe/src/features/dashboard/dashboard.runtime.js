@@ -5,7 +5,7 @@ import {
   getStoredAccount,
   jsonBody,
   saveSession,
-} from './api.js';
+} from '../../services/api.js';
 
 const page = document.body.dataset.page;
 
@@ -1014,7 +1014,7 @@ function renderAdminLots(items = []) {
   renderList('#adminPendingLots', items, (lot, index) => `
     <article class="admin-approval-card">
       <div class="admin-approval-image">
-        <img src="${index % 2 === 0 ? './src/assets/garage-premium.svg' : './src/assets/building-garage.svg'}" alt="Parking lot preview" />
+        <img src="${index % 2 === 0 ? '/assets/garage-premium.svg' : '/assets/building-garage.svg'}" alt="Parking lot preview" />
       </div>
       <div class="admin-approval-body">
         <div class="admin-approval-header">

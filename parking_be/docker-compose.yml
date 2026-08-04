@@ -5,9 +5,9 @@ services:
     environment:
       POSTGRES_DB: smart_parking
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: 12131415
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - smart_parking_postgres:/var/lib/postgresql/data
     healthcheck:

@@ -5,7 +5,9 @@ import { request as httpsRequest } from 'node:https';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const rootDir = fileURLToPath(new URL('.', import.meta.url));
+const sourceDir = fileURLToPath(new URL('.', import.meta.url));
+const distDir = resolve(sourceDir, 'dist');
+const rootDir = existsSync(distDir) ? distDir : sourceDir;
 const backendUrl = new URL(process.env.BACKEND_URL || 'http://127.0.0.1:8080');
 const preferredPort = Number(process.env.PORT || 5173);
 const host = process.env.HOST || '127.0.0.1';
@@ -43,6 +45,15 @@ function serveStatic(request, response) {
   }
 
   if (!existsSync(resolvedPath) || !statSync(resolvedPath).isFile()) {
+    const fallbackPath = resolve(rootDir, 'index.html');
+    if (existsSync(fallbackPath)) {
+      response.writeHead(200, {
+        'Content-Type': contentTypes['.html'],
+      });
+      createReadStream(fallbackPath).pipe(response);
+      return;
+    }
+
     send(response, 404, 'Not found');
     return;
   }

@@ -1,1 +1,3 @@
 parking_be/target/
+parking_fe/node_modules/
+parking_fe/dist/

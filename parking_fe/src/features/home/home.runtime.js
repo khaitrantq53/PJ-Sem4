@@ -1,4 +1,4 @@
-import { searchParkingLots } from './api.js';
+import { searchParkingLots } from '../../services/api.js';
 
 const demoLot = {
   id: 'sample-financial-plaza',
@@ -11,7 +11,7 @@ const demoLot = {
   distance: '0.2 km',
   walk: '4 min walk',
   tags: ['Demo lot', 'Covered parking', 'Booking ready'],
-  image: './src/assets/garage-premium.svg',
+  image: '/assets/garage-premium.svg',
 };
 
 const state = {
@@ -80,9 +80,9 @@ function formatDateTimeForApi(value) {
 
 function getImageForIndex(index) {
   const images = [
-    './src/assets/garage-premium.svg',
-    './src/assets/open-lot.svg',
-    './src/assets/building-garage.svg',
+    '/assets/garage-premium.svg',
+    '/assets/open-lot.svg',
+    '/assets/building-garage.svg',
   ];
 
   return images[index % images.length];

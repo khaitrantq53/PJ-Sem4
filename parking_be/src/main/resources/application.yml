@@ -2,9 +2,9 @@ spring:
   application:
     name: smart-parking-backend
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/dparking?currentSchema=smart_parking}
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/postgres?currentSchema=smart_parking}
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD}
+    password: ${DB_PASSWORD:12131415}
     driver-class-name: org.postgresql.Driver
     hikari:
       pool-name: SmartParkingHikariPool

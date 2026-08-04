@@ -1,4 +1,4 @@
-import { apiRequest, getParkingLotDetail, jsonBody, searchParkingLots } from './api.js';
+import { apiRequest, getParkingLotDetail, jsonBody, searchParkingLots } from '../../services/api.js';
 
 const previewLot = {
   id: 'sample-financial-plaza',
