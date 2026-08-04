@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 315" role="img" aria-labelledby="title desc">
+  <title id="title">Open parking lot</title>
+  <desc id="desc">An outdoor parking lot with marked lanes, cars and greenery.</desc>
+  <rect width="720" height="315" fill="#eff8f3"/>
+  <path d="M0 220h720v95H0z" fill="#c9d2d4"/>
+  <path d="M54 92h612v170H54z" fill="#e3e7e8"/>
+  <g stroke="#fff" stroke-width="8" stroke-linecap="round">
+    <path d="M95 122h530M95 166h530M95 210h530"/>
+    <path d="M152 104v139M248 104v139M344 104v139M440 104v139M536 104v139"/>
+  </g>
+  <g>
+    <rect x="124" y="135" width="78" height="36" rx="11" fill="#0a0534"/>
+    <rect x="404" y="178" width="78" height="36" rx="11" fill="#2563eb"/>
+    <rect x="510" y="135" width="78" height="36" rx="11" fill="#10b981"/>
+    <rect x="242" y="178" width="78" height="36" rx="11" fill="#f59e0b"/>
+  </g>
+  <path d="M0 80c112-46 198-52 312-12 102 35 203 41 408-8v52H0V80Z" fill="#d7f5e8"/>
+  <circle cx="88" cy="68" r="44" fill="#bcebd7"/>
+  <circle cx="640" cy="61" r="52" fill="#bcebd7"/>
+  <rect x="72" y="40" width="118" height="42" rx="12" fill="#fff"/>
+  <text x="131" y="68" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#0a0534">PARK</text>
+</svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 315" role="img" aria-labelledby="title desc">
+  <title id="title">Modern indoor parking garage</title>
+  <desc id="desc">A premium covered parking garage with lighting and clear availability signage.</desc>
+  <rect width="720" height="315" fill="#f4f0f8"/>
+  <path d="M0 226h720v89H0z" fill="#d9dde2"/>
+  <path d="M56 55h608v188H56z" fill="#ffffff"/>
+  <path d="M86 83h548v36H86zM86 141h548v36H86z" fill="#e9e2ef"/>
+  <path d="M91 207h188v36H91zM317 207h118v36H317zM474 207h159v36H474z" fill="#cfd4da"/>
+  <g fill="#0a0534">
+    <rect x="116" y="100" width="44" height="104" rx="6"/>
+    <rect x="298" y="94" width="44" height="110" rx="6"/>
+    <rect x="478" y="91" width="44" height="113" rx="6"/>
+  </g>
+  <rect x="544" y="46" width="96" height="42" rx="10" fill="#10b981"/>
+  <text x="592" y="74" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#fff">OPEN</text>
+  <path d="M160 211c10-34 35-54 76-54h67c39 0 64 20 76 54h20c10 0 18 8 18 18v18H121v-18c0-10 8-18 18-18h21Z" fill="#0a0534"/>
+  <circle cx="184" cy="249" r="24" fill="#22202b"/>
+  <circle cx="354" cy="249" r="24" fill="#22202b"/>
+  <path d="M196 168h63v43h-84c4-19 10-32 21-43Zm83 0h26c20 0 34 12 43 43h-69v-43Z" fill="#bfe7f9"/>
+</svg>

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 315" role="img" aria-labelledby="title desc">
+  <title id="title">Multi level parking building</title>
+  <desc id="desc">A multi-story parking building with a mesh facade and entrance lane.</desc>
+  <rect width="720" height="315" fill="#f7f3fa"/>
+  <path d="M0 241h720v74H0z" fill="#cfd6dc"/>
+  <path d="M116 52h488v199H116z" fill="#ffffff"/>
+  <path d="M144 82h432v34H144zM144 135h432v34H144zM144 188h432v34H144z" fill="#ded8e7"/>
+  <g fill="#0a0534" opacity="0.88">
+    <rect x="170" y="88" width="58" height="22" rx="4"/>
+    <rect x="260" y="88" width="58" height="22" rx="4"/>
+    <rect x="350" y="88" width="58" height="22" rx="4"/>
+    <rect x="440" y="88" width="58" height="22" rx="4"/>
+    <rect x="170" y="141" width="58" height="22" rx="4"/>
+    <rect x="260" y="141" width="58" height="22" rx="4"/>
+    <rect x="350" y="141" width="58" height="22" rx="4"/>
+    <rect x="440" y="141" width="58" height="22" rx="4"/>
+  </g>
+  <path d="M228 222v-55h128v55h-128Z" fill="#0a0534"/>
+  <path d="M388 222v-80h108v80H388Z" fill="#10b981"/>
+  <text x="442" y="191" text-anchor="middle" font-family="Arial, sans-serif" font-size="44" font-weight="800" fill="#fff">P</text>
+  <path d="M80 251c136-12 223-11 312 0 81 10 153 12 249-5l79 69H0l80-64Z" fill="#b9c2ca"/>
+  <path d="M276 315 400 246h58l118 69H276Z" fill="#e8edf0"/>
+</svg>

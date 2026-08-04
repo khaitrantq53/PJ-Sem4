@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ParkFinder | Home</title>
+    <link rel="stylesheet" href="./src/styles/home.css" />
+    <script src="./config.js"></script>
+    <script type="module" src="./src/scripts/home.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="ParkFinder">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img">
+              <path d="M7 20V4h7.1c3.4 0 5.9 2.3 5.9 5.6s-2.5 5.7-5.9 5.7h-3.7V20H7Zm3.4-7.8h3.4c1.6 0 2.8-1 2.8-2.6S15.4 7 13.8 7h-3.4v5.2Z" />
+            </svg>
+          </span>
+          <span>ParkFinder</span>
+        </a>
+
+        <form class="top-search" id="topSearchForm" autocomplete="off">
+          <label class="sr-only" for="topSearch">Search parking area</label>
+          <svg class="field-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m21 20.1-4.7-4.7a7.5 7.5 0 1 0-1.1 1.1l4.7 4.7 1.1-1.1ZM4.5 10.5a6 6 0 1 1 12 0 6 6 0 0 1-12 0Z" />
+          </svg>
+          <input id="topSearch" name="address" type="search" placeholder="Search area, parking lot name, or address" />
+          <button type="submit" aria-label="Search">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m12 4 1.4 1.4-5.6 5.6H20v2H7.8l5.6 5.6L12 20 4 12l8-8Z" />
+            </svg>
+          </button>
+        </form>
+
+        <nav class="nav-links" aria-label="Primary navigation">
+          <a class="active" href="/">Find parking</a>
+          <a href="/customer.html">Reservations</a>
+          <a href="/staff.html">Staff</a>
+          <a href="/admin.html">Admin</a>
+        </nav>
+
+        <div class="top-actions">
+          <button class="icon-button" type="button" aria-label="Notifications">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 22a2.4 2.4 0 0 0 2.3-1.7H9.7A2.4 2.4 0 0 0 12 22Zm7-5-2-2.1V10a5 5 0 0 0-4-4.9V3h-2v2.1A5 5 0 0 0 7 10v4.9L5 17v1.5h14V17Z" />
+            </svg>
+          </button>
+          <button class="icon-button" type="button" aria-label="Help">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M11 18h2v-2h-2v2Zm1-16a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm0-14a3.2 3.2 0 0 0-3.4 3h2A1.3 1.3 0 0 1 12 8a1.2 1.2 0 0 1 1.3 1.2c0 .8-.5 1.2-1.4 1.8-1.1.8-1.9 1.5-1.9 3h2c0-.7.5-1.1 1.2-1.6 1.1-.8 2.1-1.6 2.1-3.2A3.1 3.1 0 0 0 12 6Z" />
+            </svg>
+          </button>
+          <a class="ghost-button" href="/auth.html">Sign in</a>
+        </div>
+      </header>
+
+      <main class="home-layout">
+        <section class="results-panel" aria-label="Parking lot list">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Smart Parking</p>
+              <h1>Parking lots near you</h1>
+            </div>
+            <button class="icon-button toned" type="button" id="refreshButton" aria-label="Refresh list">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.3L13 11h8V3l-3.3 3.3Z" />
+              </svg>
+            </button>
+          </div>
+
+          <form class="search-card" id="filterForm">
+            <label class="input-group">
+              <span>Area</span>
+              <input id="addressInput" name="address" type="search" placeholder="Example: District 1, My Dinh, Cau Giay" />
+            </label>
+
+            <div class="field-row">
+              <label class="input-group">
+                <span>Vehicle type</span>
+                <select id="vehicleTypeInput" name="vehicleType">
+                  <option value="">All</option>
+                  <option value="CAR">Car</option>
+                  <option value="MOTORBIKE">Motorbike</option>
+                  <option value="ELECTRIC_CAR">Electric car</option>
+                </select>
+              </label>
+              <label class="input-group">
+                <span>Max price</span>
+                <input id="maxPriceInput" name="maxPrice" type="number" min="0" step="1000" placeholder="VND/hour" />
+              </label>
+            </div>
+
+            <div class="time-row">
+              <label class="input-group">
+                <span>Start time</span>
+                <input id="startTimeInput" name="startTime" type="datetime-local" />
+              </label>
+              <label class="input-group">
+                <span>End time</span>
+                <input id="endTimeInput" name="endTime" type="datetime-local" />
+              </label>
+            </div>
+
+            <div class="filter-actions">
+              <button class="primary-button" type="submit">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m21 20.1-4.7-4.7a7.5 7.5 0 1 0-1.1 1.1l4.7 4.7 1.1-1.1ZM4.5 10.5a6 6 0 1 1 12 0 6 6 0 0 1-12 0Z" />
+                </svg>
+                Search
+              </button>
+              <button class="ghost-button" type="button" id="nearMeButton">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.9 3A9 9 0 0 0 13 3.1V1h-2v2.1A9 9 0 0 0 3.1 11H1v2h2.1A9 9 0 0 0 11 20.9V23h2v-2.1A9 9 0 0 0 20.9 13H23v-2h-2.1ZM12 19a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z" />
+                </svg>
+                Near me
+              </button>
+            </div>
+          </form>
+
+          <div class="quick-filters" aria-label="Quick filters">
+            <button type="button" data-filter="open">Open now</button>
+            <button type="button" data-filter="cheap">Under 30k</button>
+            <button type="button" data-filter="ev">EV charging</button>
+          </div>
+
+          <div class="list-meta">
+            <span id="resultCount">Loading parking lots</span>
+            <span id="apiStatus" class="status-pill">Connecting</span>
+          </div>
+
+          <div class="parking-list" id="parkingList" aria-live="polite"></div>
+        </section>
+
+        <section class="map-stage" aria-label="Parking lot map">
+          <div class="google-map" id="googleMap"></div>
+          <div class="map-loader" id="mapLoader">Loading Google Maps</div>
+
+          <div class="map-search-chip">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z" />
+            </svg>
+            <span id="mapFocus">Central area</span>
+          </div>
+
+          <div class="map-controls" aria-label="Map controls">
+            <div class="control-stack">
+              <button type="button" id="zoomInButton" aria-label="Zoom in">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z" />
+                </svg>
+              </button>
+              <button type="button" id="zoomOutButton" aria-label="Zoom out">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 11h14v2H5v-2Z" />
+                </svg>
+              </button>
+            </div>
+            <button type="button" id="locateMapButton" aria-label="Current location">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.9 3A9 9 0 0 0 13 3.1V1h-2v2.1A9 9 0 0 0 3.1 11H1v2h2.1A9 9 0 0 0 11 20.9V23h2v-2.1A9 9 0 0 0 20.9 13H23v-2h-2.1ZM12 19a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z" />
+              </svg>
+            </button>
+            <button class="primary-map-button" type="button" id="mapTypeButton" aria-label="Map layer">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m12 2 9 5-9 5-9-5 9-5Zm-5 9.1-4 2.2 9 5 9-5-4-2.2-5 2.8-5-2.8Zm0 5-4 2.2 9 5 9-5-4-2.2-5 2.8-5-2.8Z" />
+              </svg>
+            </button>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

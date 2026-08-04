@@ -1,0 +1,299 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>ParkFinder | Secure Checkout</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary": "#000000",
+                    "surface-container-highest": "#e5e1e6",
+                    "on-secondary-container": "#626075",
+                    "inverse-on-surface": "#f3eff4",
+                    "primary-fixed-dim": "#c5c1f8",
+                    "inverse-surface": "#313033",
+                    "error": "#ba1a1a",
+                    "surface-container-lowest": "#ffffff",
+                    "outline": "#78767f",
+                    "on-tertiary-fixed": "#341105",
+                    "outline-variant": "#c8c5d0",
+                    "on-tertiary-fixed-variant": "#693a2c",
+                    "surface": "#fcf8fd",
+                    "background": "#fcf8fd",
+                    "on-primary-fixed-variant": "#444170",
+                    "on-primary": "#ffffff",
+                    "primary-fixed": "#e3dfff",
+                    "surface-tint": "#5c5989",
+                    "tertiary-container": "#341105",
+                    "on-secondary": "#ffffff",
+                    "primary": "#000000",
+                    "on-tertiary-container": "#af7664",
+                    "on-surface-variant": "#47464f",
+                    "surface-dim": "#dcd9dd",
+                    "on-background": "#1c1b1e",
+                    "inverse-primary": "#c5c1f8",
+                    "surface-bright": "#fcf8fd",
+                    "secondary": "#5e5c70",
+                    "secondary-container": "#e0ddf5",
+                    "secondary-fixed": "#e3e0f8",
+                    "on-secondary-fixed-variant": "#464558",
+                    "on-error": "#ffffff",
+                    "tertiary-fixed": "#ffdbd0",
+                    "on-surface": "#1c1b1e",
+                    "on-secondary-fixed": "#1a1a2b",
+                    "on-primary-fixed": "#181542",
+                    "on-primary-container": "#827eb1",
+                    "tertiary-fixed-dim": "#f9b7a3",
+                    "surface-variant": "#e5e1e6",
+                    "surface-container-high": "#ebe7eb",
+                    "on-tertiary": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "error-container": "#ffdad6",
+                    "secondary-fixed-dim": "#c7c4db",
+                    "surface-container-low": "#f6f2f7",
+                    "surface-container": "#f0edf1",
+                    "primary-container": "#181542"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "xl": "32px",
+                    "sm": "8px",
+                    "safe-area": "20px",
+                    "lg": "24px",
+                    "gutter": "16px",
+                    "md": "16px",
+                    "xs": "4px",
+                    "base": "4px"
+            },
+            "fontFamily": {
+                    "headline-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "status-badge": ["Inter"],
+                    "label-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "label-lg": ["Inter"],
+                    "headline-md": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                    "status-badge": ["11px", {"lineHeight": "12px", "letterSpacing": "0.5px", "fontWeight": "700"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.1px", "fontWeight": "600"}],
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        body {
+            background-color: #fcf8fd;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .checkout-glass {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col overflow-x-hidden">
+<!-- TopNavBar -->
+<header class="bg-surface dark:bg-inverse-surface shadow-sm flex justify-between items-center w-full px-lg py-md sticky top-0 z-50">
+<div class="flex items-center gap-xl">
+<span class="text-headline-md font-headline-md font-black text-primary dark:text-inverse-primary">ParkFinder</span>
+<nav class="hidden md:flex gap-lg">
+<a class="text-label-lg font-label-lg text-on-surface-variant dark:text-on-secondary-container hover:text-primary dark:hover:text-inverse-primary transition-colors" href="#">Find Parking</a>
+<a class="text-label-lg font-label-lg text-primary dark:text-inverse-primary border-b-2 border-primary dark:border-inverse-primary pb-1" href="#">Reservations</a>
+<a class="text-label-lg font-label-lg text-on-surface-variant dark:text-on-secondary-container hover:text-primary dark:hover:text-inverse-primary transition-colors" href="#">Dashboard</a>
+</nav>
+</div>
+<div class="flex items-center gap-md">
+<button class="p-sm rounded-full hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-on-surface">notifications</span>
+</button>
+<button class="p-sm rounded-full hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-on-surface">help</span>
+</button>
+<div class="w-10 h-10 rounded-full overflow-hidden border border-outline-variant ml-sm">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a modern user in high-quality studio lighting. The user has a warm, confident expression. The background is a clean, neutral gradient of soft greys and muted blues, fitting a corporate modern aesthetic for a premium booking platform." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCzPxqbB-zndcXbMhc85Ir_0XiqwOQPO55eVuyHXWSscvqZ248_tbJx3iMBi0zhIW4hyClefZsvGsIcM1gO6NfRDaXrrLfwqinZj0rsnKprYBhFetPto9A84RV_10aEC4pJwJQ-Kll-5BTN3sEpZPTWhFPi_o1kmpdCfki5uqsUQKtDyIbeHH3b1CKfRvbVfKd07SMgn8NLdba7UPop43lgXTYPYKL5Xh2lCbmdZhavQQ_jms5qH6U">
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow flex items-center justify-center py-xl px-lg">
+<div class="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-12 gap-xl">
+<!-- Left Side: Selection Summary -->
+<div class="lg:col-span-7 flex flex-col gap-lg">
+<div class="flex items-center gap-sm mb-base">
+<span class="material-symbols-outlined text-primary">arrow_back</span>
+<span class="text-label-lg font-label-lg text-on-surface-variant">Return to search</span>
+</div>
+<h1 class="text-headline-lg font-headline-lg text-on-background">Confirm your booking</h1>
+<!-- Parking Details Card -->
+<div class="bg-surface-container-low rounded-xl overflow-hidden shadow-sm flex flex-col md:flex-row border border-outline-variant/30">
+<div class="md:w-1/3 h-48 md:h-auto">
+<img class="w-full h-full object-cover" data-alt="A premium urban parking garage with clean concrete lines, bright LED lighting, and clearly marked spaces. The environment is safe, modern, and high-visibility, reflecting a Corporate Modern design system. The lighting is crisp and emphasizes professional architectural quality." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDVEzNRVW9MxOufhuwtC6mVyOxsUSXiilhr5mlA_pYcutR-H1kpsQbHwEOoyO5tJdlgy3XFZxFEuYTwFIGgBn0S5Und_uBpAxmc0sQgBR8c1N6U0YcBwk3kfW0W419ZkWpiyQ21LsBwJgdhI0bqpXYYdcQ0SY4z8ngvZoWSpK-5_PfzFWPCGlTCGddj79LvuNsLUdWwQx9JMR7VJupS7n3ysMKmJspkb2CGnVaOd7JA9Mv9K5AgMaw">
+</div>
+<div class="md:w-2/3 p-lg flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start">
+<h2 class="text-headline-md font-headline-md text-on-surface">Metro Central Plaza</h2>
+<span class="bg-primary text-on-primary px-sm py-xs rounded text-status-badge font-status-badge">AVAILABLE</span>
+</div>
+<p class="text-body-md font-body-md text-on-surface-variant flex items-center gap-xs mt-xs">
+<span class="material-symbols-outlined text-[18px]">location_on</span>
+                                452 Broadway, New York, NY 10013
+                            </p>
+</div>
+<div class="mt-lg grid grid-cols-2 gap-md">
+<div class="bg-white p-md rounded-lg border border-outline-variant/50">
+<p class="text-label-md font-label-md text-on-surface-variant uppercase">Check In</p>
+<p class="text-body-lg font-body-lg font-bold text-on-surface">Oct 24, 09:00 AM</p>
+</div>
+<div class="bg-white p-md rounded-lg border border-outline-variant/50">
+<p class="text-label-md font-label-md text-on-surface-variant uppercase">Check Out</p>
+<p class="text-body-lg font-body-lg font-bold text-on-surface">Oct 24, 05:00 PM</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Duration Selection & Options -->
+<div class="bg-white p-lg rounded-xl shadow-sm border border-outline-variant/30">
+<h3 class="text-label-lg font-label-lg text-on-surface mb-md">Select Extra Options</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+<label class="flex items-center p-md border border-outline-variant rounded-lg cursor-pointer hover:bg-surface-container-low transition-colors">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary" type="checkbox">
+<div class="ml-md">
+<p class="text-label-lg font-label-lg text-on-surface">EV Charging</p>
+<p class="text-body-md font-body-md text-on-surface-variant">Level 2 Fast Charging</p>
+</div>
+<span class="ml-auto text-label-lg font-label-lg">+$12.00</span>
+</label>
+<label class="flex items-center p-md border border-outline-variant rounded-lg cursor-pointer hover:bg-surface-container-low transition-colors">
+<input class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary" type="checkbox">
+<div class="ml-md">
+<p class="text-label-lg font-label-lg text-on-surface">Valet Service</p>
+<p class="text-body-md font-body-md text-on-surface-variant">Arrival handling</p>
+</div>
+<span class="ml-auto text-label-lg font-label-lg">+$8.00</span>
+</label>
+</div>
+</div>
+</div>
+<!-- Right Side: Payment & Cost -->
+<div class="lg:col-span-5">
+<div class="sticky top-[100px] flex flex-col gap-lg">
+<!-- Cost Summary Card -->
+<div class="bg-white p-xl rounded-xl shadow-md border border-outline-variant/30">
+<h3 class="text-headline-md font-headline-md text-on-surface mb-lg">Price Summary</h3>
+<div class="space-y-md">
+<div class="flex justify-between text-body-lg font-body-lg text-on-surface-variant">
+<span>$4.50/hr × 8 hours</span>
+<span class="text-on-surface font-semibold">$36.00</span>
+</div>
+<div class="flex justify-between text-body-lg font-body-lg text-on-surface-variant">
+<span>Booking Fee</span>
+<span class="text-on-surface font-semibold">$2.50</span>
+</div>
+<div class="flex justify-between text-body-lg font-body-lg text-on-surface-variant">
+<span>Urban Surcharge</span>
+<span class="text-on-surface font-semibold">$1.50</span>
+</div>
+<div class="pt-md mt-md border-t border-outline-variant/30 flex justify-between items-center">
+<span class="text-headline-md font-headline-md text-on-surface">Total</span>
+<span class="text-headline-lg font-headline-lg text-primary">$40.00</span>
+</div>
+</div>
+<!-- Payment Method Section -->
+<div class="mt-xl">
+<h4 class="text-label-lg font-label-lg text-on-surface mb-md">Payment Method</h4>
+<div class="space-y-sm">
+<div class="flex items-center p-md border-2 border-primary rounded-lg bg-surface-container-low">
+<span class="material-symbols-outlined text-primary mr-md">credit_card</span>
+<div class="flex-grow">
+<p class="text-label-lg font-label-lg text-on-surface">Visa ending in 4429</p>
+<p class="text-label-md font-label-md text-on-surface-variant">Expires 12/26</p>
+</div>
+<span class="material-symbols-outlined text-primary">check_circle</span>
+</div>
+<button class="w-full flex items-center justify-center p-md border border-dashed border-outline-variant rounded-lg text-label-lg font-label-lg text-on-surface-variant hover:bg-surface-container-lowest transition-all">
+<span class="material-symbols-outlined mr-sm">add</span>
+                                    Add New Payment Method
+                                </button>
+</div>
+</div>
+<!-- Action Button -->
+<button class="w-full mt-xl bg-primary text-on-primary py-lg rounded-lg font-headline-md text-headline-md hover:opacity-90 transition-all shadow-lg active:scale-[0.98]">
+                            Confirm Booking
+                        </button>
+<p class="text-center text-label-md font-label-md text-on-surface-variant mt-md flex items-center justify-center gap-xs">
+<span class="material-symbols-outlined text-[16px]">lock</span>
+                            Secured by Enterprise SSL Encryption
+                        </p>
+</div>
+<!-- Map Context (Atmospheric) -->
+<div class="relative h-32 rounded-xl overflow-hidden shadow-sm grayscale opacity-60">
+<div class="absolute inset-0 bg-gradient-to-t from-white to-transparent z-10"></div>
+<div class="w-full h-full" data-alt="A clean, minimalist topographical map of lower Manhattan, New York. The map uses a sophisticated color palette of light greys, soft blues, and muted slate to represent roads and buildings. A single high-contrast pin marks the parking destination, suggesting a professional navigation application interface." data-location="New York City" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA4YqLWD4bad0dOrHF10wMnfDIzdqP9xlf3msrDf7CbiyuO0eZPZGtIlBXht2FF-AecVvoGWmiWYYneifa4TKgUuByxqu1w2D6HTE9ULLlNSzH5S7FFMwGlqDYwKZHDqv1CtZQuS0Vm1Hmy0mmC35pI3-3XGY4zyP_C2vh0kcn9aObbMgsgBIibGBcSXOIzr7FPR9KGS2N58E14xDNcojp12Vb4m1NDcIb41SvOdVXq5qAT9wOj1r8')"></div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-high dark:bg-surface-container-highest w-full py-xl px-lg mt-auto flex flex-col md:flex-row justify-between items-center gap-md">
+<div class="flex flex-col items-center md:items-start gap-xs">
+<span class="text-label-lg font-headline-md font-bold text-on-surface dark:text-on-background">ParkFinder</span>
+<p class="text-body-md font-body-md text-on-surface-variant">© 2024 ParkFinder Inc. All rights reserved.</p>
+</div>
+<nav class="flex gap-lg flex-wrap justify-center">
+<a class="text-label-md font-label-md text-on-surface-variant hover:underline hover:text-primary transition-colors" href="#">Privacy Policy</a>
+<a class="text-label-md font-label-md text-on-surface-variant hover:underline hover:text-primary transition-colors" href="#">Terms of Service</a>
+<a class="text-label-md font-label-md text-on-surface-variant hover:underline hover:text-primary transition-colors" href="#">Contact Support</a>
+<a class="text-label-md font-label-md text-on-surface-variant hover:underline hover:text-primary transition-colors" href="#">For Partners</a>
+</nav>
+</footer>
+<!-- Simple Interactivity -->
+<script>
+        // Micro-interaction for the confirm button
+        const confirmBtn = document.querySelector('button.bg-primary');
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', () => {
+                const originalText = confirmBtn.innerText;
+                confirmBtn.innerHTML = `<span class="material-symbols-outlined animate-spin">sync</span> Processing...`;
+                confirmBtn.classList.add('opacity-80', 'cursor-not-allowed');
+                
+                setTimeout(() => {
+                    confirmBtn.innerHTML = `<span class="material-symbols-outlined">check_circle</span> Success!`;
+                    confirmBtn.classList.remove('bg-primary');
+                    confirmBtn.classList.add('bg-secondary', 'text-white');
+                }, 2000);
+            });
+        }
+    </script>
+</body></html>

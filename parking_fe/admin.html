@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ParkFinder | Admin</title>
+    <link rel="stylesheet" href="./src/styles/home.css" />
+    <script type="module" src="./src/scripts/dashboard.js"></script>
+  </head>
+  <body data-page="admin">
+    <div class="app-shell flow">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="ParkFinder"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 20V4h7.1c3.4 0 5.9 2.3 5.9 5.6s-2.5 5.7-5.9 5.7h-3.7V20H7Zm3.4-7.8h3.4c1.6 0 2.8-1 2.8-2.6S15.4 7 13.8 7h-3.4v5.2Z" /></svg></span><span>ParkFinder</span></a>
+        <nav class="nav-links" aria-label="Primary navigation">
+          <a href="/">Find parking</a>
+          <a href="/customer.html">Customer</a>
+          <a href="/staff.html">Staff</a>
+          <a class="active" href="/admin.html">Admin</a>
+        </nav>
+        <div class="top-actions">
+          <button class="avatar-button" type="button" data-account-avatar>AD</button>
+          <button class="ghost-button" type="button" data-action="logout">Logout</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="sidebar">
+          <a class="active" href="#summary">Summary</a>
+          <a href="#users">Users</a>
+          <a href="#approvals">Approvals</a>
+          <a href="#bookings">Bookings</a>
+          <a href="#refunds">Refunds</a>
+        </aside>
+
+        <section class="content-stack">
+          <div class="page-heading" id="summary">
+            <div>
+              <p class="eyebrow" data-account-role>Admin</p>
+              <h1>Admin control center</h1>
+              <p>Review system health, users, pending parking lots, bookings, and refunds.</p>
+            </div>
+            <span class="status-line" id="adminStatus"></span>
+          </div>
+
+          <section class="metric-grid">
+            <div class="metric"><span>Total users</span><strong id="adminUsers">0</strong></div>
+            <div class="metric"><span>Active lots</span><strong id="adminLots">0</strong></div>
+            <div class="metric"><span>Pending approvals</span><strong id="adminPending">0</strong></div>
+            <div class="metric"><span>Revenue</span><strong id="adminRevenue">0</strong></div>
+          </section>
+
+          <section class="surface-panel" id="users">
+            <div class="section-title"><h2>Create staff account</h2><span>Staff onboarding</span></div>
+            <form class="form-grid" id="staffCreateForm">
+              <label class="input-group"><span>Email</span><input name="email" type="email" /></label>
+              <label class="input-group"><span>Phone</span><input name="phone" /></label>
+              <label class="input-group"><span>Full name</span><input name="fullName" required /></label>
+              <label class="input-group"><span>Password</span><input name="password" type="password" minlength="8" required /></label>
+              <div class="toolbar-row full"><button class="primary-button" type="submit">Create staff</button></div>
+            </form>
+          </section>
+
+          <section class="surface-panel">
+            <div class="section-title"><h2>Users</h2><span>Account registry</span></div>
+            <div class="data-list" id="adminUserList"></div>
+          </section>
+
+          <section class="surface-panel">
+            <div class="section-title"><h2>User status</h2><span>Account control</span></div>
+            <form class="form-grid three" id="userStatusForm">
+              <label class="input-group full"><span>User ID</span><input name="userId" required /></label>
+              <label class="input-group"><span>Status</span><select name="status" required><option value="ACTIVE">Active</option><option value="SUSPENDED">Suspended</option><option value="LOCKED">Locked</option></select></label>
+              <label class="input-group"><span>Expected version</span><input name="expectedVersion" type="number" /></label>
+              <label class="input-group full"><span>Reason</span><input name="reason" required /></label>
+              <div class="toolbar-row"><button class="primary-button" type="submit">Update status</button></div>
+            </form>
+          </section>
+
+          <section class="surface-panel" id="approvals">
+            <div class="section-title"><h2>Pending parking lots</h2><span>Approval queue</span></div>
+            <div class="data-list" id="adminPendingLots"></div>
+          </section>
+
+          <section class="surface-panel">
+            <div class="section-title"><h2>Parking lot command</h2><span>Approval actions</span></div>
+            <form class="form-grid three" id="parkingCommandForm">
+              <label class="input-group full"><span>Parking lot ID</span><input name="parkingLotId" required /></label>
+              <label class="input-group"><span>Action</span><select name="action" required><option value="approve">Approve</option><option value="reject">Reject</option><option value="suspend">Suspend</option><option value="activate">Activate</option><option value="approve-closure">Approve closure</option><option value="reject-closure">Reject closure</option></select></label>
+              <label class="input-group"><span>Expected version</span><input name="expectedVersion" type="number" /></label>
+              <label class="input-group full"><span>Reason</span><input name="reason" /></label>
+              <div class="toolbar-row"><button class="primary-button" type="submit">Run command</button></div>
+            </form>
+          </section>
+
+          <section class="surface-panel" id="bookings">
+            <div class="section-title"><h2>Bookings</h2><span>System bookings</span></div>
+            <div class="data-list" id="adminBookingList"></div>
+          </section>
+
+          <section class="surface-panel" id="refunds">
+            <div class="section-title"><h2>Refunds</h2><span>Refund queue</span></div>
+            <div class="data-list" id="adminRefundList"></div>
+          </section>
+
+          <section class="surface-panel">
+            <div class="section-title"><h2>Create refund</h2><span>Payment adjustment</span></div>
+            <form class="form-grid three" id="refundForm">
+              <label class="input-group full"><span>Payment ID</span><input name="paymentId" required /></label>
+              <label class="input-group"><span>Amount</span><input name="amount" type="number" min="0.01" step="1000" required /></label>
+              <label class="input-group full"><span>Reason</span><input name="reason" required /></label>
+              <div class="toolbar-row"><button class="primary-button" type="submit">Create refund</button></div>
+            </form>
+          </section>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
