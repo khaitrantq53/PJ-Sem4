@@ -78,7 +78,10 @@ public interface ParkingLotRepository extends JpaRepository<ParkingLot, UUID> {
                             * sin(radians(p.latitude::double precision))
                         ))) <= cast(:maxDistanceKm as double precision)
                    ))
-              and (:startTime is null or :endTime is null or :vehicleType is null or exists (
+              and (cast(:startTime as timestamp with time zone) is null
+                   or cast(:endTime as timestamp with time zone) is null
+                   or :vehicleType is null
+                   or exists (
                     select 1
                     from parking_vehicle_capacities c
                     where c.parking_lot_id = p.id
@@ -89,15 +92,15 @@ public interface ParkingLotRepository extends JpaRepository<ParkingLot, UUID> {
                            where b.parking_lot_id = p.id
                              and b.vehicle_type = cast(:vehicleType as varchar)
                              and b.status in (:activeStatuses)
-                             and b.start_time < :endTime
-                             and b.end_time > :startTime)
+                             and b.start_time < cast(:endTime as timestamp with time zone)
+                             and b.end_time > cast(:startTime as timestamp with time zone))
                           + coalesce((
                               select sum(cb.quantity)
                               from parking_capacity_blocks cb
                               where cb.parking_lot_id = p.id
                                 and cb.vehicle_type = cast(:vehicleType as varchar)
-                                and cb.start_time < :endTime
-                                and cb.end_time > :startTime
+                                and cb.start_time < cast(:endTime as timestamp with time zone)
+                                and cb.end_time > cast(:startTime as timestamp with time zone)
                           ), 0)
                       )
               ))
@@ -155,7 +158,10 @@ public interface ParkingLotRepository extends JpaRepository<ParkingLot, UUID> {
                             * sin(radians(p.latitude::double precision))
                         ))) <= cast(:maxDistanceKm as double precision)
                    ))
-              and (:startTime is null or :endTime is null or :vehicleType is null or exists (
+              and (cast(:startTime as timestamp with time zone) is null
+                   or cast(:endTime as timestamp with time zone) is null
+                   or :vehicleType is null
+                   or exists (
                     select 1
                     from parking_vehicle_capacities c
                     where c.parking_lot_id = p.id
@@ -166,15 +172,15 @@ public interface ParkingLotRepository extends JpaRepository<ParkingLot, UUID> {
                            where b.parking_lot_id = p.id
                              and b.vehicle_type = cast(:vehicleType as varchar)
                              and b.status in (:activeStatuses)
-                             and b.start_time < :endTime
-                             and b.end_time > :startTime)
+                             and b.start_time < cast(:endTime as timestamp with time zone)
+                             and b.end_time > cast(:startTime as timestamp with time zone))
                           + coalesce((
                               select sum(cb.quantity)
                               from parking_capacity_blocks cb
                               where cb.parking_lot_id = p.id
                                 and cb.vehicle_type = cast(:vehicleType as varchar)
-                                and cb.start_time < :endTime
-                                and cb.end_time > :startTime
+                                and cb.start_time < cast(:endTime as timestamp with time zone)
+                                and cb.end_time > cast(:startTime as timestamp with time zone)
                           ), 0)
                       )
               ))

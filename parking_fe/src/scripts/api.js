@@ -60,6 +60,22 @@ function getToken() {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+function shouldAttachToken(path, options = {}) {
+  if (options.auth === false) {
+    return false;
+  }
+
+  return ![
+    '/auth/customers/register',
+    '/auth/otp/send',
+    '/auth/otp/verify',
+    '/auth/login',
+    '/auth/refresh',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+  ].includes(path);
+}
+
 function normalizeResult(payload) {
   if (!payload || payload.success === false) {
     throw new Error(getErrorMessage(payload, 'Invalid API response'));
@@ -100,7 +116,7 @@ export async function apiRequest(path, options = {}) {
   const headers = new Headers(options.headers || {});
   const token = getToken();
 
-  if (token) {
+  if (token && shouldAttachToken(path, options)) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 

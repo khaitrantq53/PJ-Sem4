@@ -1,52 +1,25 @@
 import { searchParkingLots } from './api.js';
 
-const sampleLots = [
-  {
-    id: 'sample-financial-plaza',
-    name: 'Financial District Plaza',
-    address: 'Hoan Kiem, Ha Noi',
-    latitude: 21.0287,
-    longitude: 105.8521,
-    status: 'ACTIVE',
-    price: 28000,
-    distance: '0.2 km',
-    walk: '4 min walk',
-    tags: ['High availability', 'Covered parking', '24/7 cameras'],
-    image: './src/assets/garage-premium.svg',
-  },
-  {
-    id: 'sample-mission-bay',
-    name: 'Mission Bay Open Lot',
-    address: 'Ba Dinh, Ha Noi',
-    latitude: 21.0367,
-    longitude: 105.8342,
-    status: 'ACTIVE',
-    price: 18000,
-    distance: '0.8 km',
-    walk: '9 min walk',
-    tags: ['Outdoor lot', 'Motorbike', 'Fast payment'],
-    image: './src/assets/open-lot.svg',
-  },
-  {
-    id: 'sample-union-square',
-    name: 'Union Square Garage',
-    address: 'Dong Da, Ha Noi',
-    latitude: 21.0124,
-    longitude: 105.8272,
-    status: 'ACTIVE',
-    price: 24000,
-    distance: '1.1 km',
-    walk: '15 min walk',
-    tags: ['EV charging', 'Security', 'Reservable'],
-    image: './src/assets/building-garage.svg',
-  },
-];
+const demoLot = {
+  id: 'sample-financial-plaza',
+  name: 'Financial District Plaza',
+  address: 'Hoan Kiem, Ha Noi',
+  latitude: 21.0287,
+  longitude: 105.8521,
+  status: 'ACTIVE',
+  price: 28000,
+  distance: '0.2 km',
+  walk: '4 min walk',
+  tags: ['Demo lot', 'Covered parking', 'Booking ready'],
+  image: './src/assets/garage-premium.svg',
+};
 
 const state = {
   activeId: null,
   filter: null,
   lots: [],
-  usingFallback: false,
+  loadError: null,
+  usingDemo: false,
   userLocation: null,
 };
 
@@ -187,7 +160,9 @@ function render() {
   elements.parkingList.innerHTML = '';
 
   if (!lots.length) {
-    elements.parkingList.innerHTML = '<div class="empty-state">No matching parking lots found.</div>';
+    elements.parkingList.innerHTML = state.loadError
+      ? `<div class="empty-state">${escapeHtml(state.loadError)}</div>`
+      : '<div class="empty-state">No matching parking lots found in the backend.</div>';
     elements.resultCount.textContent = '0 parking lots';
     renderMapMarkers();
     return;
@@ -197,9 +172,9 @@ function render() {
     state.activeId = lots[0].id;
   }
 
-  elements.resultCount.textContent = state.usingFallback
-    ? `${lots.length} suggested parking lots`
-    : `${lots.length} parking lots from the system`;
+  elements.resultCount.textContent = state.usingDemo
+    ? `${lots.length} demo parking lot`
+    : `${lots.length} parking lots from backend`;
 
   elements.mapFocus.textContent = elements.addressInput.value.trim() || 'Central area';
 
@@ -239,7 +214,7 @@ function createParkingCard(lot) {
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 4h14a2 2 0 0 1 2 2v14l-4-2-4 2-4-2-4 2V6a2 2 0 0 1 2-2Zm0 2v10.8l4-2 4 2 4-2 2 1V6H5Zm3 3h8v2H8V9Zm0 4h6v2H8v-2Z" />
           </svg>
-          View details
+          Book now
         </button>
         <button class="directions-button" type="button" aria-label="Get directions" data-action="directions">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -298,14 +273,16 @@ async function loadLots(source = 'form') {
 
   try {
     const page = await searchParkingLots(applyQuickFilter(getQueryFromForm()));
-    state.usingFallback = page.items.length === 0;
-    state.lots = page.items.length ? page.items.map(mapBackendLot) : sampleLots;
+    state.loadError = null;
+    state.usingDemo = page.items.length === 0;
+    state.lots = page.items.length ? page.items.map(mapBackendLot) : [demoLot];
     state.activeId = state.lots[0]?.id || null;
-    setStatus(page.items.length ? 'Online' : 'No data yet', page.items.length === 0);
+    setStatus(page.items.length ? 'Online' : 'Demo data', page.items.length === 0);
   } catch (error) {
-    state.usingFallback = true;
-    state.lots = sampleLots;
-    state.activeId = state.lots[0].id;
+    state.loadError = `Cannot load parking lots from backend: ${error.message}`;
+    state.lots = [];
+    state.activeId = null;
+    state.usingDemo = false;
     setStatus('Offline', true);
   }
 
