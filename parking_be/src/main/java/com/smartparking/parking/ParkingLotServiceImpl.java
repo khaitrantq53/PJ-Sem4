@@ -27,6 +27,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -185,7 +186,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
                         criteria.minRating(),
                         activeStatuses().stream().map(BookingStatus::name).toList(),
                         pageable)
-                .map(mapper::toListResponse);
+                .map(this::toPublicListResponse);
     }
 
     @Override
@@ -196,7 +197,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
         if (parkingLot.getStatus() != ParkingLotStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.PARKING_LOT_NOT_ACTIVE, "Parking lot chưa ACTIVE");
         }
-        return mapper.toResponse(parkingLot);
+        return mapper.toResponse(parkingLot, lowestActiveHourlyRate(parkingLot.getId()));
     }
 
     @Override
@@ -508,6 +509,14 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     private ParkingDtos.PricingRuleResponse pricingRuleResponse(ParkingPricingRule rule) {
         return new ParkingDtos.PricingRuleResponse(rule.getId(), rule.getParkingLot().getId(), rule.getVehicleType(),
                 rule.getHourlyRate(), rule.isActive(), rule.getVersion(), rule.getCreatedAt(), rule.getUpdatedAt());
+    }
+
+    private ParkingDtos.ParkingLotListResponse toPublicListResponse(ParkingLot parkingLot) {
+        return mapper.toListResponse(parkingLot, lowestActiveHourlyRate(parkingLot.getId()));
+    }
+
+    private BigDecimal lowestActiveHourlyRate(UUID parkingLotId) {
+        return pricingRuleRepository.findLowestActiveHourlyRate(parkingLotId).orElse(null);
     }
 
     private void applyService(ParkingServiceEntity service, ParkingDtos.ParkingServiceRequest request) {

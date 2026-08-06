@@ -167,7 +167,7 @@ function pathForRole(role) {
     return '/staff.html';
   }
 
-  return '/customer.html';
+  return '/';
 }
 
 async function loadIdentity() {
@@ -288,135 +288,9 @@ async function initAuth() {
         body: jsonBody(formData(event.currentTarget)),
       });
       saveSession(auth);
-      window.location.href = '/customer.html';
+      window.location.href = pathForRole(auth.account?.role);
     } catch (error) {
       setStatus('#registerStatus', error.message, true);
-    }
-  });
-}
-
-async function loadCustomer() {
-  const current = await requireRole('CUSTOMER');
-  if (!current) {
-    return;
-  }
-
-  const prefilledParkingLotId = new URLSearchParams(window.location.search).get('parkingLotId');
-  if (prefilledParkingLotId && $('#bookingParkingLotId')) {
-    $('#bookingParkingLotId').value = prefilledParkingLotId;
-  }
-
-  try {
-    const [profile, vehicles, bookings, lots] = await Promise.all([
-      apiRequest('/customers/me'),
-      apiRequest('/customer/vehicles'),
-      apiPage('/customer/bookings'),
-      apiPage('/public/parking-lots', { size: 20 }),
-    ]);
-
-    setText('#profileName', profile.fullName || 'Customer');
-    setText('#profileEmail', profile.email || profile.phone || '-');
-    setText('#vehicleCount', vehicles.length);
-    setText('#bookingCount', bookings.pagination.totalElements);
-    setText('#lotCount', lots.pagination.totalElements);
-
-    renderList('#vehicleList', vehicles, (vehicle) => `
-      <article class="data-row">
-        <div>
-          <h3>${escapeHtml(vehicle.plateNumber)}</h3>
-          <p>${escapeHtml(vehicle.vehicleType)} - ${escapeHtml(vehicle.brand || 'No brand')} - ${escapeHtml(vehicle.color || 'No color')}</p>
-        </div>
-        <div class="pill-row">
-          ${vehicle.defaultVehicle ? '<span class="pill">Default</span>' : ''}
-          <span class="pill">${escapeHtml(vehicle.status)}</span>
-        </div>
-      </article>
-    `);
-
-    renderList('#bookingList', bookings.items, (booking) => `
-      <article class="data-row">
-        <div>
-          <h3>${escapeHtml(booking.bookingCode || booking.id)}</h3>
-          <p>${escapeHtml(booking.startTime)} to ${escapeHtml(booking.endTime)}</p>
-        </div>
-        <div class="pill-row">
-          <span class="pill">${escapeHtml(booking.status)}</span>
-          <span class="pill">${money(booking.total)}</span>
-        </div>
-      </article>
-    `);
-
-    renderList('#parkingPicker', lots.items, (lot) => `
-      <article class="data-row">
-        <div>
-          <h3>${escapeHtml(lot.name)}</h3>
-          <p>${escapeHtml(lot.address)}</p>
-        </div>
-        <button class="ghost-button" type="button" data-fill-lot="${escapeHtml(lot.id)}">Use</button>
-      </article>
-    `);
-
-    $all('[data-fill-lot]').forEach((button) => {
-      button.addEventListener('click', () => {
-        $('#bookingParkingLotId').value = button.dataset.fillLot;
-      });
-    });
-  } catch (error) {
-    setStatus('#customerStatus', error.message, true);
-  }
-}
-
-function bindCustomerForms() {
-  $('#profileForm')?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    setStatus('#customerStatus', 'Updating profile...');
-    try {
-      await apiRequest('/customers/me', {
-        method: 'PATCH',
-        body: jsonBody(formData(event.currentTarget)),
-      });
-      setStatus('#customerStatus', 'Profile updated.');
-      await loadCustomer();
-    } catch (error) {
-      setStatus('#customerStatus', error.message, true);
-    }
-  });
-
-  $('#vehicleForm')?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const data = formData(event.currentTarget);
-    data.defaultVehicle = Boolean(data.defaultVehicle);
-    setStatus('#customerStatus', 'Saving vehicle...');
-    try {
-      await apiRequest('/customer/vehicles', {
-        method: 'POST',
-        body: jsonBody(data),
-      });
-      event.currentTarget.reset();
-      setStatus('#customerStatus', 'Vehicle saved.');
-      await loadCustomer();
-    } catch (error) {
-      setStatus('#customerStatus', error.message, true);
-    }
-  });
-
-  $('#bookingForm')?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const data = formData(event.currentTarget);
-    data.startTime = toIso(data.startTime);
-    data.endTime = toIso(data.endTime);
-    data.serviceIds = [];
-    setStatus('#customerStatus', 'Creating booking...');
-    try {
-      const booking = await apiRequest('/customer/bookings', {
-        method: 'POST',
-        headers: { 'Idempotency-Key': crypto.randomUUID() },
-        body: jsonBody(data),
-      });
-      setStatus('#customerStatus', `Booking ${booking.bookingCode || booking.id} created.`);
-      await loadCustomer();
-    } catch (error) {
-      setStatus('#customerStatus', error.message, true);
     }
   });
 }
@@ -1589,11 +1463,6 @@ bindLogout();
 
 if (page === 'auth') {
   initAuth();
-}
-
-if (page === 'customer') {
-  bindCustomerForms();
-  loadCustomer();
 }
 
 if (page === 'staff') {

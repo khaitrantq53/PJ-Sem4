@@ -7,8 +7,6 @@ function parkingConfigPlugin() {
     configureServer(server) {
       server.middlewares.use('/config.js', (_request, response) => {
         const config = {
-          googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || '',
-          googleMapsMapId: process.env.GOOGLE_MAPS_MAP_ID || '',
           defaultMapCenter: {
             lat: Number(process.env.DEFAULT_MAP_LAT || 21.0278),
             lng: Number(process.env.DEFAULT_MAP_LNG || 105.8342),

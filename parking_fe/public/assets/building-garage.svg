@@ -5,7 +5,7 @@
   <path d="M0 241h720v74H0z" fill="#cfd6dc"/>
   <path d="M116 52h488v199H116z" fill="#ffffff"/>
   <path d="M144 82h432v34H144zM144 135h432v34H144zM144 188h432v34H144z" fill="#ded8e7"/>
-  <g fill="#0a0534" opacity="0.88">
+  <g fill="#0a0a0a" opacity="0.88">
     <rect x="170" y="88" width="58" height="22" rx="4"/>
     <rect x="260" y="88" width="58" height="22" rx="4"/>
     <rect x="350" y="88" width="58" height="22" rx="4"/>
@@ -15,7 +15,7 @@
     <rect x="350" y="141" width="58" height="22" rx="4"/>
     <rect x="440" y="141" width="58" height="22" rx="4"/>
   </g>
-  <path d="M228 222v-55h128v55h-128Z" fill="#0a0534"/>
+  <path d="M228 222v-55h128v55h-128Z" fill="#0a0a0a"/>
   <path d="M388 222v-80h108v80H388Z" fill="#10b981"/>
   <text x="442" y="191" text-anchor="middle" font-family="Arial, sans-serif" font-size="44" font-weight="800" fill="#fff">P</text>
   <path d="M80 251c136-12 223-11 312 0 81 10 153 12 249-5l79 69H0l80-64Z" fill="#b9c2ca"/>

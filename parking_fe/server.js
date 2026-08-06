@@ -66,8 +66,6 @@ function serveStatic(request, response) {
 
 function serveClientConfig(response) {
   const config = {
-    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || '',
-    googleMapsMapId: process.env.GOOGLE_MAPS_MAP_ID || '',
     defaultMapCenter,
     defaultMapZoom: Number(process.env.DEFAULT_MAP_ZOOM || 13),
   };

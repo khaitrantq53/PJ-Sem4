@@ -1,11 +1,41 @@
-import { PageShell } from '../components/PageShell.jsx';
-import { legacyPages } from '../pages/legacyPages.js';
+import { AdminAudit } from '../pages/admin/AdminAudit.jsx';
+import { AdminBookings } from '../pages/admin/AdminBookings.jsx';
+import { AdminDashboard } from '../pages/admin/AdminDashboard.jsx';
+import { AdminLots } from '../pages/admin/AdminLots.jsx';
+import { AdminRefunds } from '../pages/admin/AdminRefunds.jsx';
+import { AdminStaff } from '../pages/admin/AdminStaff.jsx';
+import { AdminUsers } from '../pages/admin/AdminUsers.jsx';
+import { AuthPage } from '../pages/auth/AuthPage.jsx';
+import { ConfirmBookingPage } from '../pages/booking/ConfirmBookingPage.jsx';
+import { CustomerDashboard } from '../pages/customer/CustomerDashboard.jsx';
+import { CustomerPayments } from '../pages/customer/CustomerPayments.jsx';
+import { CustomerSupport } from '../pages/customer/CustomerSupport.jsx';
+import { CustomerVehicles } from '../pages/customer/CustomerVehicles.jsx';
+import { HomePage } from '../pages/home/HomePage.jsx';
+import { ParkingDetailPage } from '../pages/parking/ParkingDetailPage.jsx';
+import { StaffPage } from '../pages/staff/StaffPage.jsx';
 import { getCurrentPageName, runtimeLoaders } from './routes.js';
+
+const adminComponents = {
+  'admin.html': AdminDashboard,
+  'admin-users.html': AdminUsers,
+  'admin-staff.html': AdminStaff,
+  'admin-lots.html': AdminLots,
+  'admin-refunds.html': AdminRefunds,
+  'admin-audit.html': AdminAudit,
+  'admin-bookings.html': AdminBookings,
+};
+
+const pageComponents = {
+  'index.html': HomePage,
+  'auth.html': AuthPage,
+  'staff.html': StaffPage,
+  'parking-detail.html': ParkingDetailPage,
+  'confirm-booking.html': ConfirmBookingPage,
+};
 
 function ensureDefaultParkingConfig() {
   window.PARKING_CONFIG = window.PARKING_CONFIG || {
-    googleMapsApiKey: '',
-    googleMapsMapId: '',
     defaultMapCenter: { lat: 21.0278, lng: 105.8342 },
     defaultMapZoom: 13,
   };
@@ -40,13 +70,35 @@ async function beforeRuntimeLoad(pageName) {
 
 export default function App() {
   const pageName = getCurrentPageName();
-  const page = legacyPages[pageName] || legacyPages['index.html'];
+
+  if (pageName === 'customer.html') {
+    return <CustomerDashboard />;
+  }
+
+  if (pageName === 'customer-support.html') {
+    return <CustomerSupport />;
+  }
+
+  if (pageName === 'customer-payments.html') {
+    return <CustomerPayments />;
+  }
+
+  if (pageName === 'customer-vehicles.html') {
+    return <CustomerVehicles />;
+  }
+
+  const AdminComponent = adminComponents[pageName];
+  if (AdminComponent) {
+    return <AdminComponent />;
+  }
+
+  const PageComponent = pageComponents[pageName] || HomePage;
+  const runtimePageName = pageComponents[pageName] ? pageName : 'index.html';
 
   return (
-    <PageShell
-      beforeRuntimeLoad={() => beforeRuntimeLoad(pageName)}
-      page={page}
-      runtimeLoader={runtimeLoaders[pageName]}
+    <PageComponent
+      beforeRuntimeLoad={() => beforeRuntimeLoad(runtimePageName)}
+      runtimeLoader={runtimeLoaders[runtimePageName]}
     />
   );
 }

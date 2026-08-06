@@ -46,6 +46,7 @@ public final class ParkingDtos {
             BigDecimal longitude,
             ParkingLotStatus status,
             String description,
+            BigDecimal hourlyRate,
             Long version,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt
@@ -59,6 +60,7 @@ public final class ParkingDtos {
             BigDecimal latitude,
             BigDecimal longitude,
             ParkingLotStatus status,
+            BigDecimal hourlyRate,
             Long version,
             OffsetDateTime updatedAt
     ) {

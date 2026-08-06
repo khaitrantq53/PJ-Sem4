@@ -9,7 +9,7 @@
     <path d="M152 104v139M248 104v139M344 104v139M440 104v139M536 104v139"/>
   </g>
   <g>
-    <rect x="124" y="135" width="78" height="36" rx="11" fill="#0a0534"/>
+    <rect x="124" y="135" width="78" height="36" rx="11" fill="#0a0a0a"/>
     <rect x="404" y="178" width="78" height="36" rx="11" fill="#2563eb"/>
     <rect x="510" y="135" width="78" height="36" rx="11" fill="#10b981"/>
     <rect x="242" y="178" width="78" height="36" rx="11" fill="#f59e0b"/>
@@ -18,5 +18,5 @@
   <circle cx="88" cy="68" r="44" fill="#bcebd7"/>
   <circle cx="640" cy="61" r="52" fill="#bcebd7"/>
   <rect x="72" y="40" width="118" height="42" rx="12" fill="#fff"/>
-  <text x="131" y="68" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#0a0534">PARK</text>
+  <text x="131" y="68" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#0a0a0a">PARK</text>
 </svg>
