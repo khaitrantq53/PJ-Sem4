@@ -274,8 +274,27 @@ function getAccountLabel(account) {
   return account?.email || account?.phone || account?.id || 'Customer';
 }
 
+function getAccountEmail(account) {
+  return account?.email || account?.phone || 'customer@example.com';
+}
+
+function getAccountDisplayName(account) {
+  const label = account?.fullName
+    || account?.name
+    || account?.displayName
+    || account?.email?.replace(/@.*/, '')
+    || account?.phone
+    || 'Customer';
+
+  return String(label)
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((piece) => piece.charAt(0).toUpperCase() + piece.slice(1))
+    .join(' ');
+}
+
 function getAccountInitials(account) {
-  const label = getAccountLabel(account).replace(/@.*/, '');
+  const label = getAccountDisplayName(account).replace(/@.*/, '');
   const pieces = label.split(/[.\-_\s]+/).filter(Boolean);
   const initials = pieces.length > 1
     ? `${pieces[0][0]}${pieces[1][0]}`
@@ -284,17 +303,90 @@ function getAccountInitials(account) {
   return initials.toUpperCase();
 }
 
+const accountMenuIcons = {
+  book: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H20v17H7.5A2.5 2.5 0 0 0 5 21.5v-17ZM7.5 4A.5.5 0 0 0 7 4.5V17.1c.2-.1.3-.1.5-.1H18V4H7.5ZM4 4h1v18H4V4Z" /></svg>',
+  card: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 4h16V7H4v2Zm0 3v5h16v-5H4Zm2 2h5v2H6v-2Z" /></svg>',
+  chevron: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5H7Z" /></svg>',
+  dashboard: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h7V4H4v9Zm9 7h7V4h-7v16ZM4 20h7v-5H4v5Z" /></svg>',
+  life: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.3 6.3-3 3A3.9 3.9 0 0 0 12 10a3.9 3.9 0 0 0-3.3 1.3l-3-3A8 8 0 0 1 18.3 8.3ZM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm-8-4c0-.8.1-1.5.3-2.2l3 3A3.9 3.9 0 0 0 8.6 16l-3 3A8 8 0 0 1 4 12Zm4.3 6.3 3-3A3.9 3.9 0 0 0 12 16a3.9 3.9 0 0 0 3.3-1.3l3 3A8 8 0 0 1 8.3 18.3ZM18.4 19l-3-3A3.9 3.9 0 0 0 16 12c0-.3 0-.5-.1-.8l3-3A8 8 0 0 1 18.4 19Z" /></svg>',
+  logout: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h9v2H6v14h7v2H4V3Zm12.6 5.4L20.2 12l-3.6 3.6-1.4-1.4 1.2-1.2H10v-2h6.4l-1.2-1.2 1.4-1.4Z" /></svg>',
+  plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z" /></svg>',
+  settings: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m19.4 13.5.1-1.5-.1-1.5 2-1.5-2-3.5-2.4 1a8 8 0 0 0-2.6-1.5L14 2h-4l-.4 2.5A8 8 0 0 0 7 6L4.6 5 2.6 8.5l2 1.5-.1 1.5.1 1.5-2 1.5 2 3.5L7 17a8 8 0 0 0 2.6 1.5L10 21h4l.4-2.5A8 8 0 0 0 17 17l2.4 1 2-3.5-2-1.5ZM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z" /></svg>',
+  user: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.4 0-8 2.1-8 5v1h16v-1c0-2.9-3.6-5-8-5Z" /></svg>',
+  users: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8.5 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM8 13c-3.3 0-6 1.7-6 3.8V20h12v-3.2C14 14.7 11.3 13 8 13Zm8.5 1c-.9 0-1.8.2-2.6.5a4 4 0 0 1 2.1 3.4V20h6v-2.6c0-1.9-2.5-3.4-5.5-3.4Z" /></svg>',
+  vehicles: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h1a2 2 0 0 1 2 2v5h-2v-2H4v2H2v-5a2 2 0 0 1 2-2h1Zm2.1 0h9.8l-1.1-3.2a.8.8 0 0 0-.8-.6H9a.8.8 0 0 0-.8.6L7.1 11ZM6 14a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm12 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" /></svg>',
+};
+
 function renderSignedInHeader(account) {
   if (!elements.topActions) {
     return;
   }
 
+  const accountName = getAccountDisplayName(account);
+  const accountEmail = getAccountEmail(account);
+  const initials = getAccountInitials(account);
+
   elements.topActions.innerHTML = `
-    <a class="avatar-button home-avatar-link" href="/customer.html" title="${escapeHtml(getAccountLabel(account))}">
-      ${escapeHtml(getAccountInitials(account))}
-    </a>
-    <button class="ghost-button" type="button" data-action="logout">Logout</button>
+    <div class="account-menu" data-account-menu>
+      <button class="account-menu-trigger" type="button" aria-haspopup="menu" aria-expanded="false" data-account-menu-trigger>
+        <span class="account-avatar" aria-hidden="true">${escapeHtml(initials)}</span>
+        <span class="account-trigger-name">${escapeHtml(accountName)}</span>
+        ${accountMenuIcons.chevron}
+      </button>
+
+      <div class="account-menu-content" role="menu" aria-hidden="true" data-account-menu-content>
+        <div class="account-menu-label">
+          <span class="account-avatar large" aria-hidden="true">${escapeHtml(initials)}</span>
+          <span>
+            <strong>${escapeHtml(accountName)}</strong>
+            <small>${escapeHtml(accountEmail)}</small>
+          </span>
+        </div>
+        <hr />
+        <a class="account-menu-item" role="menuitem" href="/customer.html">${accountMenuIcons.dashboard}<span>Dashboard</span></a>
+        <a class="account-menu-item" role="menuitem" href="/customer-vehicles.html">${accountMenuIcons.vehicles}<span>Vehicles</span></a>
+        <a class="account-menu-item" role="menuitem" href="/customer-payments.html">${accountMenuIcons.card}<span>Payments</span></a>
+        <a class="account-menu-item" role="menuitem" href="/customer-support.html">${accountMenuIcons.life}<span>Support</span></a>
+        <hr />
+        <button class="account-menu-item destructive" type="button" role="menuitem" data-action="logout">${accountMenuIcons.logout}<span>Log out</span><kbd>⇧⌘Q</kbd></button>
+      </div>
+    </div>
   `;
+
+  const menu = elements.topActions.querySelector('[data-account-menu]');
+  const trigger = elements.topActions.querySelector('[data-account-menu-trigger]');
+  const content = elements.topActions.querySelector('[data-account-menu-content]');
+
+  const closeOnOutsideClick = (event) => {
+    if (!menu?.contains(event.target)) {
+      setOpen(false);
+    }
+  };
+
+  const setOpen = (open) => {
+    menu?.classList.toggle('open', open);
+    trigger?.setAttribute('aria-expanded', open ? 'true' : 'false');
+    content?.setAttribute('aria-hidden', open ? 'false' : 'true');
+
+    if (open) {
+      window.setTimeout(() => {
+        document.addEventListener('click', closeOnOutsideClick);
+      }, 0);
+    } else {
+      document.removeEventListener('click', closeOnOutsideClick);
+    }
+  };
+
+  trigger?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setOpen(!menu?.classList.contains('open'));
+  });
+
+  content?.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-action="logout"]')) {
+      setOpen(false);
+    }
+  });
 
   elements.topActions.querySelector('[data-action="logout"]')?.addEventListener('click', () => {
     clearSession();

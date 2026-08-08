@@ -13,7 +13,9 @@ import { CustomerSupport } from '../pages/customer/CustomerSupport.jsx';
 import { CustomerVehicles } from '../pages/customer/CustomerVehicles.jsx';
 import { HomePage } from '../pages/home/HomePage.jsx';
 import { ParkingDetailPage } from '../pages/parking/ParkingDetailPage.jsx';
+import { StaffBookingsPage } from '../pages/staff/StaffBookingsPage.jsx';
 import { StaffPage } from '../pages/staff/StaffPage.jsx';
+import { StaffParkingLotsPage } from '../pages/staff/StaffParkingLotsPage.jsx';
 import { getCurrentPageName, runtimeLoaders } from './routes.js';
 
 const adminComponents = {
@@ -30,6 +32,8 @@ const pageComponents = {
   'index.html': HomePage,
   'auth.html': AuthPage,
   'staff.html': StaffPage,
+  'staff-parking-lots.html': StaffParkingLotsPage,
+  'staff-bookings.html': StaffBookingsPage,
   'parking-detail.html': ParkingDetailPage,
   'confirm-booking.html': ConfirmBookingPage,
 };

@@ -1,11 +1,73 @@
 import { PageShell } from '../../components/PageShell.jsx';
+import { createStaffPage, icons, staffButton, staffHeadActions } from './staffLayout.js';
 
-const staffPage = {
-  "title": "ParkFinder | Staff",
-  "bodyClass": "",
-  "pageKey": "staff",
-  "markup": "<div class=\"app-shell flow\">\n      <header class=\"topbar\">\n        <a class=\"brand\" href=\"/\" aria-label=\"ParkFinder\"><span class=\"brand-mark\" aria-hidden=\"true\"><svg viewBox=\"0 0 24 24\"><path d=\"M7 20V4h7.1c3.4 0 5.9 2.3 5.9 5.6s-2.5 5.7-5.9 5.7h-3.7V20H7Zm3.4-7.8h3.4c1.6 0 2.8-1 2.8-2.6S15.4 7 13.8 7h-3.4v5.2Z\" /></svg></span><span>ParkFinder</span></a>\n        <nav class=\"nav-links\" aria-label=\"Primary navigation\">\n          <a href=\"/\">Find parking</a>\n          <a href=\"/customer.html\">Customer</a>\n          <a class=\"active\" href=\"/staff.html\">Staff</a>\n          <a href=\"/admin.html\">Admin</a>\n        </nav>\n        <div class=\"top-actions\">\n          <button class=\"avatar-button\" type=\"button\" data-account-avatar>ST</button>\n          <button class=\"ghost-button\" type=\"button\" data-action=\"logout\">Logout</button>\n        </div>\n      </header>\n\n      <main class=\"workspace\">\n        <aside class=\"sidebar\">\n          <a class=\"active\" href=\"#summary\">Summary</a>\n          <a href=\"#lots\">Parking lots</a>\n          <a href=\"#capacity\">Capacity</a>\n          <a href=\"#pricing\">Pricing</a>\n          <a href=\"#extras\">Extras</a>\n          <a href=\"#bookings\">Bookings</a>\n        </aside>\n\n        <section class=\"content-stack\">\n          <div class=\"page-heading\" id=\"summary\">\n            <div>\n              <p class=\"eyebrow\" data-account-role>Staff</p>\n              <h1>Staff operations</h1>\n              <p>Create and configure parking lots, monitor capacity, pricing, and booking queues.</p>\n            </div>\n            <span class=\"status-line\" id=\"staffStatus\"></span>\n          </div>\n\n          <section class=\"metric-grid\">\n            <div class=\"metric\"><span>Available</span><strong id=\"staffAvailable\">0</strong></div>\n            <div class=\"metric\"><span>Reserved</span><strong id=\"staffReserved\">0</strong></div>\n            <div class=\"metric\"><span>Overdue</span><strong id=\"staffOverdue\">0</strong></div>\n            <div class=\"metric\"><span>Revenue</span><strong id=\"staffRevenue\">0</strong></div>\n          </section>\n\n          <section class=\"surface-panel\" id=\"lots\">\n            <div class=\"section-title\"><h2>Create parking lot</h2><span>Draft setup</span></div>\n            <form class=\"form-grid\" id=\"staffLotForm\">\n              <label class=\"input-group\"><span>Name</span><input name=\"name\" required /></label>\n              <label class=\"input-group\"><span>Address</span><input name=\"address\" required /></label>\n              <label class=\"input-group\"><span>Latitude</span><input name=\"latitude\" type=\"number\" step=\"0.000001\" /></label>\n              <label class=\"input-group\"><span>Longitude</span><input name=\"longitude\" type=\"number\" step=\"0.000001\" /></label>\n              <label class=\"input-group full\"><span>Description</span><input name=\"description\" /></label>\n              <div class=\"toolbar-row full\"><button class=\"primary-button\" type=\"submit\">Create draft lot</button></div>\n            </form>\n          </section>\n\n          <section class=\"surface-panel\">\n            <div class=\"section-title\"><h2>Managed parking lots</h2><span>Assigned lots</span></div>\n            <div class=\"data-list\" id=\"staffLotList\"></div>\n          </section>\n\n          <section class=\"surface-panel\" id=\"capacity\">\n            <div class=\"section-title\"><h2>Capacity</h2><span>Vehicle capacity</span></div>\n            <form class=\"form-grid three\" id=\"capacityForm\">\n              <label class=\"input-group full\"><span>Parking lot ID</span><input name=\"parkingLotId\" required /></label>\n              <label class=\"input-group\"><span>Vehicle type</span><select name=\"vehicleType\" required><option value=\"CAR\">Car</option><option value=\"MOTORBIKE\">Motorbike</option><option value=\"ELECTRIC_CAR\">Electric car</option><option value=\"BICYCLE\">Bicycle</option><option value=\"TRUCK\">Truck</option></select></label>\n              <label class=\"input-group\"><span>Total capacity</span><input name=\"totalCapacity\" type=\"number\" min=\"0\" required /></label>\n              <label class=\"input-group\"><span>Version</span><input name=\"version\" type=\"number\" /></label>\n              <div class=\"toolbar-row\"><button class=\"primary-button\" type=\"submit\">Update capacity</button></div>\n            </form>\n          </section>\n\n          <section class=\"surface-panel\" id=\"pricing\">\n            <div class=\"section-title\"><h2>Pricing rule</h2><span>Hourly rate</span></div>\n            <form class=\"form-grid three\" id=\"pricingForm\">\n              <label class=\"input-group full\"><span>Parking lot ID</span><input name=\"parkingLotId\" required /></label>\n              <label class=\"input-group\"><span>Vehicle type</span><select name=\"vehicleType\" required><option value=\"CAR\">Car</option><option value=\"MOTORBIKE\">Motorbike</option><option value=\"ELECTRIC_CAR\">Electric car</option><option value=\"BICYCLE\">Bicycle</option><option value=\"TRUCK\">Truck</option></select></label>\n              <label class=\"input-group\"><span>Hourly rate</span><input name=\"hourlyRate\" type=\"number\" min=\"0\" step=\"1000\" required /></label>\n              <label class=\"input-group\"><span>Active</span><select name=\"active\"><option value=\"on\">Yes</option><option value=\"\">No</option></select></label>\n              <label class=\"input-group\"><span>Version</span><input name=\"version\" type=\"number\" /></label>\n              <div class=\"toolbar-row\"><button class=\"primary-button\" type=\"submit\">Save pricing</button></div>\n            </form>\n          </section>\n\n          <section class=\"surface-panel\" id=\"extras\">\n            <div class=\"section-title\"><h2>Services and policies</h2><span>Lot configuration</span></div>\n            <form class=\"form-grid three\" id=\"serviceForm\">\n              <label class=\"input-group full\"><span>Parking lot ID</span><input name=\"parkingLotId\" required /></label>\n              <label class=\"input-group\"><span>Service name</span><input name=\"name\" required /></label>\n              <label class=\"input-group\"><span>Price</span><input name=\"price\" type=\"number\" min=\"0\" step=\"1000\" required /></label>\n              <label class=\"input-group\"><span>Active</span><select name=\"active\"><option value=\"on\">Yes</option><option value=\"\">No</option></select></label>\n              <label class=\"input-group\"><span>Version</span><input name=\"version\" type=\"number\" /></label>\n              <div class=\"toolbar-row\"><button class=\"primary-button\" type=\"submit\">Create service</button></div>\n            </form>\n            <form class=\"form-grid three\" id=\"policyForm\" style=\"margin-top: 14px\">\n              <label class=\"input-group full\"><span>Parking lot ID</span><input name=\"parkingLotId\" required /></label>\n              <label class=\"input-group\"><span>Policy key</span><input name=\"policyKey\" required /></label>\n              <label class=\"input-group\"><span>Policy value</span><input name=\"policyValue\" required /></label>\n              <label class=\"input-group\"><span>Version</span><input name=\"version\" type=\"number\" /></label>\n              <div class=\"toolbar-row\"><button class=\"primary-button\" type=\"submit\">Save policy</button></div>\n            </form>\n          </section>\n\n          <section class=\"surface-panel\">\n            <div class=\"section-title\"><h2>Promotion</h2><span>Discount campaign</span></div>\n            <form class=\"form-grid three\" id=\"promotionForm\">\n              <label class=\"input-group full\"><span>Parking lot ID</span><input name=\"parkingLotId\" required /></label>\n              <label class=\"input-group\"><span>Code</span><input name=\"code\" required /></label>\n              <label class=\"input-group\"><span>Name</span><input name=\"name\" required /></label>\n              <label class=\"input-group\"><span>Discount amount</span><input name=\"discountAmount\" type=\"number\" min=\"0\" step=\"1000\" required /></label>\n              <label class=\"input-group\"><span>Starts at</span><input name=\"startsAt\" type=\"datetime-local\" required /></label>\n              <label class=\"input-group\"><span>Ends at</span><input name=\"endsAt\" type=\"datetime-local\" required /></label>\n              <label class=\"input-group\"><span>Active</span><select name=\"active\"><option value=\"on\">Yes</option><option value=\"\">No</option></select></label>\n              <label class=\"input-group\"><span>Version</span><input name=\"version\" type=\"number\" /></label>\n              <div class=\"toolbar-row\"><button class=\"primary-button\" type=\"submit\">Create promotion</button></div>\n            </form>\n          </section>\n\n          <section class=\"surface-panel\" id=\"bookings\">\n            <div class=\"section-title\"><h2>Booking queue</h2><span>Operational queue</span></div>\n            <div class=\"data-list\" id=\"staffBookingList\"></div>\n          </section>\n        </section>\n      </main>\n    </div>"
-};
+const dashboardContent = `
+  <header class="staff-page-head">
+    <div>
+      <p data-account-role>Staff</p>
+      <h1>Capacity Management</h1>
+      <span>Monitor today capacity, bookings, revenue, and operational health.</span>
+    </div>
+    ${staffHeadActions(staffButton('Export Report', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10.2l3.6-3.6L17 11l-5 5-5-5 1.4-1.4 3.6 3.6V3h2ZM5 19h14v2H5v-2Z" /></svg>'))}
+  </header>
+
+  <span class="status-line staff-status-line" id="staffStatus"></span>
+
+  <section class="staff-capacity-hero" aria-label="Capacity overview">
+    <div class="staff-capacity-metrics">
+      <article><span>Available</span><strong class="tone-lavender" id="staffAvailable">0</strong></article>
+      <article><span>Occupied</span><strong class="tone-peach" id="staffOccupied">0</strong></article>
+      <article><span>Reserved</span><strong class="tone-ochre" id="staffReserved">0</strong></article>
+      <article><span>Blocked</span><strong class="tone-pink" id="staffBlocked">0</strong></article>
+    </div>
+    <div class="staff-capacity-mark" aria-hidden="true">
+      <svg viewBox="0 0 80 80">
+        <path d="M40 6a34 34 0 1 0 0 68 34 34 0 0 0 0-68Zm-8 50V24h15c8 0 13 5 13 12.8 0 8-5 13.2-13 13.2h-7v6h-8Zm8-14h6.5c3.2 0 5.3-2 5.3-5.1 0-3-2.1-4.9-5.3-4.9H40v10Z" />
+      </svg>
+    </div>
+  </section>
+
+  <div class="staff-dashboard-grid">
+    <section class="staff-panel">
+      <div class="staff-section-title"><h2>Today's Performance</h2><span>Live from backend</span></div>
+      <div class="staff-performance-grid">
+        <article><div>${icons.bookings}<span>Bookings</span></div><strong id="staffTodayBookings">0</strong></article>
+        <article><div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4V6Zm2 2v8h12V8H6Zm6 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" /></svg><span>Revenue</span></div><strong id="staffRevenue">0</strong></article>
+      </div>
+      <div class="staff-activity-chart" aria-label="Activity trend">
+        <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+    </section>
+
+    <section class="staff-panel" id="operations">
+      <div class="staff-section-title"><h2>Operational Status</h2><span>Needs attention</span></div>
+      <div class="staff-status-list">
+        <article><div>${icons.bookings}<span>Pending</span></div><strong id="staffPending">0</strong></article>
+        <article><div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.8 5.3 3.5 20.5 18.7 19.2 20l-2-2H4V6h2.2L4 4.8ZM8.2 8H6v8h9.2l-7-8ZM20 6v10.3L17.7 14H18V8h-6.3l-2-2H20Z" /></svg><span>Overdue</span></div><strong id="staffOverdue">0</strong></article>
+        <article><div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2.8 4.2 1.4-1.4 17 17-1.4 1.4-2.4-2.4A10.8 10.8 0 0 1 12 20a11 11 0 0 1-9.7-5.8l1.8-1A9 9 0 0 0 12 18c1.4 0 2.8-.3 4-.9L2.8 4.2ZM12 4a11 11 0 0 1 9.7 5.8l-1.8 1A9 9 0 0 0 12 6c-1.3 0-2.5.3-3.6.7L6.8 5A10.8 10.8 0 0 1 12 4Z" /></svg><span>Offline</span></div><strong class="danger" id="staffOfflineDevices">0</strong></article>
+      </div>
+    </section>
+  </div>
+
+  <div class="staff-dashboard-grid lower">
+    <section class="staff-panel" id="parking-lots">
+      <div class="staff-section-title"><h2>Managed Parking Lots</h2><span id="staffManagedLots">0 lots</span></div>
+      <div class="staff-data-list" id="staffLotList"></div>
+    </section>
+
+    <section class="staff-panel" id="bookings">
+      <div class="staff-section-title"><h2>Booking Queue</h2><span id="staffOpenBookings">0 records</span></div>
+      <div class="staff-data-list" id="staffBookingList"></div>
+    </section>
+  </div>
+`;
+
+const staffPage = createStaffPage({
+  activeNav: 'dashboard',
+  content: dashboardContent,
+  pageKey: 'staff',
+  title: 'ParkFinder Staff | Dashboard',
+});
 
 export function StaffPage(props) {
   return <PageShell {...props} page={staffPage} />;
