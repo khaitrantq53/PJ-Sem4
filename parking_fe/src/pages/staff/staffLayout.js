@@ -55,6 +55,7 @@ export function createStaffPage({
   contentClass = '',
   pageClass = '',
   pageKey,
+  sideFooterAction = '',
   sideFooterHref = '/staff-parking-lots.html#create-lot',
   sideFooterLabel = 'Add Location',
   title,
@@ -83,6 +84,7 @@ export function createStaffPage({
               ${icons.add}
               ${sideFooterLabel}
             </a>
+            ${staffHeadActions(sideFooterAction)}
           </div>
         </aside>
 

@@ -1,5 +1,5 @@
 import { PageShell } from '../../components/PageShell.jsx';
-import { createStaffPage, icons, staffButton, staffHeadActions } from './staffLayout.js';
+import { createStaffPage, icons, staffButton } from './staffLayout.js';
 
 const dashboardContent = `
   <header class="staff-page-head">
@@ -8,7 +8,6 @@ const dashboardContent = `
       <h1>Capacity Management</h1>
       <span>Monitor today capacity, bookings, revenue, and operational health.</span>
     </div>
-    ${staffHeadActions(staffButton('Export Report', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10.2l3.6-3.6L17 11l-5 5-5-5 1.4-1.4 3.6 3.6V3h2ZM5 19h14v2H5v-2Z" /></svg>'))}
   </header>
 
   <span class="status-line staff-status-line" id="staffStatus"></span>
@@ -66,6 +65,7 @@ const staffPage = createStaffPage({
   activeNav: 'dashboard',
   content: dashboardContent,
   pageKey: 'staff',
+  sideFooterAction: staffButton('Export Report', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10.2l3.6-3.6L17 11l-5 5-5-5 1.4-1.4 3.6 3.6V3h2ZM5 19h14v2H5v-2Z" /></svg>'),
   title: 'ParkFinder Staff | Dashboard',
 });
 

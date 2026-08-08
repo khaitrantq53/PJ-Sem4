@@ -1,5 +1,5 @@
 import { PageShell } from '../../components/PageShell.jsx';
-import { createStaffPage, icons, staffButton, staffHeadActions } from './staffLayout.js';
+import { createStaffPage, icons, staffButton } from './staffLayout.js';
 
 const editIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2ZM19 9h-4V3H9v6H5l7 7 7-7Z" /></svg>';
 const moneyIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4V6Zm2 2v8h12V8H6Zm6 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" /></svg>';
@@ -14,7 +14,6 @@ const parkingLotsContent = `
       <h1 id="staffLotSelectedName">Parking Lots</h1>
       <p id="staffLotSelectedDescription">Manage your assigned parking facilities, rates, policies, and location details.</p>
     </div>
-    ${staffHeadActions(staffButton('Edit Information', editIcon))}
   </header>
 
   <span class="status-line staff-status-line" id="staffLotsStatus"></span>
@@ -127,6 +126,7 @@ const staffParkingLotsPage = createStaffPage({
   contentClass: 'staff-lots-content',
   pageClass: 'staff-lots-page',
   pageKey: 'staff-lots',
+  sideFooterAction: staffButton('Edit Information', editIcon),
   sideFooterHref: '#create-lot',
   title: 'ParkFinder Staff | Parking Lots',
 });

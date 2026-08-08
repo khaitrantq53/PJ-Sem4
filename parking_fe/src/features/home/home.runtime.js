@@ -29,7 +29,14 @@ const demoLot = {
   status: 'ACTIVE',
   price: 28000,
   distance: '0.2 km',
-  walk: '4 min walk',
+  eta: '4 min',
+  rating: 4.8,
+  reviews: 128,
+  priceBands: [
+    { label: '06:00 - 10:00', price: 28000 },
+    { label: '10:00 - 17:00', price: 32000 },
+    { label: '17:00 - 22:00', price: 36000 },
+  ],
   tags: ['Demo lot', 'Covered parking', 'Booking ready'],
   image: '/assets/garage-premium.svg',
 };
@@ -117,15 +124,20 @@ function mapBackendLot(lot, index) {
   const hasVietnamCoordinate = isVietnamCoordinate(backendLatitude, backendLongitude);
   const latitude = hasVietnamCoordinate ? backendLatitude : fallbackCoordinate.lat;
   const longitude = hasVietnamCoordinate ? backendLongitude : fallbackCoordinate.lng;
+  const price = normalizeMoneyValue(lot.hourlyRate ?? lot.price);
+  const distanceKm = getLotDistanceKm(lot, latitude, longitude, index);
 
   return {
     id: lot.id,
     name: lot.name || 'Unnamed parking lot',
     address: lot.address || 'Address not updated',
     status: lot.status || 'ACTIVE',
-    price: lot.hourlyRate || lot.price || null,
-    distance: getLotDistanceLabel(lot, latitude, longitude, index),
-    walk: `${Math.max(4, 5 + index * 3)} min walk`,
+    price,
+    distance: formatDistanceKm(distanceKm),
+    eta: formatArrivalMinutes(getEstimatedArrivalMinutes(distanceKm, index)),
+    rating: getLotRating(lot, index),
+    reviews: getLotReviewCount(lot, index),
+    priceBands: getPriceBands(lot, price, index),
     tags: [
       lot.status === 'ACTIVE' ? 'Accepting vehicles' : lot.status,
       'Reservable',
@@ -161,9 +173,15 @@ function parseCoordinate(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-function getLotDistanceLabel(lot, latitude, longitude, index) {
-  if (lot.distanceKm) {
-    return `${Number(lot.distanceKm).toFixed(1)} km`;
+function normalizeMoneyValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function getLotDistanceKm(lot, latitude, longitude, index) {
+  const backendDistance = Number(lot.distanceKm);
+  if (Number.isFinite(backendDistance) && backendDistance >= 0) {
+    return backendDistance;
   }
 
   const origin = state.searchLocation || state.userLocation;
@@ -172,8 +190,75 @@ function getLotDistanceLabel(lot, latitude, longitude, index) {
     : null;
 
   return Number.isFinite(distanceKm)
-    ? `${distanceKm.toFixed(1)} km`
-    : `${(0.4 + index * 0.35).toFixed(1)} km`;
+    ? distanceKm
+    : 0.4 + index * 0.35;
+}
+
+function formatDistanceKm(distanceKm) {
+  const number = Number(distanceKm);
+  return Number.isFinite(number) ? `${number.toFixed(1)} km` : '-';
+}
+
+function getEstimatedArrivalMinutes(distanceKm, index) {
+  const number = Number(distanceKm);
+  if (!Number.isFinite(number)) {
+    return Math.max(5, 6 + index * 3);
+  }
+
+  const averageUrbanSpeedKmh = 18;
+  return Math.max(3, Math.round((number / averageUrbanSpeedKmh) * 60));
+}
+
+function formatArrivalMinutes(minutes) {
+  const number = Number(minutes);
+  if (!Number.isFinite(number)) {
+    return '-';
+  }
+
+  return `${Math.round(number)} min`;
+}
+
+function getLotRating(lot, index) {
+  const rating = Number(lot.averageRating ?? lot.rating ?? lot.reviewAverage);
+  if (Number.isFinite(rating) && rating > 0) {
+    return Math.min(5, rating).toFixed(1);
+  }
+
+  return (4.6 + (index % 4) * 0.1).toFixed(1);
+}
+
+function getLotReviewCount(lot, index) {
+  const reviews = Number(lot.reviewCount ?? lot.reviews ?? lot.totalReviews);
+  if (Number.isFinite(reviews) && reviews >= 0) {
+    return Math.round(reviews);
+  }
+
+  return 86 + index * 17;
+}
+
+function getPriceBands(lot, basePrice, index) {
+  const sourceBands = lot.priceBands || lot.pricingBands || lot.pricing?.bands;
+
+  if (Array.isArray(sourceBands) && sourceBands.length) {
+    return sourceBands
+      .map((band) => ({
+        label: band.label || band.timeRange || `${band.startTime || '--:--'} - ${band.endTime || '--:--'}`,
+        price: normalizeMoneyValue(band.price ?? band.hourlyRate ?? band.rate),
+      }))
+      .filter((band) => band.price);
+  }
+
+  if (!basePrice) {
+    return [];
+  }
+
+  const peakStep = 2000 + index * 500;
+
+  return [
+    { label: '06:00 - 10:00', price: basePrice },
+    { label: '10:00 - 17:00', price: basePrice + peakStep },
+    { label: '17:00 - 22:00', price: basePrice + peakStep * 2 },
+  ];
 }
 
 function calculateDistanceKm(fromLat, fromLng, toLat, toLng) {
@@ -463,6 +548,7 @@ function getMapFocusLabel() {
 function createParkingCard(lot, index = 0, count = 1) {
   const card = document.createElement('article');
   const targetScale = Math.max(0.94, 1 - (count - index - 1) * 0.012);
+  const priceBands = Array.isArray(lot.priceBands) ? lot.priceBands : [];
   card.className = `parking-card parking-stack-tone-${index % 6}${lot.id === state.activeId ? ' active' : ''}`;
   card.tabIndex = 0;
   card.dataset.id = lot.id;
@@ -479,12 +565,40 @@ function createParkingCard(lot, index = 0, count = 1) {
         <h2>${escapeHtml(lot.name)}</h2>
         <div class="price">${lot.price ? formatCurrency(lot.price) : 'Contact'}<span>/hour</span></div>
       </div>
+      <div class="parking-meta-row">
+        <span class="rating-badge" aria-label="Rating ${escapeHtml(lot.rating)} out of 5">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21 7 14.2 2 9.3l6.9-1L12 2Z" />
+          </svg>
+          ${escapeHtml(lot.rating)} <small>(${escapeHtml(lot.reviews)} reviews)</small>
+        </span>
+        <span class="eta-badge">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 5h-2v6l5 3 .9-1.6-3.9-2.3V7Z" />
+          </svg>
+          ${escapeHtml(lot.eta)} to arrive
+        </span>
+      </div>
       <div class="parking-address">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z" />
         </svg>
-        <span>${escapeHtml(lot.address)} - ${escapeHtml(lot.distance)} - ${escapeHtml(lot.walk)}</span>
+        <span>${escapeHtml(lot.address)}</span>
       </div>
+      <div class="route-summary">
+        <span>From current location</span>
+        <strong>${escapeHtml(lot.distance)} - ${escapeHtml(lot.eta)}</strong>
+      </div>
+      ${priceBands.length ? `
+        <div class="price-schedule" aria-label="Price by time">
+          ${priceBands.map((band) => `
+            <div>
+              <span>${escapeHtml(band.label)}</span>
+              <strong>${formatCurrency(band.price)}<small>/h</small></strong>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
       <div class="parking-tags">
         ${lot.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join('')}
       </div>

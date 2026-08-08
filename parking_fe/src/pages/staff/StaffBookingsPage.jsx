@@ -10,11 +10,6 @@ const bookingsContent = `
       <h1 id="staffBookingsTitle">Booking Management</h1>
       <span id="staffBookingsSubtitle">Track active reservations, approvals, and customer request queues.</span>
     </div>
-    <div class="staff-head-actions" id="account">
-      <button class="staff-verify-button" type="button" id="staffVerifyQrButton">${scannerIcon} Verify QR</button>
-      <button class="staff-avatar" type="button" data-account-avatar>ST</button>
-      <button class="staff-logout" type="button" data-action="logout">Logout</button>
-    </div>
   </header>
 
   <span class="status-line staff-status-line" id="staffBookingsStatus"></span>
@@ -119,6 +114,7 @@ const staffBookingsPage = createStaffPage({
   contentClass: 'staff-bookings-content',
   pageClass: 'staff-bookings-page',
   pageKey: 'staff-bookings',
+  sideFooterAction: `<button class="staff-verify-button" type="button" id="staffVerifyQrButton">${scannerIcon} Verify QR</button>`,
   sideFooterHref: '/staff-bookings.html',
   sideFooterLabel: 'New Booking',
   title: 'ParkFinder Staff | Bookings',
