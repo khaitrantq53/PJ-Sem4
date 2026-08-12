@@ -1,0 +1,369 @@
+<!DOCTYPE html><html class="light" lang="en" style="width: 1280px; height: 1211px; overflow: hidden; position: relative;"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>ParkFinder | My Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary": "#000000",
+                    "surface-container-highest": "#e5e1e6",
+                    "on-secondary-container": "#626075",
+                    "inverse-on-surface": "#f3eff4",
+                    "primary-fixed-dim": "#c5c1f8",
+                    "inverse-surface": "#313033",
+                    "error": "#ba1a1a",
+                    "surface-container-lowest": "#ffffff",
+                    "outline": "#78767f",
+                    "on-tertiary-fixed": "#341105",
+                    "outline-variant": "#c8c5d0",
+                    "on-tertiary-fixed-variant": "#693a2c",
+                    "surface": "#fcf8fd",
+                    "background": "#fcf8fd",
+                    "on-primary-fixed-variant": "#444170",
+                    "on-primary": "#ffffff",
+                    "primary-fixed": "#e3dfff",
+                    "surface-tint": "#5c5989",
+                    "tertiary-container": "#341105",
+                    "on-secondary": "#ffffff",
+                    "primary": "#000000",
+                    "on-tertiary-container": "#af7664",
+                    "on-surface-variant": "#47464f",
+                    "surface-dim": "#dcd9dd",
+                    "on-background": "#1c1b1e",
+                    "inverse-primary": "#c5c1f8",
+                    "surface-bright": "#fcf8fd",
+                    "secondary": "#5e5c70",
+                    "secondary-container": "#e0ddf5",
+                    "secondary-fixed": "#e3e0f8",
+                    "on-secondary-fixed-variant": "#464558",
+                    "on-error": "#ffffff",
+                    "tertiary-fixed": "#ffdbd0",
+                    "on-surface": "#1c1b1e",
+                    "on-secondary-fixed": "#1a1a2b",
+                    "on-primary-fixed": "#181542",
+                    "on-primary-container": "#827eb1",
+                    "tertiary-fixed-dim": "#f9b7a3",
+                    "surface-variant": "#e5e1e6",
+                    "surface-container-high": "#ebe7eb",
+                    "on-tertiary": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "error-container": "#ffdad6",
+                    "secondary-fixed-dim": "#c7c4db",
+                    "surface-container-low": "#f6f2f7",
+                    "surface-container": "#f0edf1",
+                    "primary-container": "#181542"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "xl": "32px",
+                    "sm": "8px",
+                    "safe-area": "20px",
+                    "lg": "24px",
+                    "gutter": "16px",
+                    "md": "16px",
+                    "xs": "4px",
+                    "base": "4px"
+            },
+            "fontFamily": {
+                    "headline-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "status-badge": ["Inter"],
+                    "label-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "label-lg": ["Inter"],
+                    "headline-md": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                    "status-badge": ["11px", {"lineHeight": "12px", "letterSpacing": "0.5px", "fontWeight": "700"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.1px", "fontWeight": "600"}],
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-glow {
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+        }
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .animate-pulse-soft {
+            animation: pulse-soft 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-lg py-md sticky top-0 z-50 bg-surface shadow-sm">
+<div class="flex items-center gap-xl">
+<h1 class="text-headline-md font-headline-md font-black text-primary">ParkFinder</h1>
+<nav class="hidden md:flex items-center gap-lg">
+<a class="text-on-surface-variant hover:text-primary transition-colors text-label-lg font-label-lg" href="#">Find Parking</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors text-label-lg font-label-lg" href="#">Reservations</a>
+<a class="text-primary border-b-2 border-primary pb-1 text-label-lg font-label-lg" href="#">Dashboard</a>
+</nav>
+</div>
+<div class="flex items-center gap-md">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full">
+<span class="material-symbols-outlined">help</span>
+</button>
+<div class="w-10 h-10 rounded-full overflow-hidden border border-outline-variant ml-2">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a person with a clean, modern aesthetic, wearing business casual attire. The background is a soft-focus urban office setting with neutral tones of grey and white, perfectly fitting a sophisticated corporate dashboard identity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA4zVICyRwGwpNzlPPUEzNXxt0hlUsZg77-rokdNUOBeoLt8PEA9er3lEnZxsa9DKrJhg6o4dimtIL15JLTH1J7386tgOQdZL1gikJZqTSpO6rc4iISgboAdFPCvdd3jKYMyvT-GJm-aMOHZgyMdeJwNeNvxsmpLmmTXf_wQc6IwPeZG6iihhx8nLVrdLAnidK4Pw-TGZppy4P_Zw-HzD3a5DV5Gmymoov2lQ8GFl9Sli3d0T0bkEM">
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- Sidebar Navigation -->
+<aside class="w-64 bg-surface border-r border-outline-variant hidden md:flex flex-col py-lg">
+<nav class="flex-1 space-y-1 px-md">
+<a class="flex items-center gap-md px-md py-3 rounded-lg bg-secondary-container text-on-secondary-container" href="#">
+<span class="material-symbols-outlined">confirmation_number</span>
+<span class="font-label-lg text-label-lg">Active Bookings</span>
+</a>
+<a class="flex items-center gap-md px-md py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="font-label-lg text-label-lg">History</span>
+</a>
+<a class="flex items-center gap-md px-md py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined">favorite</span>
+<span class="font-label-lg text-label-lg">Favorites</span>
+</a>
+<div class="pt-xl pb-md px-md">
+<span class="text-label-md font-label-md text-outline uppercase tracking-wider">Account</span>
+</div>
+<a class="flex items-center gap-md px-md py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-lg text-label-lg">Profile Settings</span>
+</a>
+<a class="flex items-center gap-md px-md py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-label-lg text-label-lg">Payment Methods</span>
+</a>
+</nav>
+<div class="px-md mt-auto">
+<div class="p-md bg-surface-container rounded-xl border border-outline-variant">
+<p class="text-label-md font-label-md text-on-surface-variant mb-2">ParkFinder Premium</p>
+<p class="text-body-md font-body-md text-on-surface mb-md">Get 15% off all city parking.</p>
+<button class="w-full py-2 bg-primary text-on-primary rounded-lg text-label-md font-label-md font-bold hover:opacity-90 transition-opacity">Upgrade Now</button>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 overflow-y-auto bg-surface-container-low px-lg md:px-xl py-xl"><div class="max-w-6xl mx-auto space-y-lg">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-md">
+<div>
+<div class="flex items-center gap-sm mb-xs">
+<span class="text-label-md font-label-md text-outline uppercase tracking-wider">Booking Reference</span>
+<span class="text-label-md font-bold text-primary">#PK-4482910</span>
+</div>
+<h2 class="text-headline-lg font-headline-lg text-on-surface">Active Booking - ABC-1234</h2>
+</div>
+<div class="flex items-center gap-sm">
+<span class="px-4 py-1.5 bg-primary text-on-primary text-status-badge font-status-badge rounded-full uppercase tracking-widest">Confirmed</span>
+</div>
+</div>
+<!-- Main Booking Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Left Column: Primary Details & QR -->
+<div class="lg:col-span-8 space-y-gutter">
+<!-- Primary Card -->
+<div class="bg-surface rounded-xl border border-outline-variant overflow-hidden shadow-sm">
+<div class="p-xl flex flex-col md:flex-row gap-xl">
+<!-- QR Section -->
+<div class="flex flex-col items-center gap-md">
+<div class="bg-white p-4 rounded-xl border border-outline-variant shadow-sm">
+<img alt="Booking QR Code" class="w-48 h-48" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdoCxxfpw0sne49SrQAPc-APtiEQI-VGF9rpZzisIxyMf9ktsgR2L5M2uy5A70ulxxYuQ7CMvHpcDGmGVG8eTprwmUwljamUsBEtyVjfJWSQi7nP4eohYT0BnRtZbEsugLU1W7euJIkQyPRgTbe8pPvigr9aDqW9E7dtOq-P6K-qoOFoA1BvA54r00ITtJ2CWiLLJIZ1tRbfUD_D-6ZXTZo9tC1X6Ke8iplBdHV6TRB-3Ta5IeIbY">
+</div>
+<button class="flex items-center gap-xs text-label-lg font-bold text-primary hover:underline">
+<span class="material-symbols-outlined text-[18px]">content_copy</span>
+              Copy Booking Code
+            </button>
+</div>
+<!-- Details Section -->
+<div class="flex-1 space-y-lg">
+<div>
+<h3 class="text-headline-md font-headline-md text-on-surface">Plaza Central Garage</h3>
+<p class="text-body-md text-on-surface-variant flex items-center gap-xs mt-1">
+<span class="material-symbols-outlined text-[18px]">location_on</span>
+                452 Broadway, New York, NY 10013
+              </p>
+</div>
+<div class="grid grid-cols-2 gap-lg">
+<div>
+<p class="text-label-md text-outline uppercase">Check-In</p>
+<p class="text-body-lg font-semibold">Oct 25, 09:15 AM</p>
+</div>
+<div>
+<p class="text-label-md text-outline uppercase">Check-Out</p>
+<p class="text-body-lg font-semibold">Oct 25, 05:30 PM</p>
+</div>
+<div><p class="text-label-md text-outline uppercase">Vehicle</p><div class="space-y-xs mt-1"><p class="text-body-md font-semibold">Brand: <span class="font-normal">Tesla</span></p><p class="text-body-md font-semibold">Model: <span class="font-normal">Model 3</span></p><p class="text-body-md font-semibold">Color: <span class="font-normal">Midnight Silver</span></p><p class="text-body-md font-semibold">Plate: <span class="font-normal">ABC-1234</span></p></div></div>
+<div>
+<p class="text-label-md text-outline uppercase">Payment</p>
+<p class="text-body-lg font-semibold">$142.50</p>
+<p class="text-label-md text-on-surface-variant">Visa ending in 4429</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Status Timeline -->
+<div class="border-t border-outline-variant p-lg bg-surface-container-low">
+<div class="flex justify-between items-center relative"><div class="absolute top-1/2 left-0 w-full h-0.5 bg-outline-variant -translate-y-1/2 z-0"></div><div class="absolute top-1/2 left-0 w-1/2 h-0.5 bg-primary -translate-y-1/2 z-0"></div><div class="relative z-10 flex flex-col items-center gap-xs"><div class="w-4 h-4 rounded-full bg-primary"></div><span class="text-label-md font-bold text-primary">Created</span><span class="text-[10px] text-outline">Oct 25, 08:00 AM</span></div><div class="relative z-10 flex flex-col items-center gap-xs"><div class="w-4 h-4 rounded-full bg-primary"></div><span class="text-label-md font-bold text-primary">Approved</span><span class="text-[10px] text-outline">Oct 25, 08:15 AM</span></div><div class="relative z-10 flex flex-col items-center gap-xs"><div class="w-4 h-4 rounded-full bg-primary"></div><span class="text-label-md font-bold text-primary">Confirmed</span><span class="text-[10px] text-outline">Oct 25, 08:30 AM</span></div><div class="relative z-10 flex flex-col items-center gap-xs"><div class="w-4 h-4 rounded-full bg-outline-variant border-4 border-surface"></div><span class="text-label-md font-medium text-outline">Checked In</span><span class="text-[10px] text-outline">Pending</span></div><div class="relative z-10 flex flex-col items-center gap-xs"><div class="w-4 h-4 rounded-full bg-outline-variant border-4 border-surface"></div><span class="text-label-md font-medium text-outline">Completed</span><span class="text-[10px] text-outline">Pending</span></div></div>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex flex-wrap gap-md">
+<button class="flex-1 min-w-[160px] py-3 bg-primary text-on-primary rounded-lg font-bold hover:shadow-lg transition-all">Extend Session</button>
+<button class="flex-1 min-w-[160px] py-3 border border-outline text-on-surface rounded-lg font-bold hover:bg-surface-container transition-colors">Request Change</button>
+<button class="flex-1 min-w-[160px] py-3 border border-outline text-on-surface rounded-lg font-bold hover:bg-surface-container transition-colors">View Directions</button>
+</div>
+<div class="flex gap-md">
+<button class="text-label-lg font-bold text-on-surface-variant hover:text-primary transition-colors">Contact Support</button>
+<span class="text-outline">|</span>
+<button class="text-label-lg font-bold text-error hover:underline">Cancel Booking</button>
+</div>
+</div>
+<!-- Right Column: Stats & Summary -->
+<div class="lg:col-span-4 space-y-gutter">
+<!-- Countdown Card -->
+<div class="bg-primary text-on-primary p-lg rounded-xl border border-primary">
+<p class="text-label-md font-label-md opacity-80 uppercase tracking-wider mb-xs">TIME REMAINING UNTIL END</p>
+<div class="text-4xl font-black tabular-nums" id="timer">06:10:03</div>
+<div class="w-full bg-white/20 h-1.5 rounded-full mt-md overflow-hidden">
+<div class="bg-white h-full w-2/3"></div>
+</div>
+</div>
+<!-- Price Summary -->
+<div class="bg-surface p-lg rounded-xl border border-outline-variant space-y-md">
+<h4 class="text-label-lg font-bold text-on-surface">Price Summary</h4>
+<div class="space-y-sm">
+<div class="flex justify-between text-body-md">
+<span class="text-on-surface-variant">Parking Fee (8h)</span>
+<span class="text-on-surface font-medium">$120.00</span>
+</div>
+<div class="flex justify-between text-body-md">
+<span class="text-on-surface-variant">Service Fee</span>
+<span class="text-on-surface font-medium">$5.00</span>
+</div>
+<div class="flex justify-between text-body-md">
+<span class="text-on-surface-variant">Tax (15%)</span>
+<span class="text-on-surface font-medium">$17.50</span>
+</div>
+<div class="pt-sm border-t border-outline-variant flex justify-between items-center">
+<span class="text-label-lg font-bold text-on-surface">Total Amount</span>
+<span class="text-headline-md font-black text-primary">$142.50</span>
+</div><div class="pt-2 flex justify-between text-body-md"><span class="text-on-surface-variant">Payment</span><span class="text-on-surface font-medium">Visa ending in 4429</span></div>
+</div>
+</div>
+<!-- Info Modules -->
+<div class="space-y-md">
+<div class="bg-surface-container p-md rounded-lg border border-outline-variant flex items-center gap-md">
+<div class="w-10 h-10 bg-surface rounded-full flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">call</span>
+</div>
+<div>
+<p class="text-label-md font-bold text-on-surface">Garage Hotline</p>
+<p class="text-body-md text-on-surface-variant">+1 (212) 555-0198</p>
+</div>
+</div>
+<div class="bg-surface-container p-md rounded-lg border border-outline-variant flex items-center gap-md">
+<div class="w-10 h-10 bg-surface rounded-full flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">directions_car</span>
+</div>
+<div>
+<p class="text-label-md font-bold text-on-surface">Vehicle Access</p>
+<p class="text-body-md text-on-surface-variant">Level 3, Spot P-22</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div></main>
+</div>
+<!-- Footer -->
+<footer class="w-full py-xl px-lg bg-surface-container-high flex flex-col md:flex-row justify-between items-center gap-md">
+<div class="flex flex-col gap-xs items-center md:items-start">
+<span class="text-label-lg font-headline-md font-bold text-on-surface">ParkFinder</span>
+<p class="text-body-md font-body-md text-on-surface-variant">© 2024 ParkFinder Inc. All rights reserved.</p>
+</div>
+<div class="flex gap-lg">
+<a class="text-on-surface-variant hover:underline hover:text-primary transition-colors text-label-md font-label-md" href="#">Privacy Policy</a>
+<a class="text-on-surface-variant hover:underline hover:text-primary transition-colors text-label-md font-label-md" href="#">Terms of Service</a>
+<a class="text-on-surface-variant hover:underline hover:text-primary transition-colors text-label-md font-label-md" href="#">Contact Support</a>
+<a class="text-on-surface-variant hover:underline hover:text-primary transition-colors text-label-md font-label-md" href="#">For Partners</a>
+</div>
+</footer>
+<script>
+        // Simple countdown logic for the active ticket
+        function updateTimer() {
+            const timerElement = document.getElementById('timer');
+            let parts = timerElement.innerText.split(':');
+            let hours = parseInt(parts[0]);
+            let minutes = parseInt(parts[1]);
+            let seconds = parseInt(parts[2]);
+
+            seconds--;
+            if (seconds < 0) {
+                seconds = 59;
+                minutes--;
+                if (minutes < 0) {
+                    minutes = 59;
+                    hours--;
+                    if (hours < 0) {
+                        hours = 0;
+                        minutes = 0;
+                        seconds = 0;
+                    }
+                }
+            }
+
+            timerElement.innerText = 
+                String(hours).padStart(2, '0') + ':' + 
+                String(minutes).padStart(2, '0') + ':' + 
+                String(seconds).padStart(2, '0');
+        }
+
+        setInterval(updateTimer, 1000);
+
+        // Hover effect for table rows
+        document.querySelectorAll('tbody tr').forEach(row => {
+            row.addEventListener('mouseenter', () => {
+                row.classList.add('bg-surface-container-low');
+            });
+            row.addEventListener('mouseleave', () => {
+                row.classList.remove('bg-surface-container-low');
+            });
+        });
+    </script>
+
+
+</body></html>

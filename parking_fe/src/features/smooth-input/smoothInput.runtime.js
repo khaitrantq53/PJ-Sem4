@@ -25,7 +25,8 @@ function canUseSmoothCaret(element) {
     && element.matches(TEXT_FIELD_SELECTOR)
     && !element.disabled
     && !element.readOnly
-    && !element.dataset.noSmoothInput;
+    && !element.dataset.noSmoothInput
+    && !element.closest('.login-input-wrap');
 }
 
 function ensureElements() {

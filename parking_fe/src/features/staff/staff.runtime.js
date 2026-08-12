@@ -87,6 +87,10 @@ function escapeHtml(value) {
   })[character]);
 }
 
+function idempotencyKey() {
+  return window.crypto?.randomUUID?.() || '88888888-8888-4888-8888-888888888888';
+}
+
 function renderList(selector, items, renderItem, empty = 'No records yet.') {
   const element = $(selector);
   if (!element) {
@@ -969,15 +973,22 @@ function renderStaffBookings() {
     const bookingLabel = booking.bookingCode || booking.id;
     const vehicleLabel = String(booking.vehicleId || 'Vehicle').slice(0, 8);
     const lotName = bookingLotName(booking.parkingLotId);
-    const actions = booking.status === 'PENDING_APPROVAL'
-      ? `
-        <button class="staff-booking-decline" type="button" data-staff-booking-action="decline" data-booking-id="${escapeHtml(booking.id)}">Decline</button>
-        <button class="staff-booking-approve" type="button" data-staff-booking-action="approve" data-booking-id="${escapeHtml(booking.id)}">Approve</button>
-      `
-      : `
+    let actions = `
         <button class="staff-booking-icon-action" type="button" title="Edit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19h1.4l9.9-9.9-1.4-1.4L5 17.6V19Zm14.7-11.3-3.4-3.4 1-1a1.5 1.5 0 0 1 2.1 0l1.3 1.3a1.5 1.5 0 0 1 0 2.1l-1 1Z" /></svg></button>
         <button class="staff-booking-icon-action" type="button" title="More"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" /></svg></button>
       `;
+
+    if (booking.status === 'PENDING_APPROVAL') {
+      actions = `
+        <button class="staff-booking-decline" type="button" data-staff-booking-action="decline" data-booking-id="${escapeHtml(booking.id)}">Decline</button>
+        <button class="staff-booking-approve" type="button" data-staff-booking-action="approve" data-booking-id="${escapeHtml(booking.id)}">Approve</button>
+      `;
+    } else if (booking.status === 'CONFIRMED') {
+      actions = `
+        <button class="staff-booking-approve" type="button" data-staff-booking-action="check-in" data-booking-id="${escapeHtml(booking.id)}">Check In</button>
+        <button class="staff-booking-icon-action" type="button" title="More"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" /></svg></button>
+      `;
+    }
 
     return `
       <tr class="${rowAccent}">
@@ -1005,18 +1016,55 @@ function renderStaffBookings() {
   bindStaffBookingActions();
 }
 
+async function staffCheckInBooking(booking, initialQrCode = '') {
+  if (!booking) {
+    return;
+  }
+
+  const qrCode = initialQrCode || window.prompt('Booking code / QR code', booking.bookingCode || '');
+  if (!qrCode) {
+    setStatus('#staffBookingsStatus', 'Check-in cancelled.');
+    return;
+  }
+
+  const plateNumber = window.prompt('Plate number (optional)', '') || '';
+  const conditionNotes = window.prompt('Vehicle condition notes', 'Vehicle checked in by staff') || 'Vehicle checked in by staff';
+
+  setStatus('#staffBookingsStatus', 'Verifying QR and checking in booking...');
+  await apiRequest(`/staff/bookings/${booking.id}/verify-qr`, {
+    method: 'POST',
+    body: jsonBody({ qrCode, plateNumber }),
+  });
+  await apiRequest(`/staff/bookings/${booking.id}/check-in`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey() },
+    body: jsonBody({
+      qrCode,
+      plateNumber,
+      conditionNotes,
+      expectedVersion: booking.version,
+    }),
+  });
+}
+
 function bindStaffBookingActions() {
   $all('[data-staff-booking-action]').forEach((button) => {
     button.addEventListener('click', async () => {
       const bookingId = button.dataset.bookingId;
       const action = button.dataset.staffBookingAction;
-      setStatus('#staffBookingsStatus', `${action === 'approve' ? 'Approving' : 'Declining'} booking...`);
+      const booking = bookingsCache.find((item) => item.id === bookingId);
+      const label = action === 'approve' ? 'Approving' : action === 'decline' ? 'Declining' : 'Checking in';
+      setStatus('#staffBookingsStatus', `${label} booking...`);
       try {
-        await apiRequest(`/staff/bookings/${bookingId}/${action}`, {
-          method: 'POST',
-          body: action === 'decline' ? jsonBody({ reason: 'Declined by staff from booking table' }) : undefined,
-        });
-        setStatus('#staffBookingsStatus', 'Booking updated.');
+        if (action === 'check-in') {
+          await staffCheckInBooking(booking);
+        } else {
+          await apiRequest(`/staff/bookings/${bookingId}/${action}`, {
+            method: 'POST',
+            body: action === 'decline' ? jsonBody({ reason: 'Declined by staff from booking table' }) : undefined,
+          });
+        }
+        setStatus('#staffBookingsStatus', action === 'check-in' ? 'Booking checked in.' : 'Booking updated.');
         await loadStaffBookings();
       } catch (error) {
         setStatus('#staffBookingsStatus', error.message, true);
@@ -1126,8 +1174,29 @@ function bindStaffBookingsPage() {
   $('#staffBookingSearch')?.addEventListener('input', renderStaffBookings);
   $('#staffBookingLotFilter')?.addEventListener('change', renderStaffBookings);
   $('#staffBookingDateFilter')?.addEventListener('change', renderStaffBookings);
-  $('#staffVerifyQrButton')?.addEventListener('click', () => {
-    setStatus('#staffBookingsStatus', 'QR verification action will open after scanner flow is connected.');
+  $('#staffVerifyQrButton')?.addEventListener('click', async () => {
+    const bookingCode = window.prompt('Booking code / QR code', '');
+    if (!bookingCode) {
+      setStatus('#staffBookingsStatus', 'QR verification cancelled.');
+      return;
+    }
+
+    const booking = bookingsCache.find((item) => {
+      return String(item.bookingCode || '').toLowerCase() === bookingCode.trim().toLowerCase();
+    });
+
+    if (!booking) {
+      setStatus('#staffBookingsStatus', 'Booking code was not found in the current staff booking list.', true);
+      return;
+    }
+
+    try {
+      await staffCheckInBooking(booking, bookingCode);
+      setStatus('#staffBookingsStatus', 'Booking checked in.');
+      await loadStaffBookings();
+    } catch (error) {
+      setStatus('#staffBookingsStatus', error.message, true);
+    }
   });
   $('#staffOverdueRefreshButton')?.addEventListener('click', loadStaffBookings);
   $('#staffOverdueFilterButton')?.addEventListener('click', () => {

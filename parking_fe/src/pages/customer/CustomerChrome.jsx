@@ -9,7 +9,7 @@ export function initialsFor(label) {
 
 function NavIcon({ type }) {
   const paths = {
-    dashboard: 'M4 13h7V4H4v9Zm9 7h7V4h-7v16ZM4 20h7v-5H4v5Z',
+    dashboard: 'M7 2h2v2h6V2h2v2h3v18H4V4h3V2Zm11 8H6v10h12V10ZM6 8h12V6H6v2Z',
     vehicles: 'M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h1a2 2 0 0 1 2 2v5h-2v-2H4v2H2v-5a2 2 0 0 1 2-2h1Zm2.1 0h9.8l-1.1-3.2a.8.8 0 0 0-.8-.6H9a.8.8 0 0 0-.8.6L7.1 11ZM6 14a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm12 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z',
     payments: 'M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12H6a3 3 0 0 1-3-3V6Zm3-1a1 1 0 0 0-1 1v2h14V6a1 1 0 0 0-1-1H6Zm-1 5v5a1 1 0 0 0 1 1h13v-6H5Z',
     support: 'M11 18h2v-2h-2v2Zm1-16a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm0-14a3.2 3.2 0 0 0-3.4 3h2A1.3 1.3 0 0 1 12 8a1.2 1.2 0 0 1 1.3 1.2c0 .8-.5 1.2-1.4 1.8-1.1.8-1.9 1.5-1.9 3h2c0-.7.5-1.1 1.2-1.6 1.1-.8 2.1-1.6 2.1-3.2A3.1 3.1 0 0 0 12 6Z',
@@ -23,7 +23,7 @@ function NavIcon({ type }) {
 }
 
 const navItems = [
-  { key: 'dashboard', label: 'Dashboard', href: '/customer.html' },
+  { key: 'dashboard', label: 'Active Bookings', href: '/customer.html' },
   { key: 'vehicles', label: 'Vehicles', href: '/customer-vehicles.html' },
   { key: 'payments', label: 'Payments', href: '/customer-payments.html' },
   { key: 'support', label: 'Support', href: '/customer-support.html' },

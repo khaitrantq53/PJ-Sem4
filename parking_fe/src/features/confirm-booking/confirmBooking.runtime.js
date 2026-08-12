@@ -20,6 +20,9 @@ const elements = {
   paymentMethod: document.querySelector('#paymentMethod'),
   promotionCode: document.querySelector('#promotionCode'),
   selectedPaymentLabel: document.querySelector('#selectedPaymentLabel'),
+  availableCapacity: document.querySelector('#availableCapacity'),
+  deliveryChoices: document.querySelectorAll('input[name="deliveryMethodChoice"]'),
+  paymentChoices: document.querySelectorAll('input[name="paymentMethodChoice"]'),
   parkingFee: document.querySelector('#parkingFee'),
   serviceFee: document.querySelector('#serviceFee'),
   pickupFee: document.querySelector('#pickupFee'),
@@ -98,7 +101,32 @@ function renderLot(lot) {
   }
 }
 
-function renderPriceBreakdown(priceBreakdown) {
+function renderAvailability(availableCapacity) {
+  if (!elements.availableCapacity) {
+    return;
+  }
+
+  if (availableCapacity === undefined || availableCapacity === null) {
+    setText(elements.availableCapacity, 'Checking available spots for your selected time.');
+    return;
+  }
+
+  const available = Number(availableCapacity);
+  if (!Number.isFinite(available)) {
+    setText(elements.availableCapacity, 'Availability is being calculated.');
+    return;
+  }
+
+  setText(
+    elements.availableCapacity,
+    available <= 0
+      ? 'No spots remaining for your selected time.'
+      : `${available} spots remaining for your selected time.`,
+  );
+}
+
+function renderPriceBreakdown(preview) {
+  const priceBreakdown = preview?.priceBreakdown;
   setText(elements.parkingFee, formatMoney(priceBreakdown?.parkingFee));
   setText(elements.serviceFee, formatMoney(priceBreakdown?.serviceFee));
   setText(elements.pickupFee, formatMoney(priceBreakdown?.pickupFee));
@@ -106,6 +134,7 @@ function renderPriceBreakdown(priceBreakdown) {
   setText(elements.platformFee, formatMoney(priceBreakdown?.platformFee));
   setText(elements.tax, formatMoney(priceBreakdown?.tax));
   setText(elements.totalPrice, formatMoney(priceBreakdown?.total));
+  renderAvailability(preview?.availableCapacity);
 }
 
 function buildBookingRequest() {
@@ -191,7 +220,7 @@ async function refreshPreview() {
       method: 'POST',
       body: jsonBody(payload),
     });
-    renderPriceBreakdown(preview.priceBreakdown);
+    renderPriceBreakdown(preview);
     setButtonState('Confirm Booking');
   } catch (error) {
     renderPriceBreakdown(null);
@@ -204,6 +233,34 @@ function schedulePreview() {
 }
 
 function bindEvents() {
+  elements.deliveryChoices.forEach((choice) => {
+    choice.addEventListener('change', () => {
+      if (!choice.checked) {
+        return;
+      }
+
+      elements.deliveryMethod.value = choice.value;
+      document.querySelectorAll('.checkout-delivery-card').forEach((card) => {
+        card.classList.toggle('active', card.contains(choice));
+      });
+      elements.deliveryMethod.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+
+  elements.paymentChoices.forEach((choice) => {
+    choice.addEventListener('change', () => {
+      if (!choice.checked) {
+        return;
+      }
+
+      elements.paymentMethod.value = choice.value;
+      document.querySelectorAll('.checkout-payment-card').forEach((card) => {
+        card.classList.toggle('active', card.contains(choice));
+      });
+      elements.paymentMethod.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+
   [
     elements.vehicleId,
     elements.startTime,
