@@ -22,7 +22,7 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: ${DB_SCHEMA:smart_parking}
-        jdbc.time_zone: UTC
+        jdbc.time_zone: Asia/Ho_Chi_Minh
         format_sql: false
     database-platform: org.hibernate.dialect.PostgreSQLDialect
   flyway:
@@ -36,7 +36,7 @@ spring:
     init:
       mode: never
   jackson:
-    time-zone: UTC
+    time-zone: Asia/Ho_Chi_Minh
   servlet:
     encoding:
       charset: UTF-8

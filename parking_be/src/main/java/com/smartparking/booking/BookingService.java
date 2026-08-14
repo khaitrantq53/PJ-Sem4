@@ -51,4 +51,6 @@ public interface BookingService {
     BookingDtos.CommandResponse checkIn(CurrentUser currentUser, UUID bookingId, BookingDtos.CheckInRequest request, String idempotencyKey);
 
     BookingDtos.CommandResponse checkOut(CurrentUser currentUser, UUID bookingId, BookingDtos.CheckOutRequest request, String idempotencyKey);
+
+    BookingDtos.CommandResponse done(CurrentUser currentUser, UUID bookingId, BookingDtos.DoneRequest request);
 }

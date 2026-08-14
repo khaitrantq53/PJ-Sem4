@@ -14,11 +14,8 @@ const icons = {
 const navItems = [
   { key: 'dashboard', href: '/staff.html', icon: icons.dashboard, label: 'Dashboard' },
   { key: 'lots', href: '/staff-parking-lots.html', icon: icons.lots, label: 'Parking Lots' },
-  { key: 'capacity', href: '#capacity', icon: icons.capacity, label: 'Capacity' },
   { key: 'bookings', href: '/staff-bookings.html', icon: icons.bookings, label: 'Bookings' },
   { key: 'operations', href: '#operations', icon: icons.operations, label: 'Operations' },
-  { key: 'reports', href: '#reports', icon: icons.reports, label: 'Reports' },
-  { key: 'account', href: '#account', icon: icons.account, label: 'Account' },
 ];
 
 function staffNav(activeNav) {

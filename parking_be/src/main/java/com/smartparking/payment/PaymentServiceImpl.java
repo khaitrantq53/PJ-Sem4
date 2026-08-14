@@ -149,12 +149,13 @@ public class PaymentServiceImpl implements PaymentService {
                 throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Booking không ở trạng thái PENDING_PAYMENT");
             }
             BookingStatus previous = booking.getStatus();
+            BookingStatus nextStatus = booking.getActualCheckOutTime() == null ? BookingStatus.CONFIRMED : BookingStatus.CHECKED_OUT;
             payment.setStatus(PaymentStatus.PAID);
             booking.setPaymentStatus(PaymentStatus.PAID);
-            booking.setStatus(BookingStatus.CONFIRMED);
-            history(booking, previous, BookingStatus.CONFIRMED, "Payment callback success");
-            auditService.record(null, null, "PAYMENT_SUCCESS", "BOOKING", booking.getId().toString(), previous.name(), BookingStatus.CONFIRMED.name(), provider);
-            notifyCustomer(booking, "PAYMENT_SUCCESS", "Thanh toán thành công", "Booking " + booking.getBookingCode() + " đã được xác nhận");
+            booking.setStatus(nextStatus);
+            history(booking, previous, nextStatus, "Payment callback success");
+            auditService.record(null, null, "PAYMENT_SUCCESS", "BOOKING", booking.getId().toString(), previous.name(), nextStatus.name(), provider);
+            notifyCustomer(booking, "PAYMENT_SUCCESS", "Thanh toán thành công", "Booking " + booking.getBookingCode() + " đã thanh toán thành công");
         } else if (request.status() == PaymentTransactionStatus.FAILED) {
             payment.setStatus(PaymentStatus.FAILED);
             payment.getBooking().setPaymentStatus(PaymentStatus.FAILED);

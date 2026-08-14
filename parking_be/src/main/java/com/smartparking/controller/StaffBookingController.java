@@ -84,4 +84,11 @@ public class StaffBookingController {
                                                       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         return ApiResponse.ok(bookingService.checkOut(SecurityUtils.currentUser(), bookingId, request, idempotencyKey), RequestContext.requestId());
     }
+
+    @PostMapping("/{bookingId}/done")
+    ApiResponse<BookingDtos.CommandResponse> done(@PathVariable UUID bookingId,
+                                                  @RequestBody(required = false) BookingDtos.DoneRequest request) {
+        return ApiResponse.ok(bookingService.done(SecurityUtils.currentUser(), bookingId,
+                request == null ? new BookingDtos.DoneRequest(null, null) : request), RequestContext.requestId());
+    }
 }

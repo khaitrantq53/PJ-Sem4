@@ -5,6 +5,7 @@ import com.smartparking.common.VehicleType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.OffsetDateTime;
@@ -12,7 +13,7 @@ import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface BookingRepository extends JpaRepository<Booking, UUID> {
+public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpecificationExecutor<Booking> {
     Optional<Booking> findByIdAndCustomerId(UUID bookingId, UUID customerId);
 
     Optional<Booking> findByIdempotencyKey(String idempotencyKey);
@@ -37,8 +38,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
               and (:startFrom is null or b.startTime >= :startFrom)
               and (:endTo is null or b.endTime <= :endTo)
               and (:vehicleType is null or b.vehicleType = :vehicleType)
-              and (:bookingCode is null or lower(b.bookingCode) like concat('%', lower(:bookingCode), '%'))
-              and (:plateNumber is null or lower(b.vehicle.plateNumber) like concat('%', lower(:plateNumber), '%'))
+              and (:bookingCode is null or lower(b.bookingCode) like concat('%', lower(cast(:bookingCode as string)), '%'))
+              and (:plateNumber is null or lower(b.vehicle.plateNumber) like concat('%', lower(cast(:plateNumber as string)), '%'))
             """)
     Page<Booking> searchForAdmin(UUID parkingLotId, BookingStatus status, OffsetDateTime startFrom,
                                  OffsetDateTime endTo, VehicleType vehicleType, String bookingCode,
@@ -54,8 +55,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
               and (:startFrom is null or b.startTime >= :startFrom)
               and (:endTo is null or b.endTime <= :endTo)
               and (:vehicleType is null or b.vehicleType = :vehicleType)
-              and (:bookingCode is null or lower(b.bookingCode) like concat('%', lower(:bookingCode), '%'))
-              and (:plateNumber is null or lower(b.vehicle.plateNumber) like concat('%', lower(:plateNumber), '%'))
+              and (:bookingCode is null or lower(b.bookingCode) like concat('%', lower(cast(:bookingCode as string)), '%'))
+              and (:plateNumber is null or lower(b.vehicle.plateNumber) like concat('%', lower(cast(:plateNumber as string)), '%'))
             """)
     Page<Booking> searchForStaff(UUID staffId, UUID parkingLotId, BookingStatus status, OffsetDateTime startFrom,
                                  OffsetDateTime endTo, VehicleType vehicleType, String bookingCode, String plateNumber,

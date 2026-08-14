@@ -22,6 +22,7 @@ import com.smartparking.parking.ParkingLot;
 import com.smartparking.parking.ParkingOperatingHour;
 import com.smartparking.parking.ParkingOperatingHourRepository;
 import com.smartparking.parking.ParkingLotRepository;
+import com.smartparking.parking.ParkingLotStaff;
 import com.smartparking.parking.ParkingLotStaffRepository;
 import com.smartparking.parking.ParkingServiceEntity;
 import com.smartparking.parking.ParkingServiceRepository;
@@ -39,17 +40,22 @@ import com.smartparking.vehiclecondition.VehicleConditionRecord;
 import com.smartparking.vehiclecondition.VehicleConditionRecordRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import jakarta.persistence.criteria.Predicate;
+
+import java.util.ArrayList;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -289,8 +295,9 @@ public class BookingServiceImpl implements BookingService {
         if (startFrom != null && endTo != null && !startFrom.isBefore(endTo)) {
             throw new BusinessException(ErrorCode.BOOKING_TIME_INVALID, "startFrom phải nhỏ hơn endTo");
         }
-        return bookingRepository.searchForStaff(currentUser.id(), parkingLotId, status, startFrom, endTo, vehicleType,
-                blankToNull(bookingCode), blankToNull(plateNumber), pageable).map(mapper::toListResponse);
+        Specification<Booking> specification = staffBookingSpecification(currentUser.id(), parkingLotId, status,
+                startFrom, endTo, vehicleType, blankToNull(bookingCode), blankToNull(plateNumber));
+        return bookingRepository.findAll(specification, pageable).map(mapper::toListResponse);
     }
 
     @Override
@@ -311,8 +318,7 @@ public class BookingServiceImpl implements BookingService {
         }
         assertApprovalReservationValid(booking);
         BookingStatus previous = booking.getStatus();
-        booking.setStatus(booking.getPaymentMethod() == PaymentMethod.CASH ? BookingStatus.CONFIRMED : BookingStatus.PENDING_PAYMENT);
-        createCashPaymentIfRequired(booking);
+        booking.setStatus(BookingStatus.CONFIRMED);
         history(booking, previous, booking.getStatus(), currentUser, null);
         auditService.record(currentUser.id(), currentUser.role(), "APPROVE", "BOOKING", booking.getId().toString(), previous.name(), booking.getStatus().name(), null);
         notifyCustomer(booking, "BOOKING_APPROVED", "Booking đã được duyệt", "Booking " + booking.getBookingCode() + " đã được duyệt");
@@ -458,6 +464,9 @@ public class BookingServiceImpl implements BookingService {
         Booking booking = getBooking(bookingId);
         assertStaffAccess(currentUser, booking.getParkingLot().getId());
         assertVersion(booking.getVersion(), request.expectedVersion());
+        if (booking.getStatus() == BookingStatus.PENDING_APPROVAL) {
+            assertApprovalReservationValid(booking);
+        }
         validateCheckInEligibility(booking, request.qrCode(), request.plateNumber(), OffsetDateTime.now());
         requireConditionNotes(request.conditionNotes());
         BookingStatus previous = booking.getStatus();
@@ -491,14 +500,35 @@ public class BookingServiceImpl implements BookingService {
         BigDecimal total = booking.getTotalAmount().subtract(booking.getOvertimeFee()).add(overtimeFee.amount());
         booking.setOvertimeFee(overtimeFee.amount());
         booking.setTotalAmount(total);
-        booking.setStatus(BookingStatus.CHECKED_OUT);
+        booking.setStatus(BookingStatus.PENDING_PAYMENT);
+        booking.setPaymentStatus(PaymentStatus.UNPAID);
         booking.setActualCheckOutTime(OffsetDateTime.now());
         releaseReservation(booking);
         recordCondition(booking, currentUser, RecordType.CHECK_OUT, request.conditionNotes());
         history(booking, previous, booking.getStatus(), currentUser, null);
         auditService.record(currentUser.id(), currentUser.role(), "CHECK_OUT", "BOOKING", booking.getId().toString(), previous.name(), booking.getStatus().name(), null);
-        notifyCustomer(booking, "BOOKING_CHECKED_OUT", "Xe đã check-out", "Booking " + booking.getBookingCode() + " đã check-out");
+        notifyCustomer(booking, "BOOKING_CHECKED_OUT", "Xe đã check-out", "Booking " + booking.getBookingCode() + " đã check-out và đang chờ thanh toán");
         saveCommandIdempotency(idempotencyKey, booking, "CHECK_OUT", previous);
+        return mapper.command(booking, previous);
+    }
+
+    @Override
+    @Transactional
+    public BookingDtos.CommandResponse done(CurrentUser currentUser, UUID bookingId, BookingDtos.DoneRequest request) {
+        Booking booking = getBooking(bookingId);
+        assertStaffAccess(currentUser, booking.getParkingLot().getId());
+        assertVersion(booking.getVersion(), request.expectedVersion());
+        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT || booking.getActualCheckOutTime() == null) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Booking chưa check-out hoặc chưa ở trạng thái PENDING_PAYMENT");
+        }
+
+        BookingStatus previous = booking.getStatus();
+        booking.setPaymentStatus(PaymentStatus.PAID);
+        booking.setStatus(BookingStatus.CHECKED_OUT);
+        completeStaffPayment(booking);
+        history(booking, previous, booking.getStatus(), currentUser, request.note());
+        auditService.record(currentUser.id(), currentUser.role(), "DONE", "BOOKING", booking.getId().toString(), previous.name(), booking.getStatus().name(), request.note());
+        notifyCustomer(booking, "BOOKING_COMPLETED", "Booking hoàn tất", "Booking " + booking.getBookingCode() + " đã hoàn tất");
         return mapper.command(booking, previous);
     }
 
@@ -658,6 +688,25 @@ public class BookingServiceImpl implements BookingService {
         paymentRepository.save(payment);
     }
 
+    private void completeStaffPayment(Booking booking) {
+        List<Payment> payments = paymentRepository.findByBookingId(booking.getId());
+        Payment payment = payments.stream()
+                .filter(existing -> existing.getPaymentMethod() == booking.getPaymentMethod())
+                .findFirst()
+                .orElseGet(() -> {
+                    Payment created = new Payment();
+                    created.setBooking(booking);
+                    created.setPaymentMethod(booking.getPaymentMethod());
+                    return created;
+                });
+        payment.setStatus(PaymentStatus.PAID);
+        payment.setAmount(booking.getTotalAmount());
+        payment.setCurrency(booking.getCurrency());
+        payment.setProvider("STAFF");
+        payment.setProviderTransactionId("STAFF-DONE-" + booking.getBookingCode());
+        paymentRepository.save(payment);
+    }
+
     private void assertNoPendingRequest(UUID bookingId) {
         if (changeRequestRepository.existsByBookingIdAndStatus(bookingId, RequestStatus.PENDING)
                 || extensionRequestRepository.existsByBookingIdAndStatus(bookingId, RequestStatus.PENDING)) {
@@ -692,19 +741,21 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private void validateCheckInEligibility(Booking booking, String qrCode, String plateNumber, OffsetDateTime now) {
-        if (booking.getStatus() != BookingStatus.CONFIRMED) {
-            throw new BusinessException(ErrorCode.CHECK_IN_NOT_ALLOWED, "Booking chưa CONFIRMED");
+        if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.PENDING_APPROVAL) {
+            throw new BusinessException(ErrorCode.CHECK_IN_NOT_ALLOWED, "Booking chưa CONFIRMED hoặc PENDING_APPROVAL");
         }
         if (!booking.getBookingCode().equals(qrCode)) {
             throw new BusinessException(ErrorCode.QR_CODE_INVALID, "QR code không hợp lệ");
         }
-        OffsetDateTime earliest = booking.getStartTime().minusMinutes(properties.operation().checkInEarlyMinutes());
-        OffsetDateTime latest = booking.getStartTime().plusMinutes(properties.operation().checkInLateMinutes());
-        if (now.isBefore(earliest)) {
-            throw new BusinessException(ErrorCode.CHECK_IN_NOT_ALLOWED, "Không nằm trong khung giờ check-in");
-        }
-        if (now.isAfter(latest)) {
-            throw new BusinessException(ErrorCode.QR_CODE_EXPIRED, "QR code đã quá hạn check-in");
+        if (booking.getStatus() == BookingStatus.CONFIRMED) {
+            OffsetDateTime earliest = booking.getStartTime().minusMinutes(properties.operation().checkInEarlyMinutes());
+            OffsetDateTime latest = booking.getStartTime().plusMinutes(properties.operation().checkInLateMinutes());
+            if (now.isBefore(earliest)) {
+                throw new BusinessException(ErrorCode.CHECK_IN_NOT_ALLOWED, "Không nằm trong khung giờ check-in");
+            }
+            if (now.isAfter(latest)) {
+                throw new BusinessException(ErrorCode.QR_CODE_EXPIRED, "QR code đã quá hạn check-in");
+            }
         }
         if (plateNumber != null && !plateNumber.isBlank()
                 && !booking.getVehicle().getPlateNumber().equalsIgnoreCase(plateNumber.trim())) {
@@ -917,6 +968,53 @@ public class BookingServiceImpl implements BookingService {
             case CONFIRMED -> "VIEW_QR";
             case CHECKED_IN, OVERDUE -> "WAIT_CHECK_OUT";
             default -> null;
+        };
+    }
+
+    private Specification<Booking> staffBookingSpecification(UUID staffId, UUID parkingLotId, BookingStatus status,
+                                                             OffsetDateTime startFrom, OffsetDateTime endTo,
+                                                             VehicleType vehicleType, String bookingCode,
+                                                             String plateNumber) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            var staffAssignment = query.subquery(UUID.class);
+            var parkingLotStaff = staffAssignment.from(ParkingLotStaff.class);
+            staffAssignment.select(parkingLotStaff.get("id"));
+            staffAssignment.where(
+                    criteriaBuilder.equal(parkingLotStaff.get("staff").get("id"), staffId),
+                    criteriaBuilder.equal(parkingLotStaff.get("parkingLot").get("id"), root.get("parkingLot").get("id"))
+            );
+            predicates.add(criteriaBuilder.exists(staffAssignment));
+
+            if (parkingLotId != null) {
+                predicates.add(criteriaBuilder.equal(root.get("parkingLot").get("id"), parkingLotId));
+            }
+            if (status != null) {
+                predicates.add(criteriaBuilder.equal(root.get("status"), status));
+            }
+            if (startFrom != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("startTime"), startFrom));
+            }
+            if (endTo != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("endTime"), endTo));
+            }
+            if (vehicleType != null) {
+                predicates.add(criteriaBuilder.equal(root.get("vehicleType"), vehicleType));
+            }
+            if (bookingCode != null) {
+                predicates.add(criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("bookingCode")),
+                        "%" + bookingCode.toLowerCase(Locale.ROOT) + "%"
+                ));
+            }
+            if (plateNumber != null) {
+                predicates.add(criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("vehicle").get("plateNumber")),
+                        "%" + plateNumber.toLowerCase(Locale.ROOT) + "%"
+                ));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };
     }
 

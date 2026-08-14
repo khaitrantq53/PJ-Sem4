@@ -146,7 +146,7 @@ function buildBookingRequest() {
     deliveryMethod: elements.deliveryMethod.value,
     serviceIds: [],
     promotionCode: elements.promotionCode.value.trim() || null,
-    paymentMethod: elements.paymentMethod.value,
+    paymentMethod: elements.paymentMethod?.value || 'QR',
   };
 
   if (!payload.parkingLotId || String(payload.parkingLotId).startsWith('sample-')) {
@@ -271,7 +271,11 @@ function bindEvents() {
   ].forEach((element) => element.addEventListener('change', schedulePreview));
 
   elements.promotionCode.addEventListener('input', schedulePreview);
-  elements.paymentMethod.addEventListener('change', () => {
+  elements.paymentMethod?.addEventListener('change', () => {
+    if (!elements.selectedPaymentLabel || !elements.paymentMethod.options) {
+      return;
+    }
+
     setText(elements.selectedPaymentLabel, elements.paymentMethod.options[elements.paymentMethod.selectedIndex].text);
   });
 

@@ -185,64 +185,7 @@ const confirmBookingPage = {
                 <button type="button">Apply</button>
               </div>
 
-              <div class="payment-method-panel">
-                <h4>Payment Method</h4>
-                <select class="checkout-native-select" id="paymentMethod" name="paymentMethod" required>
-                  <option value="CARD">Card</option>
-                  <option value="QR">QR</option>
-                  <option value="BANK_TRANSFER">Bank transfer</option>
-                  <option value="CASH">Cash</option>
-                </select>
-                <div class="checkout-payment-grid" data-checkout-payment-options>
-                  <label class="checkout-payment-card active">
-                    <input type="radio" name="paymentMethodChoice" value="CARD" checked />
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12H6a3 3 0 0 1-3-3V6Zm2 2h14V6a1 1 0 0 0-1-1H6a1 1 0 0 0-1 1v2Z" />
-                    </svg>
-                    <span>Card</span>
-                  </label>
-                  <label class="checkout-payment-card">
-                    <input type="radio" name="paymentMethodChoice" value="QR" />
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M3 3h8v8H3V3Zm2 2v4h4V5H5Zm8-2h8v8h-8V3Zm2 2v4h4V5h-4ZM3 13h8v8H3v-8Zm2 2v4h4v-4H5Zm10-2h2v2h-2v-2Zm4 0h2v4h-4v-2h2v-2Zm-6 4h2v4h-2v-4Zm4 2h4v2h-4v-2Z" />
-                    </svg>
-                    <span>QR Pay</span>
-                  </label>
-                  <label class="checkout-payment-card">
-                    <input type="radio" name="paymentMethodChoice" value="BANK_TRANSFER" />
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M3 10 12 4l9 6v2H3v-2Zm2 4h2v5H5v-5Zm4 0h2v5H9v-5Zm4 0h2v5h-2v-5Zm4 0h2v5h-2v-5ZM3 20h18v2H3v-2Z" />
-                    </svg>
-                    <span>Bank</span>
-                  </label>
-                  <label class="checkout-payment-card">
-                    <input type="radio" name="paymentMethodChoice" value="CASH" />
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M4 6h16v12H4V6Zm2 2v8h12V8H6Zm6 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" />
-                    </svg>
-                    <span>Cash</span>
-                  </label>
-                </div>
-
-                <div class="selected-payment checkout-selected-payment">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12H6a3 3 0 0 1-3-3V6Zm2 2h14V6a1 1 0 0 0-1-1H6a1 1 0 0 0-1 1v2Z" />
-                  </svg>
-                  <div>
-                    <strong id="selectedPaymentLabel">Card</strong>
-                    <span>Payment method selected for this booking</span>
-                  </div>
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.2 13.4-3.5-3.5 1.4-1.4 2.1 2.1 4.9-4.9 1.4 1.4-6.3 6.3Z" />
-                  </svg>
-                </div>
-                <button class="add-payment-button" type="button">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z" />
-                  </svg>
-                  Add New Card
-                </button>
-              </div>
+              <input id="paymentMethod" name="paymentMethod" type="hidden" value="QR" />
 
               <button class="checkout-confirm-button" id="confirmButton" type="submit">
                 <svg viewBox="0 0 24 24" aria-hidden="true">

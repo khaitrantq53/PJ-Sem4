@@ -15,7 +15,7 @@ const bookingsContent = `
   <span class="status-line staff-status-line" id="staffBookingsStatus"></span>
 
   <nav class="staff-booking-tabs" aria-label="Booking queues">
-    <button class="active" type="button" data-staff-booking-tab="">All Bookings</button>
+    <button class="active" type="button" data-staff-booking-tab="">Active Bookings</button>
     <button type="button" data-staff-booking-tab="PENDING_APPROVAL">
       Pending Approvals
       <span id="staffPendingBookingCount">0</span>
@@ -24,32 +24,6 @@ const bookingsContent = `
     <button type="button" data-staff-booking-tab="EXTENSION_REQUESTS">Extension Requests</button>
     <button type="button" data-staff-booking-tab="OVERDUE">Overdue</button>
   </nav>
-
-  <section class="staff-booking-filters" id="staffBookingFilters">
-    <label class="staff-booking-search">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 20.1-4.7-4.7a7.5 7.5 0 1 0-1.1 1.1l4.7 4.7 1.1-1.1ZM4.5 10.5a6 6 0 1 1 12 0 6 6 0 0 1-12 0Z" /></svg>
-      <input id="staffBookingSearch" type="search" placeholder="Booking Code or Plate Number" />
-    </label>
-
-    <label class="staff-booking-select">
-      <select id="staffBookingLotFilter" aria-label="Filter bookings by parking lot">
-        <option value="">All Parking Lots</option>
-      </select>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5H7Z" /></svg>
-    </label>
-
-    <label class="staff-booking-date">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h2v2h6V2h2v2h3v18H4V4h3V2Zm11 8H6v10h12V10Z" /></svg>
-      <input id="staffBookingDateFilter" type="date" />
-    </label>
-
-    <div class="staff-booking-status-chips" role="group" aria-label="Status filter">
-      <span>Status:</span>
-      <button class="active" type="button" data-staff-booking-status="">All</button>
-      <button type="button" data-staff-booking-status="active">Active</button>
-      <button type="button" data-staff-booking-status="completed">Completed</button>
-    </div>
-  </section>
 
   <section class="staff-booking-table-card" id="staffBookingTableCard">
     <div class="staff-booking-table-scroll">
@@ -61,6 +35,7 @@ const bookingsContent = `
             <th>Status</th>
             <th>Arrival</th>
             <th>Departure</th>
+            <th>Checked-in Hours</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -105,6 +80,49 @@ const bookingsContent = `
       <button class="staff-overdue-refresh" type="button" id="staffOverdueRefreshButton">Refresh List</button>
     </div>
     <div class="staff-overdue-grid" id="staffOverdueList"></div>
+  </section>
+
+  <section class="staff-checkout-modal hidden" id="staffCheckoutModal" aria-hidden="true">
+    <div class="staff-checkout-modal-card" role="dialog" aria-modal="true" aria-labelledby="staffCheckoutTitle">
+      <div class="staff-checkout-modal-head">
+        <div>
+          <span>Active booking</span>
+          <h2 id="staffCheckoutTitle">Confirm Check Out</h2>
+        </div>
+        <button type="button" data-staff-checkout-close aria-label="Close checkout dialog">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z" /></svg>
+        </button>
+      </div>
+
+      <div class="staff-checkout-summary">
+        <div>
+          <span>Booking ID</span>
+          <strong id="staffCheckoutBookingCode">-</strong>
+        </div>
+        <div>
+          <span>Amount to pay</span>
+          <strong id="staffCheckoutAmount">-</strong>
+        </div>
+        <div>
+          <span>Overtime</span>
+          <strong id="staffCheckoutOvertime">-</strong>
+        </div>
+        <div>
+          <span>Overtime fee</span>
+          <strong id="staffCheckoutOvertimeFee">-</strong>
+        </div>
+      </div>
+
+      <label class="staff-checkout-notes">
+        <span>Vehicle condition notes</span>
+        <textarea id="staffCheckoutNotes" rows="3">Vehicle checked out by staff</textarea>
+      </label>
+
+      <div class="staff-checkout-modal-actions">
+        <button type="button" data-staff-checkout-close>Cancel</button>
+        <button type="button" id="staffCheckoutConfirmButton">Check Out</button>
+      </div>
+    </div>
   </section>
 `;
 

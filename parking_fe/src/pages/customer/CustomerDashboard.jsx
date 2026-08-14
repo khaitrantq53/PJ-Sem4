@@ -47,6 +47,39 @@ function isActiveBooking(booking) {
   return activeStatuses.includes(booking.status);
 }
 
+function isPaidBooking(booking) {
+  return String(booking?.paymentStatus || '').toUpperCase() === 'PAID';
+}
+
+function isSettlementBooking(booking) {
+  return ['CHECKED_OUT', 'PENDING_PAYMENT'].includes(booking?.status)
+    && Boolean(booking.actualCheckOutTime)
+    && !isPaidBooking(booking);
+}
+
+function displayBookingPriority(booking) {
+  if (isSettlementBooking(booking)) return 0;
+  if (booking?.status === 'PENDING_PAYMENT') return 1;
+  if (booking?.status === 'OVERDUE') return 2;
+  if (booking?.status === 'CHECKED_IN') return 3;
+  if (booking?.status === 'CONFIRMED') return 4;
+  if (booking?.status === 'PENDING_APPROVAL') return 5;
+  if (isSettlementBooking(booking)) return 6;
+  return 9;
+}
+
+function selectHighlightedBooking(items) {
+  return items
+    .filter((booking) => isActiveBooking(booking) || isSettlementBooking(booking))
+    .sort((left, right) => {
+      const priority = displayBookingPriority(left) - displayBookingPriority(right);
+      if (priority !== 0) {
+        return priority;
+      }
+      return bookingSortDate(right) - bookingSortDate(left);
+    })[0] || null;
+}
+
 function statusText(value) {
   return String(value || '-').replaceAll('_', ' ');
 }
@@ -223,7 +256,7 @@ function activeParkingPricing(booking, lot, now) {
   const actualCheckIn = parseDate(booking?.actualCheckInTime);
   const actualCheckOut = parseDate(booking?.actualCheckOutTime);
 
-  if (!booking || !actualCheckIn || !['CHECKED_IN', 'OVERDUE', 'CHECKED_OUT', 'COMPLETED'].includes(booking.status)) {
+  if (!booking || !actualCheckIn || !['CHECKED_IN', 'OVERDUE', 'CHECKED_OUT', 'COMPLETED', 'PENDING_PAYMENT'].includes(booking.status)) {
     return null;
   }
 
@@ -282,6 +315,16 @@ function activeTimerState(booking, now) {
   const actualCheckOut = parseDate(booking.actualCheckOutTime);
   const scheduledEnd = parseDate(booking.endTime);
 
+  if (actualCheckIn && actualCheckOut) {
+    return {
+      className: 'completed',
+      label: 'TOTAL PARKING TIME',
+      progress: '100%',
+      sublabel: `Checked out at ${formatDateTime(actualCheckOut)}`,
+      value: formatDuration(actualCheckOut.getTime() - actualCheckIn.getTime()),
+    };
+  }
+
   if ((booking.status === 'CHECKED_IN' || booking.status === 'OVERDUE') && actualCheckIn) {
     const totalWindow = scheduledEnd ? Math.max(1, scheduledEnd.getTime() - actualCheckIn.getTime()) : 1;
     const elapsed = Math.max(0, now.getTime() - actualCheckIn.getTime());
@@ -291,16 +334,6 @@ function activeTimerState(booking, now) {
       progress: `${Math.min(100, (elapsed / totalWindow) * 100)}%`,
       sublabel: `Started at ${formatDateTime(actualCheckIn)}`,
       value: formatDuration(elapsed),
-    };
-  }
-
-  if (booking.status === 'CHECKED_OUT' && actualCheckIn && actualCheckOut) {
-    return {
-      className: 'completed',
-      label: 'TOTAL PARKING TIME',
-      progress: '100%',
-      sublabel: `Checked out at ${formatDateTime(actualCheckOut)}`,
-      value: formatDuration(actualCheckOut.getTime() - actualCheckIn.getTime()),
     };
   }
 
@@ -330,19 +363,14 @@ function timelineState(booking, key) {
     return activeStatuses.includes(status) || finishedStatuses.includes(status) ? 'done' : 'pending';
   }
 
-  if (key === 'confirmed') {
-    if (status === 'PENDING_PAYMENT') return 'current';
-    if (['CONFIRMED', 'CHECKED_IN', 'OVERDUE', ...finishedStatuses].includes(status) || paymentStatus === 'PAID') return 'done';
-    return 'pending';
-  }
-
   if (key === 'checkedIn') {
     if (status === 'CHECKED_IN' || status === 'OVERDUE') return 'current';
-    if (finishedStatuses.includes(status)) return 'done';
+    if (status === 'PENDING_PAYMENT' || booking.actualCheckOutTime || finishedStatuses.includes(status)) return 'done';
     return 'pending';
   }
 
-  if (key === 'completed') {
+  if (key === 'checkout') {
+    if (status === 'PENDING_PAYMENT' || booking.actualCheckOutTime) return paymentStatus === 'PAID' ? 'done' : 'current';
     return finishedStatuses.includes(status) ? 'done' : 'pending';
   }
 
@@ -354,11 +382,26 @@ function timelineProgress(booking) {
     return '0%';
   }
 
-  const states = ['created', 'approved', 'confirmed', 'checkedIn', 'completed'].map((key) => timelineState(booking, key));
+  const steps = ['created', 'approved', 'checkedIn', 'checkout'];
+  const states = steps.map((key) => timelineState(booking, key));
   const lastDoneIndex = states.reduce((index, state, currentIndex) => (state === 'done' ? currentIndex : index), 0);
   const currentIndex = states.findIndex((state) => state === 'current');
   const index = currentIndex >= 0 ? currentIndex : lastDoneIndex;
-  return `${Math.max(0, Math.min(80, (index / 4) * 80))}%`;
+  return `${Math.max(0, Math.min(80, (index / (steps.length - 1)) * 80))}%`;
+}
+
+function paymentQrPayload(booking, total) {
+  return [
+    'PARKFINDER_PAYMENT',
+    booking?.bookingCode || booking?.id || 'BOOKING',
+    moneyAmount(total),
+    moneyCurrency(total),
+  ].join('|');
+}
+
+function qrCellFilled(payload, index) {
+  const value = payload.charCodeAt(index % payload.length) + index * 17;
+  return value % 5 === 0 || value % 7 === 0 || value % 11 === 0;
 }
 
 export function CustomerDashboard() {
@@ -379,12 +422,16 @@ export function CustomerDashboard() {
   );
 
   const currentBooking = useMemo(() => {
-    return activeBookings
-      .slice()
-      .sort((left, right) => new Date(left.startTime) - new Date(right.startTime))[0] || null;
-  }, [activeBookings]);
+    return selectHighlightedBooking(bookings);
+  }, [bookings]);
 
-  const displayBooking = activeBookingDetail || currentBooking;
+  const settlementBooking = useMemo(() => {
+    return bookings
+      .filter(isSettlementBooking)
+      .sort((left, right) => bookingSortDate(right) - bookingSortDate(left))[0] || null;
+  }, [bookings]);
+
+  const displayBooking = activeBookingDetail || currentBooking || settlementBooking;
 
   const currentVehicle = useMemo(() => {
     return vehicles.find((vehicle) => vehicle.id === displayBooking?.vehicleId) || null;
@@ -413,6 +460,13 @@ export function CustomerDashboard() {
   const livePricing = activeParkingPricing(displayBooking, currentLot, now);
   const displayParkingFee = livePricing?.parkingFee || moneyPart(displayBooking, 'parkingFee');
   const displayTotal = livePricing?.total || total;
+  const showPaymentQr = ['CHECKED_OUT', 'PENDING_PAYMENT'].includes(displayBooking?.status) && !isPaidBooking(displayBooking);
+  const paymentQr = paymentQrPayload(displayBooking, displayTotal);
+  const pageHeading = displayBooking?.status === 'CHECKED_OUT'
+    ? 'Final Bill'
+    : displayBooking?.status === 'PENDING_PAYMENT'
+      ? 'Payment Required'
+      : 'Active Booking';
   const vehicleLabel = currentVehicle
     ? `${currentVehicle.brand || currentVehicle.vehicleType} ${currentVehicle.plateNumber}`
     : 'Vehicle pending';
@@ -439,19 +493,17 @@ export function CustomerDashboard() {
         apiPage('/public/parking-lots', { size: 12 }),
       ]);
 
-      const active = bookingPage.items
-        .filter(isActiveBooking)
-        .sort((left, right) => new Date(left.startTime) - new Date(right.startTime))[0];
+      const highlightedBooking = selectHighlightedBooking(bookingPage.items);
 
       let detail = null;
       let qr = '';
       let lotDetail = null;
 
-      if (active) {
+      if (highlightedBooking) {
         const [detailResult, qrResult, lotResult] = await Promise.allSettled([
-          apiRequest(`/customer/bookings/${active.id}`),
-          apiRequest(`/customer/bookings/${active.id}/qr-code`),
-          getParkingLotDetail(active.parkingLotId),
+          apiRequest(`/customer/bookings/${highlightedBooking.id}`),
+          apiRequest(`/customer/bookings/${highlightedBooking.id}/qr-code`),
+          getParkingLotDetail(highlightedBooking.parkingLotId),
         ]);
 
         if (detailResult.status === 'fulfilled') {
@@ -518,7 +570,7 @@ export function CustomerDashboard() {
                     <span>Booking Reference</span>
                     <strong>#{displayBooking.bookingCode || displayBooking.id || 'Pending'}</strong>
                   </div>
-                  <h1>Active Booking{currentVehicle ? ` - ${currentVehicle.plateNumber}` : ''}</h1>
+                  <h1>{pageHeading}{currentVehicle ? ` - ${currentVehicle.plateNumber}` : ''}</h1>
                 </div>
                 <span className="active-booking-status confirmed">
                   {loading ? 'Loading' : statusText(displayBooking.status || 'No Active Booking')}
@@ -591,6 +643,7 @@ export function CustomerDashboard() {
                             </a>
                           </div>
                         </div>
+
                       </div>
                     </div>
 
@@ -598,9 +651,8 @@ export function CustomerDashboard() {
                       {[
                         ['created', 'Created', formatDateTime(displayBooking.createdAt)],
                         ['approved', 'Approved', displayBooking.status === 'PENDING_APPROVAL' ? 'Pending' : 'Ready'],
-                        ['confirmed', 'Confirmed', displayBooking.paymentStatus === 'UNPAID' ? 'Payment pending' : statusText(displayBooking.paymentStatus)],
                         ['checkedIn', 'Checked In', displayBooking.actualCheckInTime ? formatDateTime(displayBooking.actualCheckInTime) : 'Staff verification pending'],
-                        ['completed', 'Completed', displayBooking.actualCheckOutTime ? formatDateTime(displayBooking.actualCheckOutTime) : 'Pending'],
+                        ['checkout', 'Check out', 'Payment pending'],
                       ].map(([key, label, meta]) => (
                         <div className={`active-booking-step ${timelineState(displayBooking, key)}`} key={key}>
                           <span />
@@ -610,12 +662,6 @@ export function CustomerDashboard() {
                       ))}
                     </div>
                   </section>
-
-                  <div className="active-booking-secondary-actions">
-                    <a href="/customer-support.html">Contact Support</a>
-                    <span>|</span>
-                    <button type="button">Cancel Booking</button>
-                  </div>
                 </div>
 
                 <aside className="active-booking-right">
@@ -654,6 +700,21 @@ export function CustomerDashboard() {
                       <span>Payment</span>
                       <strong>{statusText(displayBooking.paymentMethod)}</strong>
                     </div>
+                    {showPaymentQr ? (
+                      <div className="active-booking-payment-qr">
+                        <div className="active-payment-qr-code" aria-label="Payment QR">
+                          {Array.from({ length: 49 }).map((_, index) => (
+                            <i key={`${paymentQr}-${index}`} className={qrCellFilled(paymentQr, index) ? 'filled' : ''} />
+                          ))}
+                          <span>PAY</span>
+                        </div>
+                        <div>
+                          <span>Payment QR</span>
+                          <strong>{formatMoney(displayTotal)}</strong>
+                          <small>{displayBooking.bookingCode || displayBooking.id}</small>
+                        </div>
+                      </div>
+                    ) : null}
                   </section>
 
                   <section className="active-booking-info-card">
@@ -668,17 +729,6 @@ export function CustomerDashboard() {
                     </div>
                   </section>
 
-                  <section className="active-booking-info-card">
-                    <span>
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M5 11h14l-1.5-4.5A2 2 0 0 0 15.6 5H8.4a2 2 0 0 0-1.9 1.5L5 11Zm-1 2v5h2v-2h12v2h2v-5H4Z" />
-                      </svg>
-                    </span>
-                    <div>
-                      <strong>Vehicle Access</strong>
-                      <small>{currentVehicle?.plateNumber || 'Spot details pending staff approval'}</small>
-                    </div>
-                  </section>
                 </aside>
               </div>
             </>
@@ -696,7 +746,8 @@ export function CustomerDashboard() {
                   const vehicle = vehicles.find((item) => item.id === booking.vehicleId);
                   const lot = lots.find((item) => item.id === booking.parkingLotId);
                   const isPaid = String(booking.paymentStatus || '').toUpperCase() === 'PAID';
-                  const paidAmount = isPaid ? formatMoney(bookingTotal(booking)) : statusText(booking.paymentStatus || 'Unpaid');
+                  const amount = formatMoney(bookingTotal(booking));
+                  const paidAmount = isPaid ? amount : `${amount} due`;
 
                   return (
                     <article className="active-booking-recent-card" key={booking.id}>
@@ -709,7 +760,7 @@ export function CustomerDashboard() {
                         <strong>{lot?.name || booking.parkingLotName || booking.parkingLot?.name || booking.parkingLotId || 'Parking lot pending'}</strong>
                       </div>
                       <div>
-                        <span>Paid Amount</span>
+                        <span>Amount</span>
                         <strong>{paidAmount}</strong>
                       </div>
                       <div>

@@ -1,5 +1,6 @@
 package com.smartparking.booking;
 
+import com.smartparking.account.CustomerProfileRepository;
 import com.smartparking.booking.dto.BookingDtos;
 import com.smartparking.common.AvailableAction;
 import com.smartparking.common.BookingStatus;
@@ -9,12 +10,26 @@ import java.util.List;
 
 @Component
 public class BookingMapper {
+    private final CustomerProfileRepository customerProfileRepository;
+
+    public BookingMapper(CustomerProfileRepository customerProfileRepository) {
+        this.customerProfileRepository = customerProfileRepository;
+    }
+
     public BookingDtos.BookingResponse toResponse(Booking booking) {
         return new BookingDtos.BookingResponse(
                 booking.getId(),
                 booking.getBookingCode(),
                 booking.getParkingLot().getId(),
                 booking.getVehicle().getId(),
+                booking.getVehicle().getPlateNumber(),
+                booking.getVehicle().getVehicleType(),
+                booking.getVehicle().getBrand(),
+                booking.getVehicle().getColor(),
+                booking.getCustomer().getId(),
+                customerName(booking),
+                booking.getCustomer().getPhone(),
+                booking.getCustomer().getEmail(),
                 booking.getStatus(),
                 booking.getPaymentStatus(),
                 booking.getPaymentMethod(),
@@ -36,6 +51,14 @@ public class BookingMapper {
                 booking.getBookingCode(),
                 booking.getParkingLot().getId(),
                 booking.getVehicle().getId(),
+                booking.getVehicle().getPlateNumber(),
+                booking.getVehicle().getVehicleType(),
+                booking.getVehicle().getBrand(),
+                booking.getVehicle().getColor(),
+                booking.getCustomer().getId(),
+                customerName(booking),
+                booking.getCustomer().getPhone(),
+                booking.getCustomer().getEmail(),
                 booking.getStatus(),
                 booking.getPaymentStatus(),
                 booking.getPaymentMethod(),
@@ -99,5 +122,11 @@ public class BookingMapper {
 
     private BookingDtos.Money money(java.math.BigDecimal amount, String currency) {
         return new BookingDtos.Money(amount, currency);
+    }
+
+    private String customerName(Booking booking) {
+        return customerProfileRepository.findByAccountId(booking.getCustomer().getId())
+                .map(profile -> profile.getFullName())
+                .orElse(null);
     }
 }

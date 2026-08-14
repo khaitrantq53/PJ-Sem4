@@ -6,6 +6,7 @@ import com.smartparking.common.DeliveryMethod;
 import com.smartparking.common.PaymentMethod;
 import com.smartparking.common.PaymentStatus;
 import com.smartparking.common.RequestStatus;
+import com.smartparking.common.VehicleType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -60,6 +61,14 @@ public final class BookingDtos {
             String bookingCode,
             UUID parkingLotId,
             UUID vehicleId,
+            String plateNumber,
+            VehicleType vehicleType,
+            String vehicleBrand,
+            String vehicleColor,
+            UUID customerId,
+            String customerName,
+            String customerPhone,
+            String customerEmail,
             BookingStatus status,
             PaymentStatus paymentStatus,
             PaymentMethod paymentMethod,
@@ -80,6 +89,14 @@ public final class BookingDtos {
             String bookingCode,
             UUID parkingLotId,
             UUID vehicleId,
+            String plateNumber,
+            VehicleType vehicleType,
+            String vehicleBrand,
+            String vehicleColor,
+            UUID customerId,
+            String customerName,
+            String customerPhone,
+            String customerEmail,
             BookingStatus status,
             PaymentStatus paymentStatus,
             PaymentMethod paymentMethod,
@@ -154,5 +171,8 @@ public final class BookingDtos {
     }
 
     public record CheckOutRequest(String conditionNotes, Long expectedVersion) {
+    }
+
+    public record DoneRequest(String note, Long expectedVersion) {
     }
 }

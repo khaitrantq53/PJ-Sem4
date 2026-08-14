@@ -233,6 +233,9 @@ let extensionRequestsCache = [];
 let bookingLotsCache = [];
 let activeBookingTab = '';
 let activeBookingStatusGroup = '';
+let staffBookingDurationTimer = null;
+let checkoutDraft = null;
+const STAFF_ACTIVE_BOOKING_STATUSES = ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'OVERDUE'];
 
 function parkingLotCounts(lots) {
   return lots.reduce((counts, lot) => {
@@ -391,12 +394,59 @@ function bookingDateLabel(parts) {
   return `${parts.day}, ${parts.time}`;
 }
 
+function parseBookingDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatBookingDuration(milliseconds) {
+  const totalMinutes = Math.max(0, Math.floor(milliseconds / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+}
+
+function checkedInDuration(booking) {
+  const actualCheckIn = parseBookingDate(booking?.actualCheckInTime);
+  if (!actualCheckIn) {
+    return {
+      className: 'waiting',
+      label: 'Not checked in',
+      value: '-',
+    };
+  }
+
+  const actualCheckOut = parseBookingDate(booking?.actualCheckOutTime);
+  const endTime = actualCheckOut || new Date();
+  const elapsed = Math.max(0, endTime.getTime() - actualCheckIn.getTime());
+  const statusClassName = bookingStatusClass(booking?.status);
+
+  return {
+    className: actualCheckOut ? 'completed' : statusClassName,
+    label: actualCheckOut ? `Out ${formatTime(actualCheckOut)}` : `Since ${formatTime(actualCheckIn)}`,
+    value: formatBookingDuration(elapsed),
+  };
+}
+
+function hasRunningCheckedInBooking() {
+  return bookingsCache.some((booking) => {
+    return booking.actualCheckInTime
+      && !booking.actualCheckOutTime
+      && ['CHECKED_IN', 'OVERDUE'].includes(booking.status);
+  });
+}
+
 function bookingStatusClass(status) {
   const normalized = String(status || '').toLowerCase();
   if (normalized.includes('pending')) {
     return 'pending';
   }
-  if (normalized.includes('completed') || normalized.includes('cancel') || normalized.includes('declin')) {
+  if (normalized.includes('completed') || normalized.includes('checked_out') || normalized.includes('checked out') || normalized.includes('cancel') || normalized.includes('declin')) {
     return 'completed';
   }
   if (normalized.includes('overdue')) {
@@ -418,10 +468,29 @@ function bookingVehicleLabel(booking) {
 }
 
 function bookingVehicleDetail(booking) {
-  return booking.vehicleType
+  const brand = booking.vehicleBrand || booking.brand;
+  const color = booking.vehicleColor || booking.color;
+  const type = booking.vehicleType || booking.vehicleName;
+  const description = [brand, color].filter(Boolean).join(' / ');
+
+  return description
+    || type
     || booking.vehicleName
     || booking.paymentMethod
     || 'Vehicle request';
+}
+
+function bookingCustomerLabel(booking) {
+  return booking.customerName
+    || booking.customerEmail
+    || booking.customerPhone
+    || String(booking.customerId || 'Customer').slice(0, 8);
+}
+
+function bookingCustomerDetail(booking) {
+  return booking.customerPhone
+    || booking.customerEmail
+    || 'No phone number';
 }
 
 function bookingTone(booking) {
@@ -436,7 +505,7 @@ function bookingMatchesTab(booking) {
     return false;
   }
   if (!activeBookingTab) {
-    return true;
+    return STAFF_ACTIVE_BOOKING_STATUSES.includes(booking.status);
   }
   return booking.status === activeBookingTab;
 }
@@ -467,6 +536,12 @@ function bookingMatchesFilters(booking) {
   const haystack = normalizeFilterValue([
     booking.id,
     booking.bookingCode,
+    booking.licensePlate,
+    booking.plateNumber,
+    booking.vehiclePlate,
+    booking.customerName,
+    booking.customerPhone,
+    booking.customerEmail,
     booking.vehicleId,
     booking.parkingLotId,
     booking.status,
@@ -500,14 +575,14 @@ function setStaffBookingViewMode(mode) {
     extension: 'Extension Requests',
     overdue: 'Overdue Vehicles',
     pending: 'Pending Approvals',
-    table: 'Booking Management',
+    table: 'Active Bookings',
   };
   const subtitles = {
     change: 'Review and manage active booking modification requests from customers.',
     extension: 'Review and approve customer requests to extend their active parking sessions. Approving a request will automatically charge their payment method on file.',
     overdue: 'Monitor and manage vehicles that have exceeded their booked departure time. Action required to free up capacity.',
     pending: 'Review new booking requests before they become active reservations.',
-    table: 'Track active reservations, approvals, and customer request queues.',
+    table: 'Track bookings that are currently moving through payment, check-in, parking, or overdue handling.',
   };
 
   $('#staffBookingsTitle') && setText('#staffBookingsTitle', titles[mode] || titles.table);
@@ -528,6 +603,7 @@ function setStaffBookingViewMode(mode) {
     ? `
       <tr>
         <th>Booking ID</th>
+        <th>Customer</th>
         <th>Vehicle Details</th>
         <th>Requested Time</th>
         <th>Actions</th>
@@ -540,6 +616,7 @@ function setStaffBookingViewMode(mode) {
         <th>Status</th>
         <th>Arrival</th>
         <th>Departure</th>
+        <th>Checked-in Hours</th>
         <th>Actions</th>
       </tr>
     `;
@@ -549,7 +626,7 @@ function renderPendingApprovalRows(bookings) {
   if (!bookings.length) {
     return `
       <tr>
-        <td colspan="4">
+        <td colspan="5">
           <div class="staff-pending-empty">
             <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v14H7.8L4 21.8V4Zm3 5h10V7H7v2Zm0 4h7v-2H7v2Z" /></svg></span>
             <strong>All caught up!</strong>
@@ -567,6 +644,8 @@ function renderPendingApprovalRows(bookings) {
     const lotName = bookingLotName(booking.parkingLotId);
     const vehicleLabel = bookingVehicleLabel(booking);
     const vehicleDetail = bookingVehicleDetail(booking);
+    const customerLabel = bookingCustomerLabel(booking);
+    const customerDetail = bookingCustomerDetail(booking);
     const tone = bookingTone(booking);
 
     return `
@@ -574,6 +653,10 @@ function renderPendingApprovalRows(bookings) {
         <td>
           <strong>${escapeHtml(bookingLabel)}</strong>
           <span>${escapeHtml(lotName)}</span>
+        </td>
+        <td>
+          <strong>${escapeHtml(customerLabel)}</strong>
+          <span>${escapeHtml(customerDetail)}</span>
         </td>
         <td>
           <strong>${escapeHtml(vehicleLabel)}</strong>
@@ -591,8 +674,8 @@ function renderPendingApprovalRows(bookings) {
             <button class="staff-pending-action decline" type="button" title="Decline" data-staff-booking-action="decline" data-booking-id="${escapeHtml(booking.id)}">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z" /></svg>
             </button>
-            <button class="staff-pending-action approve" type="button" title="Approve" data-staff-booking-action="approve" data-booking-id="${escapeHtml(booking.id)}">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.2 16.2-4-4L3.8 13.6l5.4 5.4L20.5 7.7l-1.4-1.4-9.9 9.9Z" /></svg>
+            <button class="staff-booking-approve" type="button" data-staff-booking-action="activate" data-booking-id="${escapeHtml(booking.id)}">
+              Check In
             </button>
           </div>
         </td>
@@ -942,7 +1025,9 @@ function renderStaffBookings() {
 
   const emptyMessage = activeBookingTab === 'CHANGE_REQUESTS' || activeBookingTab === 'EXTENSION_REQUESTS'
     ? 'Request list API is not available yet.'
-    : 'No bookings match your filters.';
+    : !activeBookingTab
+      ? 'No active bookings match your filters.'
+      : 'No bookings match your filters.';
 
   if (!table) {
     return;
@@ -957,7 +1042,7 @@ function renderStaffBookings() {
   if (!filteredBookings.length) {
     table.innerHTML = `
       <tr>
-        <td colspan="6">
+        <td colspan="7">
           <div class="empty-state">${escapeHtml(emptyMessage)}</div>
         </td>
       </tr>
@@ -969,9 +1054,11 @@ function renderStaffBookings() {
     const statusClassName = bookingStatusClass(booking.status);
     const arrival = bookingDateParts(booking.startTime);
     const departure = bookingDateParts(booking.endTime);
+    const duration = checkedInDuration(booking);
     const rowAccent = statusClassName === 'pending' ? ' pending' : statusClassName === 'completed' ? ' completed' : '';
     const bookingLabel = booking.bookingCode || booking.id;
-    const vehicleLabel = String(booking.vehicleId || 'Vehicle').slice(0, 8);
+    const vehicleLabel = bookingVehicleLabel(booking);
+    const vehicleDetail = bookingVehicleDetail(booking);
     const lotName = bookingLotName(booking.parkingLotId);
     let actions = `
         <button class="staff-booking-icon-action" type="button" title="Edit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19h1.4l9.9-9.9-1.4-1.4L5 17.6V19Zm14.7-11.3-3.4-3.4 1-1a1.5 1.5 0 0 1 2.1 0l1.3 1.3a1.5 1.5 0 0 1 0 2.1l-1 1Z" /></svg></button>
@@ -983,10 +1070,31 @@ function renderStaffBookings() {
         <button class="staff-booking-decline" type="button" data-staff-booking-action="decline" data-booking-id="${escapeHtml(booking.id)}">Decline</button>
         <button class="staff-booking-approve" type="button" data-staff-booking-action="approve" data-booking-id="${escapeHtml(booking.id)}">Approve</button>
       `;
+    } else if (booking.status === 'PENDING_PAYMENT') {
+      actions = `
+        <button class="staff-booking-toggle-action" type="button" data-staff-booking-action="done" data-booking-id="${escapeHtml(booking.id)}">
+          <span aria-hidden="true"></span>
+          Done
+        </button>
+      `;
     } else if (booking.status === 'CONFIRMED') {
       actions = `
         <button class="staff-booking-approve" type="button" data-staff-booking-action="check-in" data-booking-id="${escapeHtml(booking.id)}">Check In</button>
         <button class="staff-booking-icon-action" type="button" title="More"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" /></svg></button>
+      `;
+    } else if (booking.status === 'CHECKED_IN' || booking.status === 'OVERDUE') {
+      actions = `
+        <button class="staff-booking-toggle-action" type="button" data-staff-booking-action="check-out" data-booking-id="${escapeHtml(booking.id)}">
+          <span aria-hidden="true"></span>
+          Check Out
+        </button>
+      `;
+    } else if (booking.status === 'CHECKED_OUT') {
+      actions = `
+        <button class="staff-booking-toggle-action is-on" type="button" disabled>
+          <span aria-hidden="true"></span>
+          Checked Out
+        </button>
       `;
     }
 
@@ -1001,13 +1109,19 @@ function renderStaffBookings() {
             ${bookingVehicleIcon(statusClassName)}
             <div>
               <strong>${escapeHtml(vehicleLabel)}</strong>
-              <span>${escapeHtml(booking.paymentMethod || 'Vehicle')}</span>
+              <span>${escapeHtml(vehicleDetail)}</span>
             </div>
           </div>
         </td>
         <td><span class="staff-booking-status ${escapeHtml(statusClassName)}">${escapeHtml(booking.status || '-')}</span></td>
         <td><strong>${escapeHtml(arrival.time)}</strong><span>${escapeHtml(arrival.day)}</span></td>
         <td><strong>${escapeHtml(departure.time)}</strong><span>${escapeHtml(departure.day)}</span></td>
+        <td>
+          <div class="staff-booking-duration ${escapeHtml(duration.className)}">
+            <strong>${escapeHtml(duration.value)}</strong>
+            <span>${escapeHtml(duration.label)}</span>
+          </div>
+        </td>
         <td><div class="staff-booking-actions">${actions}</div></td>
       </tr>
     `;
@@ -1047,24 +1161,160 @@ async function staffCheckInBooking(booking, initialQrCode = '') {
   });
 }
 
+async function staffCheckOutBooking(booking) {
+  if (!booking) {
+    return null;
+  }
+
+  setStatus('#staffBookingsStatus', 'Calculating checkout amount...');
+  const preview = await apiRequest(`/staff/bookings/${booking.id}/checkout-preview`, {
+    method: 'POST',
+  });
+
+  openStaffCheckoutModal(booking, preview);
+  setStatus('#staffBookingsStatus', 'Review checkout amount before confirming.');
+  return preview;
+}
+
+function openStaffCheckoutModal(booking, preview) {
+  checkoutDraft = { booking, preview };
+  setText('#staffCheckoutBookingCode', booking.bookingCode || booking.id);
+  setText('#staffCheckoutAmount', money(preview.totalAmount));
+  setText('#staffCheckoutOvertime', `${Number(preview.overtimeMinutes || 0)} minutes`);
+  setText('#staffCheckoutOvertimeFee', money(preview.overtimeFee));
+
+  const notes = $('#staffCheckoutNotes');
+  if (notes) {
+    notes.value = 'Vehicle checked out by staff';
+  }
+
+  const modal = $('#staffCheckoutModal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden', 'false');
+  }
+}
+
+function closeStaffCheckoutModal() {
+  checkoutDraft = null;
+  const modal = $('#staffCheckoutModal');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+}
+
+async function confirmStaffCheckOut() {
+  if (!checkoutDraft) {
+    return;
+  }
+
+  const { booking, preview } = checkoutDraft;
+  const button = $('#staffCheckoutConfirmButton');
+  const conditionNotes = $('#staffCheckoutNotes')?.value?.trim() || 'Vehicle checked out by staff';
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Checking out...';
+  }
+
+  try {
+    setStatus('#staffBookingsStatus', 'Checking out booking...');
+    await apiRequest(`/staff/bookings/${booking.id}/check-out`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey() },
+      body: jsonBody({
+        conditionNotes,
+        expectedVersion: preview.version ?? booking.version,
+      }),
+    });
+
+    closeStaffCheckoutModal();
+    setStatus('#staffBookingsStatus', 'Booking checked out. Customer amount is ready to pay.');
+    await loadStaffBookings();
+  } catch (error) {
+    setStatus('#staffBookingsStatus', error.message, true);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Check Out';
+    }
+  }
+}
+
+function bindStaffCheckoutModal() {
+  $all('[data-staff-checkout-close]').forEach((button) => {
+    button.addEventListener('click', () => {
+      closeStaffCheckoutModal();
+      setStatus('#staffBookingsStatus', 'Check-out cancelled.');
+    });
+  });
+
+  $('#staffCheckoutConfirmButton')?.addEventListener('click', confirmStaffCheckOut);
+}
+
 function bindStaffBookingActions() {
   $all('[data-staff-booking-action]').forEach((button) => {
     button.addEventListener('click', async () => {
       const bookingId = button.dataset.bookingId;
       const action = button.dataset.staffBookingAction;
       const booking = bookingsCache.find((item) => item.id === bookingId);
-      const label = action === 'approve' ? 'Approving' : action === 'decline' ? 'Declining' : 'Checking in';
+      const label = action === 'approve'
+        ? 'Approving'
+        : action === 'activate'
+          ? 'Checking in'
+        : action === 'decline'
+          ? 'Declining'
+          : action === 'check-out'
+            ? 'Checking out'
+            : action === 'done'
+              ? 'Completing'
+              : 'Checking in';
       setStatus('#staffBookingsStatus', `${label} booking...`);
       try {
         if (action === 'check-in') {
           await staffCheckInBooking(booking);
+        } else if (action === 'check-out') {
+          await staffCheckOutBooking(booking);
+          return;
+        } else if (action === 'done') {
+          await apiRequest(`/staff/bookings/${bookingId}/done`, {
+            method: 'POST',
+            body: jsonBody({
+              expectedVersion: booking?.version,
+              note: 'Completed by staff after checkout',
+            }),
+          });
+        } else if (action === 'activate') {
+          await apiRequest(`/staff/bookings/${bookingId}/check-in`, {
+            method: 'POST',
+            headers: { 'Idempotency-Key': idempotencyKey() },
+            body: jsonBody({
+              qrCode: booking?.bookingCode || '',
+              plateNumber: booking?.plateNumber || '',
+              conditionNotes: 'Vehicle checked in by staff from pending approvals',
+              expectedVersion: booking?.version,
+            }),
+          });
+          activeBookingTab = '';
+          $all('[data-staff-booking-tab]').forEach((item) => {
+            item.classList.toggle('active', !item.dataset.staffBookingTab);
+          });
         } else {
           await apiRequest(`/staff/bookings/${bookingId}/${action}`, {
             method: 'POST',
             body: action === 'decline' ? jsonBody({ reason: 'Declined by staff from booking table' }) : undefined,
           });
         }
-        setStatus('#staffBookingsStatus', action === 'check-in' ? 'Booking checked in.' : 'Booking updated.');
+        setStatus('#staffBookingsStatus', action === 'check-in'
+          ? 'Booking checked in.'
+          : action === 'check-out'
+            ? 'Booking checked out. Customer amount is ready to pay.'
+            : action === 'done'
+              ? 'Booking completed.'
+            : action === 'activate'
+              ? 'Booking checked in and moved to active bookings.'
+              : 'Booking updated.');
         await loadStaffBookings();
       } catch (error) {
         setStatus('#staffBookingsStatus', error.message, true);
@@ -1174,6 +1424,14 @@ function bindStaffBookingsPage() {
   $('#staffBookingSearch')?.addEventListener('input', renderStaffBookings);
   $('#staffBookingLotFilter')?.addEventListener('change', renderStaffBookings);
   $('#staffBookingDateFilter')?.addEventListener('change', renderStaffBookings);
+  bindStaffCheckoutModal();
+  if (!staffBookingDurationTimer) {
+    staffBookingDurationTimer = window.setInterval(() => {
+      if (document.body.dataset.page === 'staff-bookings' && hasRunningCheckedInBooking()) {
+        renderStaffBookings();
+      }
+    }, 30000);
+  }
   $('#staffVerifyQrButton')?.addEventListener('click', async () => {
     const bookingCode = window.prompt('Booking code / QR code', '');
     if (!bookingCode) {
