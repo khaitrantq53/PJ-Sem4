@@ -8,6 +8,7 @@ const confirmBookingPage = {
     <div class="app-shell flow">
       <header class="topbar detail-topbar">
         <a class="brand" href="/" aria-label="ParkFinder">
+          <span class="brand-mark" aria-hidden="true"></span>
           <span>ParkFinder</span>
         </a>
 

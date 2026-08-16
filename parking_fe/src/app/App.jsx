@@ -9,6 +9,7 @@ import { AuthPage } from '../pages/auth/AuthPage.jsx';
 import { ConfirmBookingPage } from '../pages/booking/ConfirmBookingPage.jsx';
 import { CustomerDashboard } from '../pages/customer/CustomerDashboard.jsx';
 import { CustomerPayments } from '../pages/customer/CustomerPayments.jsx';
+import { CustomerProfile } from '../pages/customer/CustomerProfile.jsx';
 import { CustomerSupport } from '../pages/customer/CustomerSupport.jsx';
 import { CustomerVehicles } from '../pages/customer/CustomerVehicles.jsx';
 import { HomePage } from '../pages/home/HomePage.jsx';
@@ -89,6 +90,10 @@ export default function App() {
 
   if (pageName === 'customer-vehicles.html') {
     return <CustomerVehicles />;
+  }
+
+  if (pageName === 'customer-profile.html') {
+    return <CustomerProfile />;
   }
 
   const AdminComponent = adminComponents[pageName];

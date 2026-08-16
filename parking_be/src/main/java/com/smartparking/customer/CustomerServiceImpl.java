@@ -1,5 +1,7 @@
 package com.smartparking.customer;
 
+import com.smartparking.account.Account;
+import com.smartparking.account.AccountRepository;
 import com.smartparking.account.CustomerProfile;
 import com.smartparking.account.CustomerProfileRepository;
 import com.smartparking.common.StoredFile;
@@ -13,10 +15,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class CustomerServiceImpl implements CustomerService {
+    private final AccountRepository accountRepository;
     private final CustomerProfileRepository customerProfileRepository;
     private final FileStorageService fileStorageService;
 
-    public CustomerServiceImpl(CustomerProfileRepository customerProfileRepository, FileStorageService fileStorageService) {
+    public CustomerServiceImpl(AccountRepository accountRepository, CustomerProfileRepository customerProfileRepository, FileStorageService fileStorageService) {
+        this.accountRepository = accountRepository;
         this.customerProfileRepository = customerProfileRepository;
         this.fileStorageService = fileStorageService;
     }
@@ -35,6 +39,7 @@ public class CustomerServiceImpl implements CustomerService {
             throw new BusinessException(ErrorCode.RESOURCE_VERSION_CONFLICT, "Version không khớp");
         }
         profile.setFullName(request.fullName());
+        updateAccountContact(profile.getAccount(), request);
         return response(profile);
     }
 
@@ -50,6 +55,42 @@ public class CustomerServiceImpl implements CustomerService {
     private CustomerProfile profile(CurrentUser currentUser) {
         return customerProfileRepository.findByAccountId(currentUser.id())
                 .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Customer profile không tồn tại"));
+    }
+
+    private void updateAccountContact(Account account, CustomerDtos.ProfileUpdateRequest request) {
+        String email = blankToNull(request.email());
+        String phone = blankToNull(request.phone());
+
+        if (email == null && phone == null) {
+            throw new BusinessException(ErrorCode.BUSINESS_DECISION_REQUIRED, "Email hoặc số điện thoại là bắt buộc");
+        }
+
+        if (email != null) {
+            accountRepository.findByEmail(email)
+                    .filter(existing -> !existing.getId().equals(account.getId()))
+                    .ifPresent(existing -> {
+                        throw new BusinessException(ErrorCode.BUSINESS_DECISION_REQUIRED, "Email đã được sử dụng");
+                    });
+        }
+
+        if (phone != null) {
+            accountRepository.findByPhone(phone)
+                    .filter(existing -> !existing.getId().equals(account.getId()))
+                    .ifPresent(existing -> {
+                        throw new BusinessException(ErrorCode.BUSINESS_DECISION_REQUIRED, "Số điện thoại đã được sử dụng");
+                    });
+        }
+
+        account.setEmail(email);
+        account.setPhone(phone);
+    }
+
+    private String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        return value.trim();
     }
 
     private CustomerDtos.ProfileResponse response(CustomerProfile profile) {

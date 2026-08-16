@@ -11,6 +11,27 @@ import {
 const SUGGESTED_LOT_LIMIT = 6;
 const SEARCH_RADIUS_KM = 5;
 const HANOI_CENTER = { lat: 21.0278, lng: 105.8342 };
+const MAP_LAYERS = [
+  {
+    id: 'standard',
+    label: 'Standard map',
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    options: {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+    },
+  },
+  {
+    id: 'light',
+    label: 'Light map',
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    options: {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      maxZoom: 20,
+      subdomains: 'abcd',
+    },
+  },
+];
 const HANOI_SUGGESTED_COORDINATES = [
   { lat: 21.0287, lng: 105.8521 },
   { lat: 21.0358, lng: 105.8150 },
@@ -52,7 +73,7 @@ const state = {
 };
 
 const mapState = {
-  highContrast: false,
+  layerIndex: 1,
   map: null,
   markers: new Map(),
   searchMarker: null,
@@ -76,13 +97,10 @@ const elements = {
   parkingList: document.querySelector('#parkingList'),
   googleMap: document.querySelector('#googleMap'),
   mapLoader: document.querySelector('#mapLoader'),
-  zoomInButton: document.querySelector('#zoomInButton'),
-  zoomOutButton: document.querySelector('#zoomOutButton'),
   locateMapButton: document.querySelector('#locateMapButton'),
   mapTypeButton: document.querySelector('#mapTypeButton'),
   resultCount: document.querySelector('#resultCount'),
   apiStatus: document.querySelector('#apiStatus'),
-  mapFocus: document.querySelector('#mapFocus'),
   topActions: document.querySelector('.top-actions'),
 };
 
@@ -274,13 +292,28 @@ function calculateDistanceKm(fromLat, fromLng, toLat, toLng) {
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 }
 
+function defaultVehicleTypeForTimeSearch() {
+  if (!elements.vehicleTypeInput.value && (elements.startTimeInput.value || elements.endTimeInput.value)) {
+    elements.vehicleTypeInput.value = 'CAR';
+  }
+}
+
 function getQueryFromForm() {
   const address = elements.addressInput.value.trim();
+  const startTime = formatDateTimeForApi(elements.startTimeInput.value);
+  const endTime = formatDateTimeForApi(elements.endTimeInput.value);
+  let vehicleType = elements.vehicleTypeInput.value;
+
+  if (!vehicleType && (startTime || endTime)) {
+    vehicleType = 'CAR';
+    elements.vehicleTypeInput.value = vehicleType;
+  }
+
   const query = {
-    vehicleType: elements.vehicleTypeInput.value,
+    vehicleType,
     maxPrice: elements.maxPriceInput.value,
-    startTime: formatDateTimeForApi(elements.startTimeInput.value),
-    endTime: formatDateTimeForApi(elements.endTimeInput.value),
+    startTime,
+    endTime,
   };
 
   if (state.searchLocation && normalizeSearchText(address) === state.searchLocation.query) {
@@ -309,6 +342,7 @@ function applyQuickFilter(query) {
 
   if (state.filter === 'ev') {
     query.vehicleType = 'ELECTRIC_CAR';
+    elements.vehicleTypeInput.value = 'ELECTRIC_CAR';
   }
 
   return query;
@@ -363,6 +397,10 @@ function getAccountEmail(account) {
   return account?.email || account?.phone || 'customer@example.com';
 }
 
+function getAccountContact(account) {
+  return account?.email || account?.phone || 'Email not updated';
+}
+
 function getAccountDisplayName(account) {
   const label = account?.fullName
     || account?.name
@@ -388,10 +426,33 @@ function getAccountInitials(account) {
   return initials.toUpperCase();
 }
 
+function getAccountMenuItems(account) {
+  if (account?.role === 'ADMIN') {
+    return [
+      { href: '/admin-users.html', icon: accountMenuIcons.dashboard, label: 'User Management' },
+      { href: '/admin-staff.html', icon: accountMenuIcons.users, label: 'Staff Management' },
+      { href: '/admin-bookings.html', icon: accountMenuIcons.book, label: 'Bookings' },
+    ];
+  }
+
+  if (account?.role === 'STAFF') {
+    return [
+      { href: '/staff.html', icon: accountMenuIcons.dashboard, label: 'Staff Dashboard' },
+      { href: '/staff-parking-lots.html', icon: accountMenuIcons.vehicles, label: 'Parking Lots' },
+      { href: '/staff-bookings.html', icon: accountMenuIcons.book, label: 'Bookings' },
+    ];
+  }
+
+  return [
+    { href: '/customer.html', icon: accountMenuIcons.dashboard, label: 'Active Bookings' },
+    { href: '/customer-vehicles.html', icon: accountMenuIcons.vehicles, label: 'Vehicles' },
+    { href: '/customer-profile.html', icon: accountMenuIcons.user, label: 'My Profile' },
+  ];
+}
+
 const accountMenuIcons = {
   book: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H20v17H7.5A2.5 2.5 0 0 0 5 21.5v-17ZM7.5 4A.5.5 0 0 0 7 4.5V17.1c.2-.1.3-.1.5-.1H18V4H7.5ZM4 4h1v18H4V4Z" /></svg>',
   card: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 4h16V7H4v2Zm0 3v5h16v-5H4Zm2 2h5v2H6v-2Z" /></svg>',
-  chevron: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5H7Z" /></svg>',
   dashboard: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h7V4H4v9Zm9 7h7V4h-7v16ZM4 20h7v-5H4v5Z" /></svg>',
   life: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.3 6.3-3 3A3.9 3.9 0 0 0 12 10a3.9 3.9 0 0 0-3.3 1.3l-3-3A8 8 0 0 1 18.3 8.3ZM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm-8-4c0-.8.1-1.5.3-2.2l3 3A3.9 3.9 0 0 0 8.6 16l-3 3A8 8 0 0 1 4 12Zm4.3 6.3 3-3A3.9 3.9 0 0 0 12 16a3.9 3.9 0 0 0 3.3-1.3l3 3A8 8 0 0 1 8.3 18.3ZM18.4 19l-3-3A3.9 3.9 0 0 0 16 12c0-.3 0-.5-.1-.8l3-3A8 8 0 0 1 18.4 19Z" /></svg>',
   logout: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h9v2H6v14h7v2H4V3Zm12.6 5.4L20.2 12l-3.6 3.6-1.4-1.4 1.2-1.2H10v-2h6.4l-1.2-1.2 1.4-1.4Z" /></svg>',
@@ -408,15 +469,14 @@ function renderSignedInHeader(account) {
   }
 
   const accountName = getAccountDisplayName(account);
-  const accountEmail = getAccountEmail(account);
+  const accountContact = getAccountContact(account);
   const initials = getAccountInitials(account);
+  const menuItems = getAccountMenuItems(account);
 
   elements.topActions.innerHTML = `
     <div class="account-menu" data-account-menu>
       <button class="account-menu-trigger" type="button" aria-haspopup="menu" aria-expanded="false" data-account-menu-trigger>
         <span class="account-avatar" aria-hidden="true">${escapeHtml(initials)}</span>
-        <span class="account-trigger-name">${escapeHtml(accountName)}</span>
-        ${accountMenuIcons.chevron}
       </button>
 
       <div class="account-menu-content" role="menu" aria-hidden="true" data-account-menu-content>
@@ -424,16 +484,13 @@ function renderSignedInHeader(account) {
           <span class="account-avatar large" aria-hidden="true">${escapeHtml(initials)}</span>
           <span>
             <strong>${escapeHtml(accountName)}</strong>
-            <small>${escapeHtml(accountEmail)}</small>
+            <small>${escapeHtml(accountContact)}</small>
           </span>
         </div>
         <hr />
-        <a class="account-menu-item" role="menuitem" href="/customer.html">${accountMenuIcons.dashboard}<span>Dashboard</span></a>
-        <a class="account-menu-item" role="menuitem" href="/customer-vehicles.html">${accountMenuIcons.vehicles}<span>Vehicles</span></a>
-        <a class="account-menu-item" role="menuitem" href="/customer-payments.html">${accountMenuIcons.card}<span>Payments</span></a>
-        <a class="account-menu-item" role="menuitem" href="/customer-support.html">${accountMenuIcons.life}<span>Support</span></a>
+        ${menuItems.map((item) => `<a class="account-menu-item" role="menuitem" href="${item.href}">${item.icon}<span>${escapeHtml(item.label)}</span></a>`).join('')}
         <hr />
-        <button class="account-menu-item destructive" type="button" role="menuitem" data-action="logout">${accountMenuIcons.logout}<span>Log out</span><kbd>⇧⌘Q</kbd></button>
+        <button class="account-menu-item destructive" type="button" role="menuitem" data-action="logout">${accountMenuIcons.logout}<span>Log out</span></button>
       </div>
     </div>
   `;
@@ -490,8 +547,24 @@ async function hydrateHomeAuth() {
 
   try {
     const currentAccount = await apiRequest('/auth/me');
-    saveSession({ account: currentAccount });
-    renderSignedInHeader(currentAccount);
+    let hydratedAccount = currentAccount;
+
+    if (currentAccount.role === 'CUSTOMER') {
+      try {
+        const customerProfile = await apiRequest('/customers/me');
+        hydratedAccount = {
+          ...currentAccount,
+          ...customerProfile,
+          role: currentAccount.role,
+          status: currentAccount.status,
+        };
+      } catch (profileError) {
+        hydratedAccount = currentAccount;
+      }
+    }
+
+    saveSession({ account: hydratedAccount });
+    renderSignedInHeader(hydratedAccount);
   } catch (error) {
     // Keep the locally saved session visible when the backend is temporarily unavailable.
   }
@@ -523,8 +596,6 @@ function render() {
       ? `${lots.length} demo parking lot`
       : `${lots.length} suggested parking lots`;
   }
-
-  elements.mapFocus.textContent = getMapFocusLabel();
 
   lots.forEach((lot, index) => {
     elements.parkingList.appendChild(createParkingCard(lot, index, lots.length));
@@ -673,14 +744,11 @@ function revealParkingCard(id) {
     return;
   }
 
-  const targetTop = getCardFlowTop(card);
-  const stickyOffset = elements.parkingList.classList.contains('parking-stack-list')
-    ? getStickyOffset(card)
-    : 0;
+  const targetTop = getCardScrollTop(card);
 
   elements.parkingList.scrollTo({
     behavior: 'smooth',
-    top: Math.max(0, targetTop - stickyOffset),
+    top: targetTop,
   });
 
   card.classList.remove('map-selected');
@@ -692,26 +760,17 @@ function revealParkingCard(id) {
   }, 900);
 }
 
-function getCardFlowTop(card) {
-  const siblings = Array.from(elements.parkingList.querySelectorAll('.parking-card'));
-  const cardIndex = siblings.indexOf(card);
+function getCardScrollTop(card) {
+  const listRect = elements.parkingList.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  const listStyle = window.getComputedStyle(elements.parkingList);
+  const topPadding = Number.parseFloat(listStyle.paddingTop) || 0;
+  const topInset = Math.max(10, topPadding);
+  const currentTop = elements.parkingList.scrollTop;
+  const rawTarget = currentTop + cardRect.top - listRect.top - topInset;
+  const maxScrollTop = elements.parkingList.scrollHeight - elements.parkingList.clientHeight;
 
-  if (cardIndex <= 0) {
-    return 0;
-  }
-
-  return siblings.slice(0, cardIndex).reduce((total, sibling) => {
-    const style = window.getComputedStyle(sibling);
-    const marginBottom = Number.parseFloat(style.marginBottom) || 0;
-
-    return total + sibling.offsetHeight + marginBottom;
-  }, 0);
-}
-
-function getStickyOffset(card) {
-  const index = Number(card.dataset.cardIndex || 1) - 1;
-
-  return 12 + Math.max(0, index) * 22;
+  return Math.max(0, Math.min(rawTarget, maxScrollTop));
 }
 
 async function resolveAddressSearch() {
@@ -836,10 +895,6 @@ async function loadLots(source = 'form') {
     setStatus('Offline', true);
   }
 
-  if (source === 'near-me') {
-    elements.mapFocus.textContent = 'Current location';
-  }
-
   render();
 }
 
@@ -870,6 +925,43 @@ function setMapLoader(text, error = false) {
   elements.mapLoader.classList.toggle('hidden', !text);
 }
 
+function createMapTileLayer(layerConfig) {
+  return L.tileLayer(layerConfig.url, layerConfig.options);
+}
+
+function updateMapLayerButton() {
+  if (!elements.mapTypeButton) {
+    return;
+  }
+
+  const currentLayer = MAP_LAYERS[mapState.layerIndex] || MAP_LAYERS[0];
+  const nextLayer = MAP_LAYERS[(mapState.layerIndex + 1) % MAP_LAYERS.length];
+  elements.mapTypeButton.title = `Switch to ${nextLayer.label}`;
+  elements.mapTypeButton.setAttribute('aria-label', `Switch to ${nextLayer.label}`);
+  elements.mapTypeButton.dataset.mapLayer = currentLayer.id;
+}
+
+function setMapLayer(layerIndex) {
+  if (!mapState.map) {
+    return;
+  }
+
+  const nextIndex = layerIndex % MAP_LAYERS.length;
+  const nextLayer = MAP_LAYERS[nextIndex];
+
+  if (mapState.tileLayer) {
+    mapState.tileLayer.remove();
+  }
+
+  mapState.layerIndex = nextIndex;
+  mapState.tileLayer = createMapTileLayer(nextLayer).addTo(mapState.map);
+  updateMapLayerButton();
+}
+
+function cycleMapLayer() {
+  setMapLayer(mapState.layerIndex + 1);
+}
+
 async function initOpenStreetMap() {
   setMapLoader('Loading OpenStreetMap');
 
@@ -880,10 +972,7 @@ async function initOpenStreetMap() {
       zoomControl: false,
     }).setView([config.center.lat, config.center.lng], config.zoom);
 
-    mapState.tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 19,
-    }).addTo(mapState.map);
+    setMapLayer(mapState.layerIndex);
 
     mapState.ready = true;
     setMapLoader('');
@@ -972,7 +1061,10 @@ function renderMapMarkers() {
       icon: createParkingIcon(lot, lot.id === state.activeId),
     }).addTo(mapState.map);
 
-    marker.on('click', () => selectLot(lot.id, { revealCard: true }));
+    marker.on('click', () => {
+      selectLot(lot.id, { revealCard: true });
+      marker.openPopup();
+    });
     mapState.markers.set(lot.id, marker);
   });
 
@@ -1027,11 +1119,27 @@ function openInfoWindow(lot) {
   }
 
   const marker = mapState.markers.get(lot.id);
+  const isActive = lot.status === 'ACTIVE';
   const content = `
     <div class="parking-info-window">
-      <strong>${escapeHtml(lot.name)}</strong>
-      <span>${escapeHtml(lot.address)}</span>
-      <span>${lot.price ? `${formatCurrency(lot.price)}/hour` : 'Contact for pricing'}</span>
+      <div class="parking-popup-head">
+        <span class="parking-popup-pin">P</span>
+        <div>
+          <strong>${escapeHtml(lot.name)}</strong>
+          <div class="parking-popup-chips">
+            <span class="parking-popup-status ${isActive ? 'is-open' : 'is-offline'}">
+              ${isActive ? 'Open now' : 'Offline'}
+            </span>
+            <span class="parking-popup-chip">
+              ${lot.price ? `${formatCurrency(lot.price)}/h` : 'Contact'}
+            </span>
+            <span class="parking-popup-chip">
+              ${lot.eta ? `${escapeHtml(lot.eta)} to arrive` : 'Nearby'}
+            </span>
+          </div>
+        </div>
+      </div>
+      <p>${escapeHtml(lot.address)}</p>
     </div>
   `;
 
@@ -1039,6 +1147,7 @@ function openInfoWindow(lot) {
     marker.bindPopup(content, {
       className: 'parking-leaflet-popup',
       closeButton: false,
+      offset: [0, -4],
     }).openPopup();
   }
 }
@@ -1117,25 +1226,17 @@ function bindEvents() {
     setSearchAdvancedExpanded(false);
   });
 
+  [elements.startTimeInput, elements.endTimeInput].forEach((input) => {
+    input.addEventListener('input', defaultVehicleTypeForTimeSearch);
+    input.addEventListener('change', defaultVehicleTypeForTimeSearch);
+  });
+
   elements.refreshButton?.addEventListener('click', () => loadLots('refresh'));
 
   elements.nearMeButton.addEventListener('click', locateUser);
   elements.locateMapButton.addEventListener('click', locateUser);
-  elements.zoomInButton.addEventListener('click', () => {
-    if (mapState.map) {
-      mapState.map.zoomIn();
-    }
-  });
-  elements.zoomOutButton.addEventListener('click', () => {
-    if (mapState.map) {
-      mapState.map.zoomOut();
-    }
-  });
   elements.mapTypeButton.addEventListener('click', () => {
-    if (mapState.map) {
-      mapState.highContrast = !mapState.highContrast;
-      elements.googleMap.classList.toggle('osm-high-contrast', mapState.highContrast);
-    }
+    cycleMapLayer();
   });
 
   elements.quickFilters.forEach((button) => {

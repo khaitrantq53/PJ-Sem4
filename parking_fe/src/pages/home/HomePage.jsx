@@ -16,11 +16,6 @@ const homePage = {
           <span>ParkFinder</span>
         </a>
 
-        <nav class="nav-links" aria-label="Primary navigation">
-          <a class="active" href="/">Find parking</a>
-          <a href="/customer.html">Reservations</a>
-        </nav>
-
         <div class="top-actions">
           <a class="ghost-button" href="/auth.html">Sign in</a>
         </div>
@@ -31,8 +26,10 @@ const homePage = {
           <form class="home-search-panel" id="filterForm">
             <div class="search-main-row">
               <label class="input-group search-field">
-                <span>Area</span>
-                <input id="addressInput" name="address" type="search" autocomplete="off" data-no-smooth-input="true" />
+                <svg class="search-field-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m21 20.1-4.7-4.7a7.5 7.5 0 1 0-1.1 1.1l4.7 4.7 1.1-1.1ZM4.5 10.5a6 6 0 1 1 12 0 6 6 0 0 1-12 0Z" />
+                </svg>
+                <input id="addressInput" name="address" type="search" autocomplete="off" placeholder="Find parking lots near you" data-no-smooth-input="true" />
               </label>
 
               <div class="search-inline-actions">
@@ -94,32 +91,13 @@ const homePage = {
           <div class="google-map" id="googleMap"></div>
           <div class="map-loader" id="mapLoader">Loading OpenStreetMap</div>
 
-          <div class="map-search-chip">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z" />
-            </svg>
-            <span id="mapFocus">Central area</span>
-          </div>
-
           <div class="map-controls" aria-label="Map controls">
-            <div class="control-stack">
-              <button type="button" id="zoomInButton" aria-label="Zoom in">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z" />
-                </svg>
-              </button>
-              <button type="button" id="zoomOutButton" aria-label="Zoom out">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 11h14v2H5v-2Z" />
-                </svg>
-              </button>
-            </div>
             <button type="button" id="locateMapButton" aria-label="Current location">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.9 3A9 9 0 0 0 13 3.1V1h-2v2.1A9 9 0 0 0 3.1 11H1v2h2.1A9 9 0 0 0 11 20.9V23h2v-2.1A9 9 0 0 0 20.9 13H23v-2h-2.1ZM12 19a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z" />
               </svg>
             </button>
-            <button class="primary-map-button" type="button" id="mapTypeButton" aria-label="Map layer">
+            <button class="primary-map-button" type="button" id="mapTypeButton" aria-label="Switch map layer" title="Switch map layer">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m12 2 9 5-9 5-9-5 9-5Zm-5 9.1-4 2.2 9 5 9-5-4-2.2-5 2.8-5-2.8Zm0 5-4 2.2 9 5 9-5-4-2.2-5 2.8-5-2.8Z" />
               </svg>

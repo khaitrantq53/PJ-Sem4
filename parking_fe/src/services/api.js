@@ -136,6 +136,10 @@ export async function apiRequest(path, options = {}) {
     throw new Error(getErrorMessage(payload, `Request failed with ${response.status}`));
   }
 
+  if (response.status === 204 || payload === null) {
+    return null;
+  }
+
   return normalizeResult(payload);
 }
 
