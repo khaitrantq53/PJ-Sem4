@@ -40,7 +40,7 @@ public record SmartParkingProperties(
     }
 
     public record Jobs(int batchSize, String expirePendingPaymentCron, String expirePendingApprovalCron,
-                       String markNoShowCron, String markOverdueCron, String markDeviceOfflineCron,
+                       String markNoShowCron, String markDeviceOfflineCron,
                        String expirePromotionCron) {
     }
 

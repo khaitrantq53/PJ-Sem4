@@ -34,6 +34,8 @@ import com.smartparking.payment.Payment;
 import com.smartparking.payment.PaymentRepository;
 import com.smartparking.promotion.PromotionUsage;
 import com.smartparking.promotion.PromotionUsageRepository;
+import com.smartparking.pricing.ParkingPricingRule;
+import com.smartparking.pricing.ParkingPricingRuleRepository;
 import com.smartparking.vehicle.Vehicle;
 import com.smartparking.vehicle.VehicleRepository;
 import com.smartparking.vehiclecondition.VehicleConditionRecord;
@@ -70,8 +72,7 @@ public class BookingServiceImpl implements BookingService {
             BookingStatus.CONFIRMED
     );
     private static final List<BookingStatus> CHECKED_IN_CAPACITY_STATUSES = List.of(
-            BookingStatus.CHECKED_IN,
-            BookingStatus.OVERDUE
+            BookingStatus.CHECKED_IN
     );
 
     private final BookingRepository bookingRepository;
@@ -90,6 +91,7 @@ public class BookingServiceImpl implements BookingService {
     private final ParkingServiceRepository parkingServiceRepository;
     private final ParkingVehicleCapacityRepository capacityRepository;
     private final ParkingCapacityBlockRepository blockRepository;
+    private final ParkingPricingRuleRepository pricingRuleRepository;
     private final PricingService pricingService;
     private final BookingMapper mapper;
     private final AuditService auditService;
@@ -115,6 +117,7 @@ public class BookingServiceImpl implements BookingService {
                               ParkingServiceRepository parkingServiceRepository,
                               ParkingVehicleCapacityRepository capacityRepository,
                               ParkingCapacityBlockRepository blockRepository,
+                              ParkingPricingRuleRepository pricingRuleRepository,
                               PricingService pricingService,
                               BookingMapper mapper,
                               AuditService auditService,
@@ -139,6 +142,7 @@ public class BookingServiceImpl implements BookingService {
         this.parkingServiceRepository = parkingServiceRepository;
         this.capacityRepository = capacityRepository;
         this.blockRepository = blockRepository;
+        this.pricingRuleRepository = pricingRuleRepository;
         this.pricingService = pricingService;
         this.mapper = mapper;
         this.auditService = auditService;
@@ -263,7 +267,7 @@ public class BookingServiceImpl implements BookingService {
         Booking booking = bookingRepository.findByIdAndCustomerId(bookingId, currentUser.id())
                 .orElseThrow(() -> new BusinessException(ErrorCode.BOOKING_NOT_FOUND, "Booking không tồn tại"));
         assertVersion(booking.getVersion(), request.expectedVersion());
-        if (!List.of(BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.OVERDUE).contains(booking.getStatus())) {
+        if (!List.of(BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN).contains(booking.getStatus())) {
             throw new BusinessException(ErrorCode.BOOKING_CANNOT_EXTEND, "Booking không thể gia hạn ở trạng thái hiện tại");
         }
         if (!request.requestedEndTime().isAfter(booking.getEndTime())) {
@@ -390,7 +394,7 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.BOOKING_NOT_FOUND, "Extension request không tồn tại hoặc không pending"));
         Booking booking = request.getBooking();
         assertStaffAccess(currentUser, booking.getParkingLot().getId());
-        if (!List.of(BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.OVERDUE).contains(booking.getStatus())) {
+        if (!List.of(BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN).contains(booking.getStatus())) {
             throw new BusinessException(ErrorCode.BOOKING_CANNOT_EXTEND, "Booking không thể gia hạn ở trạng thái hiện tại");
         }
         if (!request.getRequestedEndTime().isAfter(booking.getEndTime())) {
@@ -442,15 +446,29 @@ public class BookingServiceImpl implements BookingService {
     public BookingDtos.CheckoutPreviewResponse checkoutPreview(CurrentUser currentUser, UUID bookingId) {
         Booking booking = getBooking(bookingId);
         assertStaffAccess(currentUser, booking.getParkingLot().getId());
-        if (booking.getStatus() != BookingStatus.CHECKED_IN && booking.getStatus() != BookingStatus.OVERDUE) {
-            throw new BusinessException(ErrorCode.CHECK_OUT_NOT_ALLOWED, "Booking chưa CHECKED_IN hoặc OVERDUE");
+        return checkoutPreviewFor(booking, OffsetDateTime.now());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BookingDtos.CheckoutPreviewResponse customerCheckoutPreview(CurrentUser currentUser, UUID bookingId) {
+        Booking booking = bookingRepository.findByIdAndCustomerId(bookingId, currentUser.id())
+                .orElseThrow(() -> new BusinessException(ErrorCode.BOOKING_NOT_FOUND, "Booking không tồn tại"));
+        return checkoutPreviewFor(booking, OffsetDateTime.now());
+    }
+
+    private BookingDtos.CheckoutPreviewResponse checkoutPreviewFor(Booking booking, OffsetDateTime actualCheckOutTime) {
+        if (booking.getStatus() != BookingStatus.CHECKED_IN) {
+            throw new BusinessException(ErrorCode.CHECK_OUT_NOT_ALLOWED, "Booking chưa CHECKED_IN");
         }
-        OffsetDateTime actualCheckOutTime = OffsetDateTime.now();
-        BookingDtos.Money overtimeFee = overtimeFee(booking, actualCheckOutTime);
-        BigDecimal total = booking.getTotalAmount().subtract(booking.getOvertimeFee()).add(overtimeFee.amount());
+        OffsetDateTime chargeStartTime = booking.getActualCheckInTime() == null ? booking.getStartTime() : booking.getActualCheckInTime();
+        if (actualCheckOutTime.isBefore(chargeStartTime)) {
+            throw new BusinessException(ErrorCode.BOOKING_TIME_INVALID, "Thời điểm check-out không hợp lệ");
+        }
+        BookingDtos.PriceBreakdown breakdown = recalculateExistingBooking(booking, chargeStartTime, actualCheckOutTime);
         return new BookingDtos.CheckoutPreviewResponse(booking.getId(), booking.getStatus(), booking.getEndTime(),
-                actualCheckOutTime, overtimeMinutes(booking, actualCheckOutTime), overtimeFee,
-                money(total, booking.getCurrency()), booking.getVersion());
+                actualCheckOutTime, 0, money(BigDecimal.ZERO, booking.getCurrency()),
+                breakdown.total(), breakdown, booking.getVersion());
     }
 
     @Override
@@ -469,9 +487,14 @@ public class BookingServiceImpl implements BookingService {
         }
         validateCheckInEligibility(booking, request.qrCode(), request.plateNumber(), OffsetDateTime.now());
         requireConditionNotes(request.conditionNotes());
+        OffsetDateTime actualCheckInTime = OffsetDateTime.now();
+        OffsetDateTime openEndedHold = actualCheckInTime.plusHours(24);
         BookingStatus previous = booking.getStatus();
         booking.setStatus(BookingStatus.CHECKED_IN);
-        booking.setActualCheckInTime(OffsetDateTime.now());
+        booking.setStartTime(actualCheckInTime);
+        booking.setEndTime(openEndedHold);
+        booking.setActualCheckInTime(actualCheckInTime);
+        updateReservation(booking, actualCheckInTime, openEndedHold);
         recordCondition(booking, currentUser, RecordType.CHECK_IN, request.conditionNotes());
         history(booking, previous, booking.getStatus(), currentUser, null);
         auditService.record(currentUser.id(), currentUser.role(), "CHECK_IN", "BOOKING", booking.getId().toString(), previous.name(), booking.getStatus().name(), null);
@@ -491,18 +514,24 @@ public class BookingServiceImpl implements BookingService {
         Booking booking = getBooking(bookingId);
         assertStaffAccess(currentUser, booking.getParkingLot().getId());
         assertVersion(booking.getVersion(), request.expectedVersion());
-        if (booking.getStatus() != BookingStatus.CHECKED_IN && booking.getStatus() != BookingStatus.OVERDUE) {
-            throw new BusinessException(ErrorCode.CHECK_OUT_NOT_ALLOWED, "Booking chưa CHECKED_IN hoặc OVERDUE");
+        if (booking.getStatus() != BookingStatus.CHECKED_IN) {
+            throw new BusinessException(ErrorCode.CHECK_OUT_NOT_ALLOWED, "Booking chưa CHECKED_IN");
         }
         requireConditionNotes(request.conditionNotes());
+        OffsetDateTime chargeStartTime = booking.getActualCheckInTime() == null ? booking.getStartTime() : booking.getActualCheckInTime();
+        OffsetDateTime actualCheckOutTime = request.actualCheckOutTime() == null
+                ? OffsetDateTime.now()
+                : request.actualCheckOutTime();
+        if (actualCheckOutTime.isBefore(chargeStartTime)) {
+            throw new BusinessException(ErrorCode.BOOKING_TIME_INVALID, "Thời điểm check-out không hợp lệ");
+        }
+        BookingDtos.PriceBreakdown breakdown = recalculateExistingBooking(booking, chargeStartTime, actualCheckOutTime);
         BookingStatus previous = booking.getStatus();
-        BookingDtos.Money overtimeFee = overtimeFee(booking, OffsetDateTime.now());
-        BigDecimal total = booking.getTotalAmount().subtract(booking.getOvertimeFee()).add(overtimeFee.amount());
-        booking.setOvertimeFee(overtimeFee.amount());
-        booking.setTotalAmount(total);
+        applyPrice(booking, breakdown);
         booking.setStatus(BookingStatus.PENDING_PAYMENT);
         booking.setPaymentStatus(PaymentStatus.UNPAID);
-        booking.setActualCheckOutTime(OffsetDateTime.now());
+        booking.setEndTime(actualCheckOutTime);
+        booking.setActualCheckOutTime(actualCheckOutTime);
         releaseReservation(booking);
         recordCondition(booking, currentUser, RecordType.CHECK_OUT, request.conditionNotes());
         history(booking, previous, booking.getStatus(), currentUser, null);
@@ -801,9 +830,8 @@ public class BookingServiceImpl implements BookingService {
     private BookingDtos.PriceBreakdown recalculateExistingBooking(Booking booking, OffsetDateTime startTime, OffsetDateTime endTime) {
         BookingPricingSnapshot snapshot = pricingSnapshotRepository.findByBookingId(booking.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PARKING_CONFIGURATION_INVALID, "Thiếu pricing snapshot của booking"));
-        BigDecimal hours = BigDecimal.valueOf(Duration.between(startTime, endTime).toMinutes())
-                .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
-        BigDecimal parkingFee = snapshot.getHourlyRate().multiply(hours).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal parkingFee = parkingFeeByPricingRules(booking, startTime, endTime, snapshot.getHourlyRate())
+                .setScale(2, RoundingMode.HALF_UP);
         BigDecimal serviceFee = serviceItemRepository.findByBookingId(booking.getId()).stream()
                 .map(BookingServiceItem::getPrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
@@ -828,6 +856,69 @@ public class BookingServiceImpl implements BookingService {
                 money(BigDecimal.ZERO, currency),
                 money(total, currency)
         );
+    }
+
+    private BigDecimal parkingFeeByPricingRules(Booking booking, OffsetDateTime startTime, OffsetDateTime endTime,
+                                                BigDecimal fallbackRate) {
+        List<ParkingPricingRule> rules = pricingRuleRepository
+                .findByParkingLotIdAndVehicleTypeAndActiveTrueOrderByStartTimeAsc(
+                        booking.getParkingLot().getId(),
+                        booking.getVehicleType()
+                );
+        if (rules.isEmpty()) {
+            return feeForSegment(fallbackRate, startTime, endTime);
+        }
+
+        BigDecimal fee = BigDecimal.ZERO;
+        OffsetDateTime cursor = startTime;
+        while (cursor.isBefore(endTime)) {
+            OffsetDateTime segmentStart = cursor;
+            ParkingPricingRule rule = rules.stream()
+                    .filter(candidate -> pricingRuleAppliesAt(candidate, segmentStart.toLocalTime()))
+                    .findFirst()
+                    .orElse(null);
+            BigDecimal rate = rule == null ? fallbackRate : rule.getHourlyRate();
+            OffsetDateTime nextBoundary = nextPricingBoundary(segmentStart, rules);
+            OffsetDateTime segmentEnd = nextBoundary.isBefore(endTime) ? nextBoundary : endTime;
+            if (!segmentEnd.isAfter(segmentStart)) {
+                segmentEnd = endTime;
+            }
+            fee = fee.add(feeForSegment(rate, segmentStart, segmentEnd));
+            cursor = segmentEnd;
+        }
+        return fee;
+    }
+
+    private BigDecimal feeForSegment(BigDecimal hourlyRate, OffsetDateTime startTime, OffsetDateTime endTime) {
+        BigDecimal hours = BigDecimal.valueOf(Duration.between(startTime, endTime).toMinutes())
+                .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
+        return hourlyRate.multiply(hours);
+    }
+
+    private OffsetDateTime nextPricingBoundary(OffsetDateTime cursor, List<ParkingPricingRule> rules) {
+        return rules.stream()
+                .flatMap(rule -> List.of(rule.getStartTime(), rule.getEndTime()).stream())
+                .map(boundary -> nextOccurrence(cursor, boundary))
+                .filter(candidate -> candidate.isAfter(cursor))
+                .min(OffsetDateTime::compareTo)
+                .orElse(cursor.plusDays(1));
+    }
+
+    private OffsetDateTime nextOccurrence(OffsetDateTime cursor, LocalTime boundary) {
+        OffsetDateTime candidate = cursor.toLocalDate().atTime(boundary).atOffset(cursor.getOffset());
+        return candidate.isAfter(cursor) ? candidate : candidate.plusDays(1);
+    }
+
+    private boolean pricingRuleAppliesAt(ParkingPricingRule rule, LocalTime time) {
+        LocalTime start = rule.getStartTime();
+        LocalTime end = rule.getEndTime();
+        if (start.equals(end)) {
+            return false;
+        }
+        if (start.isBefore(end)) {
+            return !time.isBefore(start) && time.isBefore(end);
+        }
+        return !time.isBefore(start) || time.isBefore(end);
     }
 
     private void updateReservation(Booking booking, OffsetDateTime startTime, OffsetDateTime endTime) {
@@ -966,7 +1057,7 @@ public class BookingServiceImpl implements BookingService {
             case PENDING_APPROVAL -> "WAIT_STAFF_APPROVAL";
             case PENDING_PAYMENT -> "COMPLETE_PAYMENT";
             case CONFIRMED -> "VIEW_QR";
-            case CHECKED_IN, OVERDUE -> "WAIT_CHECK_OUT";
+            case CHECKED_IN -> "WAIT_CHECK_OUT";
             default -> null;
         };
     }

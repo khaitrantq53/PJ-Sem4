@@ -62,7 +62,7 @@ public class StaffDashboardServiceImpl implements StaffDashboardService {
         for (ParkingVehicleCapacity capacity : capacities) {
             UUID lotId = capacity.getParkingLot().getId();
             long occupiedForCapacity = bookingRepository.countActiveReservations(lotId, capacity.getVehicleType(),
-                    List.of(BookingStatus.CHECKED_IN, BookingStatus.OVERDUE), now, instantEnd);
+                    List.of(BookingStatus.CHECKED_IN), now, instantEnd);
             long reservedForCapacity = bookingRepository.countActiveReservations(lotId, capacity.getVehicleType(),
                     List.of(BookingStatus.PENDING_APPROVAL, BookingStatus.CONFIRMED), now, instantEnd);
             long blockedForCapacity = blockRepository.countBlocked(lotId, capacity.getVehicleType(), now, instantEnd);
@@ -81,7 +81,6 @@ public class StaffDashboardServiceImpl implements StaffDashboardService {
                 blocked,
                 available,
                 bookingRepository.countForStaffByStatus(currentUser.id(), parkingLotId, BookingStatus.PENDING_APPROVAL),
-                bookingRepository.countForStaffByStatus(currentUser.id(), parkingLotId, BookingStatus.OVERDUE),
                 bookingRepository.countTodayForStaff(currentUser.id(), parkingLotId, startOfDay, nextDay),
                 revenue,
                 properties.pricing().currency(),

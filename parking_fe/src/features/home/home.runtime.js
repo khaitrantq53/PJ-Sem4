@@ -14,7 +14,7 @@ import {
 } from '../../services/api.js';
 
 const SUGGESTED_LOT_LIMIT = 6;
-const SEARCH_RADIUS_KM = 5;
+const SEARCH_RADIUS_KM = 3;
 const HANOI_CENTER = { lat: 21.0278, lng: 105.8342 };
 const MAP_LAYERS = [
   {
@@ -93,9 +93,7 @@ const elements = {
   searchAdvancedPanel: document.querySelector('#searchAdvancedPanel'),
   addressInput: document.querySelector('#addressInput'),
   vehicleTypeInput: document.querySelector('#vehicleTypeInput'),
-  maxPriceInput: document.querySelector('#maxPriceInput'),
-  startTimeInput: document.querySelector('#startTimeInput'),
-  endTimeInput: document.querySelector('#endTimeInput'),
+  serviceInput: document.querySelector('#serviceInput'),
   refreshButton: document.querySelector('#refreshButton'),
   nearMeButton: document.querySelector('#nearMeButton'),
   quickFilters: document.querySelectorAll('.quick-filters button'),
@@ -145,11 +143,23 @@ function summarizeCapacity(capacities = []) {
     return null;
   }
 
-  return capacities.reduce((summary, capacity) => {
-    summary.total += Number(capacity.totalCapacity || 0);
-    summary.available += Number(capacity.available || 0);
-    return summary;
-  }, { available: 0, total: 0 });
+  const summaryFor = (vehicleType) => {
+    const capacity = capacities.find((item) => item.vehicleType === vehicleType) || {};
+    const available = Number(capacity.available || 0);
+    const total = Number(capacity.totalCapacity || 0);
+    const booked = Number(capacity.reserved || 0) + Number(capacity.checkedIn || 0);
+
+    return { available, booked, total };
+  };
+  const car = summaryFor('CAR');
+  const motorbike = summaryFor('MOTORBIKE');
+
+  return {
+    available: car.available + motorbike.available,
+    car,
+    motorbike,
+    total: car.total + motorbike.total,
+  };
 }
 
 function getServiceLabels(services = []) {
@@ -227,6 +237,7 @@ function mapBackendLot(lot, index) {
     rating: getLotRating(lot, index),
     reviews: getLotReviewCount(lot, index),
     priceBands: getPriceBands(lot, price, index),
+    priceGroups: getVehiclePriceGroups(lot),
     amenities,
     capacity,
     tags: [
@@ -364,6 +375,38 @@ function getPriceBands(lot) {
   return [];
 }
 
+function getVehiclePriceGroups(lot) {
+  const sourceBands = lot.pricingRules || lot.priceBands || lot.pricingBands || lot.pricing?.bands;
+  const groups = [
+    ['CAR', 'Car'],
+    ['MOTORBIKE', 'Motorbike'],
+  ];
+  const slotOrder = ['07:00', '17:00', '22:00'];
+
+  if (!Array.isArray(sourceBands) || !sourceBands.length) {
+    return [];
+  }
+
+  return groups.map(([vehicleType, label]) => {
+    const bands = sourceBands
+      .filter((band) => band.active !== false && band.vehicleType === vehicleType)
+      .slice()
+      .sort((first, second) => {
+        const firstStart = String(first.startTime || '').slice(0, 5);
+        const secondStart = String(second.startTime || '').slice(0, 5);
+        return (slotOrder.indexOf(firstStart) - slotOrder.indexOf(secondStart))
+          || firstStart.localeCompare(secondStart);
+      })
+      .map((band) => ({
+        label: formatPriceBandLabel(band),
+        price: normalizeMoneyValue(band.price ?? band.hourlyRate ?? band.rate),
+      }))
+      .filter((band) => band.price);
+
+    return { bands, label, vehicleType };
+  }).filter((group) => group.bands.length);
+}
+
 function calculateDistanceKm(fromLat, fromLng, toLat, toLng) {
   const earthRadiusKm = 6371;
   const toRadians = (degrees) => degrees * Math.PI / 180;
@@ -377,28 +420,12 @@ function calculateDistanceKm(fromLat, fromLng, toLat, toLng) {
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 }
 
-function defaultVehicleTypeForTimeSearch() {
-  if (!elements.vehicleTypeInput.value && (elements.startTimeInput.value || elements.endTimeInput.value)) {
-    elements.vehicleTypeInput.value = 'CAR';
-  }
-}
-
 function getQueryFromForm() {
   const address = elements.addressInput.value.trim();
-  const startTime = formatDateTimeForApi(elements.startTimeInput.value);
-  const endTime = formatDateTimeForApi(elements.endTimeInput.value);
-  let vehicleType = elements.vehicleTypeInput.value;
-
-  if (!vehicleType && (startTime || endTime)) {
-    vehicleType = 'CAR';
-    elements.vehicleTypeInput.value = vehicleType;
-  }
+  const vehicleType = elements.vehicleTypeInput.value;
 
   const query = {
     vehicleType,
-    maxPrice: elements.maxPriceInput.value,
-    startTime,
-    endTime,
   };
 
   if (state.searchLocation && normalizeSearchText(address) === state.searchLocation.query) {
@@ -416,20 +443,29 @@ function getQueryFromForm() {
   return query;
 }
 
+function selectedServiceName() {
+  return elements.serviceInput?.value?.trim() || '';
+}
+
 function normalizeSearchText(value) {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+function lotMatchesSelectedService(lot) {
+  const serviceName = selectedServiceName();
+
+  if (!serviceName) {
+    return true;
+  }
+
+  const selected = normalizeSearchText(serviceName);
+  return Array.isArray(lot.services) && lot.services.some((service) => (
+    service.active !== false
+    && normalizeSearchText(service.name || '').includes(selected)
+  ));
+}
+
 function applyQuickFilter(query) {
-  if (state.filter === 'cheap') {
-    query.maxPrice = query.maxPrice || '30000';
-  }
-
-  if (state.filter === 'ev') {
-    query.vehicleType = 'ELECTRIC_CAR';
-    elements.vehicleTypeInput.value = 'ELECTRIC_CAR';
-  }
-
   return query;
 }
 
@@ -716,7 +752,7 @@ function getRouteSourceLabel() {
 function createParkingCard(lot, index = 0, count = 1) {
   const card = document.createElement('article');
   const targetScale = Math.max(0.94, 1 - (count - index - 1) * 0.012);
-  const priceBands = Array.isArray(lot.priceBands) ? lot.priceBands : [];
+  const priceGroups = Array.isArray(lot.priceGroups) ? lot.priceGroups : [];
   const hasRating = lot.rating !== null && lot.rating !== undefined && lot.rating !== '';
   const amenities = Array.isArray(lot.amenities) ? lot.amenities.slice(0, 4) : [];
   const capacity = lot.capacity;
@@ -734,7 +770,6 @@ function createParkingCard(lot, index = 0, count = 1) {
     <div class="parking-body">
       <div class="parking-title-row">
         <h2>${escapeHtml(lot.name)}</h2>
-        <div class="price">${lot.price ? formatCurrency(lot.price) : 'Contact'}<span>/hour</span></div>
       </div>
       ${hasRating || lot.eta || capacity ? `<div class="parking-meta-row">
         ${hasRating ? `
@@ -753,12 +788,20 @@ function createParkingCard(lot, index = 0, count = 1) {
           ${escapeHtml(lot.eta)} to arrive
         </span>
         ` : ''}
-        ${capacity ? `
-        <span class="slots-badge" aria-label="Available slots ${escapeHtml(capacity.available)} out of ${escapeHtml(capacity.total)}">
+        ${capacity?.car?.total ? `
+        <span class="slots-badge car-slots" aria-label="Car slots ${escapeHtml(capacity.car.available)} available">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Zm2 5v8h2v-2h2.4a3 3 0 0 0 0-6H9Zm2 2h2.4a1 1 0 1 1 0 2H11v-2Z" />
           </svg>
-          ${escapeHtml(capacity.available)} / ${escapeHtml(capacity.total)} slots
+          Car ${escapeHtml(capacity.car.available)} left
+        </span>
+        ` : ''}
+        ${capacity?.motorbike?.total ? `
+        <span class="slots-badge motorbike-slots" aria-label="Motorbike slots ${escapeHtml(capacity.motorbike.available)} available">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6.5 17a3.5 3.5 0 1 0-3.3-4.7l1.8.7A1.6 1.6 0 1 1 4.9 14h2.7l2.8-5H13l2.4 4.1A3.5 3.5 0 1 0 17 12l-2.8-4.8A1.5 1.5 0 0 0 12.9 6H11V4H8v2h2v1.2L6.5 17Zm6.1-6 1.7 3H10.9l1.7-3Z" />
+          </svg>
+          Motorbike ${escapeHtml(capacity.motorbike.available)} left
         </span>
         ` : ''}
       </div>` : ''}
@@ -772,13 +815,20 @@ function createParkingCard(lot, index = 0, count = 1) {
         <span>${escapeHtml(getRouteSourceLabel())}</span>
         <strong>${escapeHtml(lot.distance)} - ${escapeHtml(lot.eta)}</strong>
       </div>
-      ${priceBands.length ? `
-        <div class="price-schedule" aria-label="Price by time">
-          ${priceBands.map((band) => `
-            <div>
-              <span>${escapeHtml(band.label)}</span>
-              <strong>${formatCurrency(band.price)}<small>/h</small></strong>
-            </div>
+      ${priceGroups.length ? `
+        <div class="price-schedule vehicle-price-schedule" aria-label="Price by vehicle and time">
+          ${priceGroups.map((group) => `
+            <section>
+              <h3>${escapeHtml(group.label)}</h3>
+              <div>
+                ${group.bands.map((band) => `
+                  <article>
+                    <span>${escapeHtml(band.label)}</span>
+                    <strong>${formatCurrency(band.price)}<small>/h</small></strong>
+                  </article>
+                `).join('')}
+              </div>
+            </section>
           `).join('')}
         </div>
       ` : ''}
@@ -1011,19 +1061,20 @@ async function loadLots(source = 'form') {
   try {
     const page = await searchParkingLots(applyQuickFilter({
       ...getQueryFromForm(),
-      size: SUGGESTED_LOT_LIMIT,
+      size: selectedServiceName() ? 24 : SUGGESTED_LOT_LIMIT,
     }));
-    const suggestedLots = page.items.slice(0, SUGGESTED_LOT_LIMIT);
-    const detailedLots = suggestedLots.length
-      ? await hydrateParkingLotDetails(suggestedLots)
+    const candidateLots = page.items.slice(0, selectedServiceName() ? 24 : SUGGESTED_LOT_LIMIT);
+    const detailedLots = candidateLots.length
+      ? await hydrateParkingLotDetails(candidateLots)
       : [];
+    const filteredLots = detailedLots.filter(lotMatchesSelectedService).slice(0, SUGGESTED_LOT_LIMIT);
     state.loadError = null;
-    state.usingDemo = suggestedLots.length === 0 && !hasActiveSearchScope();
-    state.lots = suggestedLots.length
-      ? detailedLots.map(mapBackendLot)
+    state.usingDemo = filteredLots.length === 0 && !hasActiveSearchScope();
+    state.lots = filteredLots.length
+      ? filteredLots.map(mapBackendLot)
       : state.usingDemo ? [demoLot] : [];
     state.activeId = state.lots[0]?.id || null;
-    setStatus(suggestedLots.length ? 'Online' : 'Demo data', suggestedLots.length === 0);
+    setStatus(filteredLots.length ? 'Online' : 'Demo data', filteredLots.length === 0);
   } catch (error) {
     state.loadError = `Cannot load parking lots from backend: ${error.message}`;
     state.lots = [];
@@ -1042,9 +1093,7 @@ function hasActiveSearchScope() {
     || elements.addressInput.value.trim()
     || state.filter
     || elements.vehicleTypeInput.value
-    || elements.maxPriceInput.value
-    || elements.startTimeInput.value
-    || elements.endTimeInput.value,
+    || selectedServiceName()
   );
 }
 
@@ -1099,6 +1148,26 @@ function cycleMapLayer() {
   setMapLayer(mapState.layerIndex + 1);
 }
 
+function selectedMarkerVehicleType() {
+  return elements.vehicleTypeInput.value || 'CAR';
+}
+
+function markerAvailableSlots(lot) {
+  const vehicleType = selectedMarkerVehicleType();
+  const capacity = vehicleType === 'MOTORBIKE' ? lot.capacity?.motorbike : lot.capacity?.car;
+  const available = Number(capacity?.available);
+
+  if (!Number.isFinite(available)) {
+    return '-';
+  }
+
+  return available.toLocaleString('en-US');
+}
+
+function markerVehicleLabel() {
+  return selectedMarkerVehicleType() === 'MOTORBIKE' ? 'motorbike' : 'car';
+}
+
 async function initOpenStreetMap() {
   setMapLoader('Loading OpenStreetMap');
 
@@ -1123,13 +1192,13 @@ function createParkingIcon(lot, active = false) {
   return L.divIcon({
     className: 'parking-map-marker-shell',
     html: `
-      <button class="parking-map-marker${active ? ' active' : ''}" type="button" aria-label="Select ${escapeHtml(lot.name)}">
-        <span>${lot.price ? shortPrice(lot.price) : 'P'}</span>
-        <small>${lot.status === 'ACTIVE' ? 'ON' : 'OFF'}</small>
+      <button class="parking-map-marker${active ? ' active' : ''}" type="button" aria-label="Select ${escapeHtml(lot.name)}, ${escapeHtml(markerAvailableSlots(lot))} ${escapeHtml(markerVehicleLabel())} slots left">
+        <span>${escapeHtml(lot.name)}</span>
+        <small>${escapeHtml(markerAvailableSlots(lot))}</small>
       </button>
     `,
-    iconAnchor: [48, 56],
-    iconSize: [96, 56],
+    iconAnchor: [72, 56],
+    iconSize: [144, 56],
     popupAnchor: [0, -52],
   });
 }
@@ -1250,6 +1319,28 @@ function focusMapOnLots(lots) {
   });
 }
 
+function getLowestVehiclePrice(priceGroups = [], label) {
+  const group = priceGroups.find((item) => item.label === label);
+  const prices = group?.bands
+    ?.map((band) => Number(band.price))
+    .filter((price) => Number.isFinite(price) && price > 0) || [];
+
+  return prices.length ? Math.min(...prices) : null;
+}
+
+function renderPopupVehicleRow(label, available, price) {
+  const availability = Number.isFinite(Number(available)) ? `${Number(available).toLocaleString('en-US')} left` : 'Availability soon';
+  const priceText = price ? `${formatCurrency(price)}/h` : 'Contact';
+
+  return `
+    <div class="parking-popup-vehicle-row">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(availability)}</strong>
+      <em>${escapeHtml(priceText)}</em>
+    </div>
+  `;
+}
+
 function openInfoWindow(lot) {
   if (!mapState.map || !hasCoordinates(lot)) {
     return;
@@ -1257,6 +1348,10 @@ function openInfoWindow(lot) {
 
   const marker = mapState.markers.get(lot.id);
   const isActive = lot.status === 'ACTIVE';
+  const carPrice = getLowestVehiclePrice(lot.priceGroups || [], 'Car');
+  const motorbikePrice = getLowestVehiclePrice(lot.priceGroups || [], 'Motorbike');
+  const carAvailable = lot.capacity?.car?.total ? lot.capacity.car.available : null;
+  const motorbikeAvailable = lot.capacity?.motorbike?.total ? lot.capacity.motorbike.available : null;
   const content = `
     <div class="parking-info-window">
       <div class="parking-popup-head">
@@ -1268,15 +1363,15 @@ function openInfoWindow(lot) {
               ${isActive ? 'Open now' : 'Offline'}
             </span>
             <span class="parking-popup-chip">
-              ${lot.price ? `${formatCurrency(lot.price)}/h` : 'Contact'}
-            </span>
-            <span class="parking-popup-chip">
               ${lot.eta ? `${escapeHtml(lot.eta)} to arrive` : 'Nearby'}
             </span>
           </div>
         </div>
       </div>
-      <p>${escapeHtml(lot.address)}</p>
+      <div class="parking-popup-vehicle-list">
+        ${renderPopupVehicleRow('Car', carAvailable, carPrice)}
+        ${renderPopupVehicleRow('Motorbike', motorbikeAvailable, motorbikePrice)}
+      </div>
     </div>
   `;
 
@@ -1363,9 +1458,14 @@ function bindEvents() {
     setSearchAdvancedExpanded(false);
   });
 
-  [elements.startTimeInput, elements.endTimeInput].forEach((input) => {
-    input.addEventListener('input', defaultVehicleTypeForTimeSearch);
-    input.addEventListener('change', defaultVehicleTypeForTimeSearch);
+  elements.vehicleTypeInput.addEventListener('change', () => {
+    setSearchAdvancedExpanded(true);
+    loadLots('vehicle-filter');
+  });
+
+  elements.serviceInput.addEventListener('change', () => {
+    setSearchAdvancedExpanded(true);
+    loadLots('service-filter');
   });
 
   elements.refreshButton?.addEventListener('click', () => loadLots('refresh'));

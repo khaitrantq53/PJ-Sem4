@@ -60,13 +60,12 @@ smart-parking:
     refresh-token-ttl-days: ${JWT_REFRESH_TTL_DAYS:30}
   booking:
     hold-timeout-minutes: ${BOOKING_HOLD_TIMEOUT_MINUTES:15}
-    approval-timeout-minutes: ${BOOKING_APPROVAL_TIMEOUT_MINUTES:60}
+    approval-timeout-minutes: ${BOOKING_APPROVAL_TIMEOUT_MINUTES:20}
     active-overlap-statuses:
       - PENDING_APPROVAL
       - PENDING_PAYMENT
       - CONFIRMED
       - CHECKED_IN
-      - OVERDUE
   pricing:
     currency: ${PRICING_CURRENCY:VND}
     platform-fee-rate: ${PLATFORM_FEE_RATE:0.00}
@@ -86,9 +85,8 @@ smart-parking:
   jobs:
     batch-size: ${JOB_BATCH_SIZE:100}
     expire-pending-payment-cron: "${EXPIRE_PENDING_PAYMENT_CRON:0 */5 * * * *}"
-    expire-pending-approval-cron: "${EXPIRE_PENDING_APPROVAL_CRON:0 */5 * * * *}"
+    expire-pending-approval-cron: "${EXPIRE_PENDING_APPROVAL_CRON:0 */1 * * * *}"
     mark-no-show-cron: "${MARK_NO_SHOW_CRON:0 */5 * * * *}"
-    mark-overdue-cron: "${MARK_OVERDUE_CRON:0 */5 * * * *}"
     mark-device-offline-cron: "${MARK_DEVICE_OFFLINE_CRON:0 */1 * * * *}"
     expire-promotion-cron: "${EXPIRE_PROMOTION_CRON:0 */10 * * * *}"
   minio:

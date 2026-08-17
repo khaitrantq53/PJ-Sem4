@@ -1547,8 +1547,45 @@ svg {
   font-size: 14px;
 }
 
-.staff-hourly-rates-list,
-.staff-services-list {
+.staff-hourly-rates-list {
+  display: grid;
+}
+
+.staff-hourly-rates-list {
+  gap: 14px;
+}
+
+.staff-rate-group-card {
+  border: 1px solid rgba(196, 199, 199, 0.28);
+  border-radius: 12px;
+  display: grid;
+  gap: 2px;
+  padding: 14px;
+}
+
+.staff-rate-group-title {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding-bottom: 8px;
+}
+
+.staff-rate-group-title strong {
+  color: var(--primary);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.staff-rate-group-title span {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.staff-rate-group-list {
   display: grid;
   gap: 0;
 }
@@ -1567,6 +1604,11 @@ svg {
 .staff-rate-row:last-child,
 .staff-service-row:last-child {
   border-bottom: 0;
+}
+
+.staff-rate-row.compact {
+  min-height: 54px;
+  padding: 9px 0;
 }
 
 .staff-rate-row > div,
@@ -1668,36 +1710,18 @@ svg {
   line-height: 1.1;
 }
 
-.staff-capacity-bar {
-  background: var(--surface-container-highest);
-  border-radius: 999px;
-  display: flex;
-  height: 12px;
-  margin: 24px 0 18px;
-  overflow: hidden;
-  width: 100%;
-}
-
-.staff-capacity-bar span {
-  display: block;
-  height: 100%;
-  min-width: 0;
-}
-
-.staff-capacity-bar .reserved,
-.staff-capacity-breakdown i.reserved {
-  background: #1a3a3a;
-}
-
-.staff-capacity-bar .blocked,
-.staff-capacity-breakdown i.blocked {
-  background: #e8b94a;
-}
-
 .staff-capacity-breakdown {
   display: grid;
-  gap: 16px;
+  gap: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 22px;
+}
+
+.staff-capacity-breakdown > div {
+  background: var(--surface-container-low);
+  border: 1px solid rgba(196, 199, 199, 0.24);
+  border-radius: 10px;
+  padding: 12px;
 }
 
 .staff-capacity-breakdown span {
@@ -1716,6 +1740,19 @@ svg {
   display: inline-block;
   height: 8px;
   width: 8px;
+}
+
+.staff-capacity-breakdown i.car-available,
+.staff-capacity-breakdown i.motorbike-available {
+  background: #22c55e;
+}
+
+.staff-capacity-breakdown i.car-booked {
+  background: #0047ab;
+}
+
+.staff-capacity-breakdown i.motorbike-booked {
+  background: #e8b94a;
 }
 
 .staff-capacity-breakdown strong,
@@ -1875,6 +1912,7 @@ svg {
   grid-column: 1 / -1;
 }
 
+.staff-lot-form-main-stack,
 .staff-lot-form-side-stack {
   align-content: start;
   display: grid;
@@ -1908,7 +1946,7 @@ svg {
 
 .staff-popup-capacity-section .staff-lot-capacity-fields {
   align-items: end;
-  grid-template-columns: minmax(160px, 220px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .staff-popup-capacity-section .staff-popup-field input {
@@ -1932,6 +1970,24 @@ svg {
 
 .staff-popup-rate-row .staff-popup-field {
   flex: 1;
+}
+
+.staff-popup-rate-group {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.staff-popup-rate-group h4 {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  margin: 0;
+  text-transform: uppercase;
 }
 
 .staff-night-rate {
@@ -2036,7 +2092,7 @@ svg {
 }
 
 .staff-amenity-checklist label {
-  align-items: center;
+  align-items: flex-start;
   background: var(--surface-container-low);
   border: 1px solid rgba(196, 199, 199, 0.55);
   border-radius: 8px;
@@ -2082,6 +2138,18 @@ svg {
 }
 
 .staff-amenity-checklist span {
+  display: grid;
+  gap: 3px;
+  line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.staff-amenity-checklist span small {
+  color: var(--ink-muted);
+  display: block;
+  font-size: 10px;
+  font-weight: 850;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2652,8 +2720,7 @@ svg {
 .staff-booking-pagination.is-hidden,
 .staff-booking-table-card.is-hidden,
 .staff-change-requests-panel.is-hidden,
-.staff-extension-requests-panel.is-hidden,
-.staff-overdue-panel.is-hidden {
+.staff-extension-requests-panel.is-hidden {
   display: none;
 }
 
@@ -2851,15 +2918,6 @@ svg {
   display: none;
 }
 
-.staff-booking-status.overdue {
-  background: var(--error-container);
-  color: var(--on-error-container);
-}
-
-.staff-booking-status.overdue::before {
-  background: var(--error);
-}
-
 .staff-booking-duration {
   display: flex;
   flex-direction: column;
@@ -2888,13 +2946,43 @@ svg {
   color: var(--primary);
 }
 
-.staff-booking-duration.overdue strong {
-  color: var(--error);
-}
-
 .staff-booking-duration.completed strong,
 .staff-booking-duration.waiting strong {
   color: var(--ink-muted);
+}
+
+.staff-booking-services {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 220px;
+}
+
+.staff-booking-services span {
+  align-items: center;
+  background: var(--surface-container-low);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  color: var(--primary);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 850;
+  gap: 6px;
+  line-height: 1.2;
+  padding: 6px 9px;
+  white-space: nowrap;
+}
+
+.staff-booking-services small {
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.staff-booking-services.empty {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 750;
 }
 
 .staff-booking-actions {
@@ -3002,8 +3090,8 @@ svg {
 
 .staff-checkout-modal {
   align-items: center;
-  background: rgba(0, 0, 0, 0.46);
-  backdrop-filter: blur(5px);
+  background: rgba(10, 10, 10, 0.48);
+  backdrop-filter: blur(6px);
   display: flex;
   inset: 0;
   justify-content: center;
@@ -3013,28 +3101,29 @@ svg {
 }
 
 .staff-checkout-modal-card {
-  background: var(--surface-container-lowest);
+  background: #fff;
   border: 1px solid var(--hairline);
   border-radius: 8px;
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.2);
   color: var(--text);
   overflow: hidden;
-  width: min(520px, 100%);
+  width: min(760px, 100%);
 }
 
 .staff-checkout-modal-head {
   align-items: flex-start;
-  border-bottom: 1px solid var(--hairline);
+  background: #fff;
+  border-bottom: 1px solid var(--line);
   display: flex;
   justify-content: space-between;
-  padding: 22px 24px;
+  padding: 24px 28px 20px;
 }
 
 .staff-checkout-modal-head span {
-  color: var(--ink-muted);
+  color: var(--outline);
   display: block;
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 900;
   letter-spacing: 0;
   margin-bottom: 4px;
   text-transform: uppercase;
@@ -3042,9 +3131,17 @@ svg {
 
 .staff-checkout-modal-head h2 {
   color: var(--text);
-  font-size: 24px;
+  font-size: 26px;
   line-height: 1.15;
   margin: 0;
+}
+
+.staff-checkout-modal-head p {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.45;
+  margin: 8px 0 0;
 }
 
 .staff-checkout-modal-head button {
@@ -3069,45 +3166,148 @@ svg {
   width: 18px;
 }
 
-.staff-checkout-summary {
+.staff-checkout-body {
+  display: grid;
+  gap: 16px;
+  padding: 20px 28px 24px;
+}
+
+.staff-checkout-identity,
+.staff-checkout-session {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding: 20px 24px 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.staff-checkout-summary div {
-  background: var(--surface-container);
-  border: 1px solid var(--hairline);
+.staff-checkout-identity div,
+.staff-checkout-session div,
+.staff-checkout-services-card,
+.staff-checkout-bill {
+  background: #fafafa;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  display: grid;
-  gap: 6px;
-  min-height: 86px;
-  padding: 14px;
 }
 
-.staff-checkout-summary span,
+.staff-checkout-identity div,
+.staff-checkout-session div {
+  display: grid;
+  gap: 5px;
+  min-height: 76px;
+  padding: 14px 16px;
+}
+
+.staff-checkout-identity span,
+.staff-checkout-session span,
+.staff-checkout-services-card > div:first-child span,
+.staff-checkout-bill span,
 .staff-checkout-notes span {
-  color: var(--ink-muted);
+  color: var(--outline);
   font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.staff-checkout-identity strong,
+.staff-checkout-session strong {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.staff-checkout-identity small,
+.staff-checkout-services-card small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.staff-checkout-services-card {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.staff-checkout-services-card > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.staff-checkout-services {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.staff-checkout-services span {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 850;
+  gap: 8px;
+  line-height: 1.2;
+  padding: 8px 10px;
+}
+
+.staff-checkout-services span.empty {
+  color: var(--muted);
+}
+
+.staff-checkout-services span small {
+  color: var(--muted);
+  font-size: 11px;
   font-weight: 800;
 }
 
-.staff-checkout-summary strong {
+.staff-checkout-bill {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+}
+
+.staff-checkout-bill div {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.staff-checkout-bill strong {
   color: var(--text);
-  font-size: 18px;
-  line-height: 1.25;
+  font-size: 15px;
+  font-weight: 850;
+  text-align: right;
+}
+
+.staff-checkout-bill .staff-checkout-total-row {
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+  padding-top: 14px;
+}
+
+.staff-checkout-bill .staff-checkout-total-row span,
+.staff-checkout-bill .staff-checkout-total-row strong {
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 950;
 }
 
 .staff-checkout-notes {
   display: grid;
   gap: 8px;
-  padding: 12px 24px 20px;
 }
 
 .staff-checkout-notes textarea {
-  background: var(--surface-container);
-  border: 1px solid var(--hairline);
+  background: #fafafa;
+  border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--text);
   font: inherit;
@@ -3124,12 +3324,12 @@ svg {
 
 .staff-checkout-modal-actions {
   align-items: center;
-  background: var(--surface-container);
-  border-top: 1px solid var(--hairline);
+  background: #fff;
+  border-top: 1px solid var(--line);
   display: flex;
   gap: 12px;
   justify-content: flex-end;
-  padding: 18px 24px;
+  padding: 18px 28px;
 }
 
 .staff-checkout-modal-actions button {
@@ -3141,8 +3341,8 @@ svg {
 }
 
 .staff-checkout-modal-actions button:first-child {
-  background: var(--surface-container-lowest);
-  border: 1px solid var(--hairline);
+  background: #fff;
+  border: 1px solid var(--line);
   color: var(--text);
 }
 
@@ -3155,6 +3355,37 @@ svg {
 .staff-checkout-modal-actions button:disabled {
   cursor: wait;
   opacity: 0.62;
+}
+
+@media (max-width: 720px) {
+  .staff-checkout-modal {
+    align-items: flex-start;
+    overflow: auto;
+  }
+
+  .staff-checkout-modal-card {
+    margin: 12px 0;
+  }
+
+  .staff-checkout-modal-head,
+  .staff-checkout-body,
+  .staff-checkout-modal-actions {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .staff-checkout-identity,
+  .staff-checkout-session {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-checkout-services-card {
+    display: grid;
+  }
+
+  .staff-checkout-services {
+    justify-content: flex-start;
+  }
 }
 
 .staff-pending-action {
@@ -3668,298 +3899,6 @@ svg {
   line-height: 1.5;
   margin: 0;
   max-width: 460px;
-}
-
-.staff-overdue-panel {
-  display: grid;
-  gap: 24px;
-}
-
-.staff-overdue-actions {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-}
-
-.staff-overdue-filter,
-.staff-overdue-refresh {
-  align-items: center;
-  border-radius: 8px;
-  display: inline-flex;
-  font-size: 14px;
-  font-weight: 850;
-  gap: 8px;
-  height: 44px;
-  justify-content: center;
-  padding: 0 18px;
-}
-
-.staff-overdue-filter {
-  background: var(--surface-container-lowest);
-  border: 1px solid var(--hairline);
-  color: var(--primary);
-}
-
-.staff-overdue-filter:hover {
-  border-color: var(--primary);
-}
-
-.staff-overdue-refresh {
-  background: var(--primary);
-  border: 1px solid var(--primary);
-  color: #fff;
-}
-
-.staff-overdue-refresh:hover {
-  opacity: 0.9;
-}
-
-.staff-overdue-grid {
-  display: grid;
-  gap: 24px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.staff-overdue-card {
-  background: var(--brand-cream-card);
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  min-height: 360px;
-  overflow: hidden;
-  padding: 32px;
-  position: relative;
-  transition: border-color 0.18s ease;
-}
-
-.staff-overdue-card.critical:hover {
-  border-color: var(--brand-pink);
-}
-
-.staff-overdue-card.warning:hover {
-  border-color: var(--brand-ochre);
-}
-
-.staff-overdue-card.grace:hover {
-  border-color: var(--brand-lavender);
-}
-
-.staff-overdue-accent {
-  bottom: 0;
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 8px;
-}
-
-.staff-overdue-accent.tone-pink {
-  background: var(--brand-pink);
-}
-
-.staff-overdue-accent.tone-ochre {
-  background: var(--brand-ochre);
-}
-
-.staff-overdue-accent.tone-lavender {
-  background: var(--brand-lavender);
-}
-
-.staff-overdue-card-head {
-  align-items: flex-start;
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
-  margin-bottom: 24px;
-}
-
-.staff-overdue-priority {
-  align-items: center;
-  border-radius: 999px;
-  display: inline-flex;
-  font-size: 12px;
-  font-weight: 900;
-  gap: 6px;
-  margin-bottom: 8px;
-  padding: 6px 10px;
-  text-transform: uppercase;
-}
-
-.staff-overdue-priority svg {
-  height: 14px;
-  width: 14px;
-}
-
-.staff-overdue-priority.critical {
-  background: var(--error-container);
-  color: var(--brand-pink);
-}
-
-.staff-overdue-priority.warning {
-  background: var(--surface-soft);
-  border: 1px solid var(--brand-ochre);
-  color: var(--brand-ochre);
-}
-
-.staff-overdue-priority.grace {
-  background: var(--surface-soft);
-  border: 1px solid var(--hairline);
-  color: var(--primary);
-}
-
-.staff-overdue-card h3 {
-  color: var(--primary);
-  font-size: 24px;
-  line-height: 1.25;
-  margin: 0;
-}
-
-.staff-overdue-time {
-  flex: 0 0 auto;
-  text-align: right;
-}
-
-.staff-overdue-time strong {
-  color: var(--primary);
-  display: block;
-  font-size: 22px;
-  line-height: 1.2;
-}
-
-.staff-overdue-card.critical .staff-overdue-time strong {
-  color: var(--brand-pink);
-}
-
-.staff-overdue-card.warning .staff-overdue-time strong {
-  color: var(--brand-ochre);
-}
-
-.staff-overdue-time span {
-  color: var(--ink-muted);
-  display: block;
-  font-size: 14px;
-  font-weight: 650;
-  margin-top: 3px;
-}
-
-.staff-overdue-details {
-  display: grid;
-  gap: 16px;
-  margin: 0 0 32px;
-}
-
-.staff-overdue-details div {
-  align-items: center;
-  border-bottom: 1px solid var(--surface-dim);
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-  padding-bottom: 8px;
-}
-
-.staff-overdue-details dt {
-  color: var(--ink-muted);
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.staff-overdue-details dd {
-  color: var(--primary);
-  font-size: 14px;
-  font-weight: 750;
-  margin: 0;
-  text-align: right;
-}
-
-.staff-overdue-card-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: auto;
-}
-
-.staff-overdue-card-actions button {
-  align-items: center;
-  border-radius: 8px;
-  display: inline-flex;
-  font-size: 14px;
-  font-weight: 850;
-  height: 44px;
-  justify-content: center;
-  padding: 0 12px;
-}
-
-.staff-overdue-card-actions .contact {
-  background: var(--primary);
-  border: 1px solid var(--primary);
-  color: #fff;
-  flex: 1 1 0;
-}
-
-.staff-overdue-card-actions .fine,
-.staff-overdue-card-actions .warn,
-.staff-overdue-card-actions .monitor {
-  background: var(--surface-container-lowest);
-  border: 1px solid var(--hairline);
-  color: var(--primary);
-  flex: 1 1 0;
-}
-
-.staff-overdue-card-actions .fine {
-  color: var(--brand-pink);
-}
-
-.staff-overdue-card-actions .fine:hover {
-  background: var(--error-container);
-}
-
-.staff-overdue-card-actions .warn:hover,
-.staff-overdue-card-actions .monitor:hover {
-  border-color: var(--primary);
-}
-
-.staff-overdue-empty {
-  align-items: center;
-  background: var(--surface-soft);
-  border: 1px dashed var(--hairline);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  grid-column: 1 / -1;
-  min-height: 320px;
-  justify-content: center;
-  padding: 48px 24px;
-  text-align: center;
-}
-
-.staff-overdue-empty span {
-  align-items: center;
-  color: var(--ink-muted);
-  display: inline-flex;
-  height: 48px;
-  justify-content: center;
-  margin-bottom: 16px;
-  width: 48px;
-}
-
-.staff-overdue-empty span svg {
-  height: 42px;
-  width: 42px;
-}
-
-.staff-overdue-empty strong {
-  color: var(--primary);
-  font-size: 24px;
-  line-height: 1.25;
-  margin-bottom: 8px;
-}
-
-.staff-overdue-empty p {
-  color: var(--ink-muted);
-  font-size: 16px;
-  line-height: 1.5;
-  margin: 0;
-  max-width: 420px;
 }
 
 .staff-booking-icon-action:hover,
@@ -5050,8 +4989,7 @@ svg {
   fill: rgba(46, 116, 92, 0.25);
 }
 
-.vehicle-art.motorbike .vehicle-body,
-.vehicle-art.bicycle .vehicle-body {
+.vehicle-art.motorbike .vehicle-body {
   fill: #ffdbd0;
 }
 
@@ -6927,7 +6865,6 @@ h1 {
 }
 
 .field-row,
-.time-row,
 .filter-actions {
   display: grid;
   gap: 12px;
@@ -7212,7 +7149,7 @@ h1 {
 }
 
 .parking-title-row {
-  align-items: flex-start;
+  align-items: center;
   display: flex;
   gap: 12px;
   justify-content: space-between;
@@ -7221,8 +7158,9 @@ h1 {
 .parking-title-row h2 {
   color: var(--text);
   font-size: 18px;
-  line-height: 1.2;
+  line-height: 1;
   margin: 0;
+  min-width: 0;
 }
 
 .price {
@@ -7286,6 +7224,10 @@ h1 {
   fill: currentColor;
 }
 
+.slots-badge.motorbike-slots svg {
+  color: #e8b94a;
+}
+
 .rating-badge small {
   color: var(--muted);
   font-size: 11px;
@@ -7343,7 +7285,8 @@ h1 {
   margin: 0 0 14px;
 }
 
-.price-schedule div {
+.price-schedule div,
+.price-schedule article {
   background: rgba(255, 255, 255, 0.58);
   border: 1px solid rgba(10, 10, 10, 0.08);
   border-radius: 8px;
@@ -7376,6 +7319,36 @@ h1 {
   font-size: 10px;
   font-weight: 750;
   margin-left: 1px;
+}
+
+.vehicle-price-schedule {
+  gap: 10px;
+  grid-template-columns: 1fr;
+}
+
+.vehicle-price-schedule section {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.vehicle-price-schedule h3 {
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.vehicle-price-schedule section > div {
+  background: transparent;
+  border: 0;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0;
 }
 
 .parking-tags {
@@ -7528,6 +7501,7 @@ h1 {
   font-size: 13px;
   font-weight: 950;
   gap: 5px;
+  max-width: 144px;
   padding: 8px 11px;
   position: relative;
   transition:
@@ -7535,6 +7509,14 @@ h1 {
     color 0.2s ease,
     transform 0.2s ease;
   user-select: none;
+  white-space: nowrap;
+}
+
+.parking-map-marker span {
+  display: inline-block;
+  max-width: 92px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -7563,7 +7545,9 @@ h1 {
   border-radius: 999px;
   color: #fff;
   font-size: 10px;
-  padding: 2px 5px;
+  min-width: 20px;
+  padding: 2px 6px;
+  text-align: center;
 }
 
 .parking-info-window {
@@ -7587,6 +7571,47 @@ h1 {
   font-size: 13px;
   line-height: 1.45;
   margin: 10px 0 0;
+}
+
+.parking-popup-vehicle-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.parking-popup-vehicle-row {
+  align-items: center;
+  background: #f7f7f7;
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 64px 1fr auto;
+  min-height: 36px;
+  padding: 8px 10px;
+}
+
+.parking-popup-vehicle-row span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.parking-popup-vehicle-row strong {
+  color: #0a0a0a;
+  font-size: 12px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.parking-popup-vehicle-row em {
+  color: var(--primary);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 950;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .parking-popup-head {
@@ -8014,6 +8039,24 @@ h1 {
   font-weight: 700;
 }
 
+.detail-hourly-rates-list {
+  gap: 14px;
+}
+
+.detail-hourly-rates-list .staff-rate-group-card {
+  border-color: var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.detail-hourly-rates-list .staff-rate-row {
+  min-height: 58px;
+}
+
+.detail-hourly-rates-list .staff-rate-row p {
+  font-size: 20px;
+}
+
 .capacity-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -8289,6 +8332,137 @@ h1 {
   margin: 0 0 2px;
 }
 
+.booking-hold-info {
+  align-items: center;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.24);
+  border-radius: 8px;
+  color: var(--text);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 14px;
+}
+
+.booking-hold-info .material-symbols-outlined {
+  color: #f59e0b;
+  font-size: 24px;
+}
+
+.booking-hold-info strong,
+.booking-hold-info small {
+  display: block;
+}
+
+.booking-hold-info strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.booking-hold-info small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+  margin-top: 2px;
+}
+
+.booking-vehicle {
+  display: grid;
+  gap: 8px;
+}
+
+.booking-vehicle label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.booking-vehicle select {
+  appearance: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+  min-height: 46px;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.booking-vehicle select:focus {
+  border-color: var(--primary);
+  outline: 0;
+}
+
+.booking-services {
+  display: grid;
+  gap: 12px;
+}
+
+.booking-services h3 {
+  font-size: 14px;
+  font-weight: 850;
+  margin: 0;
+}
+
+.booking-service-options {
+  display: grid;
+  gap: 10px;
+}
+
+.booking-service-option {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 58px;
+  padding: 12px;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.booking-service-option.active {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.booking-service-option input {
+  accent-color: #22c55e;
+  height: 16px;
+  width: 16px;
+}
+
+.booking-service-option strong,
+.booking-service-option small {
+  display: block;
+}
+
+.booking-service-option strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.booking-service-option small,
+.booking-service-empty {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.booking-service-option b {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
 .booking-time-picker {
   position: relative;
 }
@@ -8436,48 +8610,6 @@ h1 {
   padding-top: 12px;
 }
 
-.booking-price-breakdown {
-  background: var(--surface-muted);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  padding: 16px;
-}
-
-.booking-price-breakdown div {
-  align-items: center;
-  display: flex;
-  gap: 14px;
-  justify-content: space-between;
-}
-
-.booking-price-breakdown span {
-  color: var(--muted);
-  font-size: 14px;
-}
-
-.booking-price-breakdown strong {
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 750;
-  text-align: right;
-}
-
-.booking-price-breakdown .booking-total-row {
-  border-top: 1px solid var(--line);
-  margin-top: 5px;
-  padding-top: 13px;
-}
-
-.booking-price-breakdown .booking-total-row span,
-.booking-price-breakdown .booking-total-row strong {
-  color: var(--text);
-  font-size: 20px;
-  font-weight: 900;
-}
-
 .booking-confirm,
 .detail-directions-button {
   align-items: center;
@@ -8492,6 +8624,11 @@ h1 {
     opacity 0.2s ease,
     transform 0.2s ease;
   width: 100%;
+}
+
+.booking-confirm.disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .booking-confirm {
@@ -12624,7 +12761,6 @@ th {
   }
 
   .field-row,
-  .time-row,
   .filter-actions {
     grid-template-columns: 1fr;
   }
@@ -12909,10 +13045,6 @@ th {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .staff-overdue-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .staff-booking-filters {
     align-items: stretch;
     flex-direction: column;
@@ -12997,29 +13129,6 @@ th {
 
   .staff-extension-card-details strong {
     text-align: left;
-  }
-
-  .staff-overdue-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .staff-overdue-filter,
-  .staff-overdue-refresh {
-    width: 100%;
-  }
-
-  .staff-overdue-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .staff-overdue-card {
-    min-height: 0;
-    padding: 24px;
-  }
-
-  .staff-overdue-card-actions {
-    flex-direction: column;
   }
 
   .staff-data-list .data-row {
@@ -13189,7 +13298,6 @@ body,
 .staff-capacity-hero,
 .staff-booking-table-card,
 .staff-change-request-card,
-.staff-overdue-card,
 .admin-metrics article,
 .admin-approval-card,
 .admin-user-filter-card,
@@ -13250,7 +13358,6 @@ body,
 .staff-booking-approve,
 .staff-change-request-button.approve,
 .staff-extension-card-actions .approve,
-.staff-overdue-refresh,
 .admin-add-user-button,
 .add-payment-button,
 .vehicle-save-button {
@@ -13264,7 +13371,6 @@ body,
 .directions-button,
 .staff-export-button,
 .staff-logout,
-.staff-overdue-filter,
 .staff-booking-decline,
 .staff-change-request-button.reject,
 .staff-extension-card-actions .reject {
@@ -13322,8 +13428,8 @@ body,
 .staff-booking-status,
 .staff-pending-empty span,
 .staff-change-empty span,
-.staff-extension-empty span,
-.staff-overdue-empty {
+.staff-extension-empty span
+{
   background: #f7f7f7 !important;
   border-color: #e5e5e5 !important;
   color: #0a0a0a !important;
@@ -13432,6 +13538,28 @@ body,
 
 .active-booking-card {
   overflow: hidden;
+}
+
+.active-booking-cancel-button {
+  align-self: flex-start;
+  background: transparent;
+  border: 0;
+  color: #b45353;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 850;
+  padding: 2px 0;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.active-booking-cancel-button:hover {
+  color: #8f3f3f;
+}
+
+.active-booking-cancel-button:disabled {
+  color: var(--outline);
+  cursor: wait;
 }
 
 .active-booking-primary {

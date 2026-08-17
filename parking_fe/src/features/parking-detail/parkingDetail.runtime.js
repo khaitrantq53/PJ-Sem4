@@ -1,8 +1,10 @@
 import {
+  apiRequest,
   getParkingLotCapacities,
   getParkingLotDetail,
   getParkingLotPricingRules,
   getParkingLotServices,
+  jsonBody,
   searchParkingLots,
 } from '../../services/api.js';
 
@@ -20,6 +22,13 @@ const previewLot = {
 };
 
 let currentLot = null;
+let customerVehicles = [];
+const PAID_SERVICE_PRICES = {
+  'car wash': 10000,
+  'ev charging': 50000,
+};
+const CHECK_IN_WINDOW_MINUTES = 20;
+const selectedServiceIds = new Set(new URLSearchParams(window.location.search).getAll('serviceIds'));
 
 const elements = {
   galleryBadge: document.querySelector('#galleryBadge'),
@@ -37,6 +46,8 @@ const elements = {
   baseHourlyRate: document.querySelector('#baseHourlyRate'),
   pricingRulesBody: document.querySelector('#pricingRulesBody'),
   amenityGrid: document.querySelector('#amenityGrid'),
+  bookingServiceOptions: document.querySelector('#bookingServiceOptions'),
+  bookingVehicleId: document.querySelector('#bookingVehicleId'),
   detailSpotHint: document.querySelector('#detailSpotHint'),
   bookingCheckIn: document.querySelector('#bookingCheckIn'),
   bookingCheckOut: document.querySelector('#bookingCheckOut'),
@@ -46,12 +57,6 @@ const elements = {
   bookingCheckOutTime: document.querySelector('#bookingCheckOutTime'),
   bookingPickerTriggers: document.querySelectorAll('[data-booking-picker-trigger]'),
   bookingPickerPopovers: document.querySelectorAll('[data-booking-picker-popover]'),
-  bookingParkingFeeLabel: document.querySelector('#bookingParkingFeeLabel'),
-  bookingParkingFee: document.querySelector('#bookingParkingFee'),
-  bookingServiceFee: document.querySelector('#bookingServiceFee'),
-  bookingDiscount: document.querySelector('#bookingDiscount'),
-  bookingTax: document.querySelector('#bookingTax'),
-  bookingTotal: document.querySelector('#bookingTotal'),
   bookButton: document.querySelector('#bookButton'),
   directionsButton: document.querySelector('#directionsButton'),
 };
@@ -123,8 +128,21 @@ function selectedValue(kind) {
     : combineDateTime(elements.bookingCheckOutDate?.value, elements.bookingCheckOutTime?.value);
 }
 
+function bookingHoldWindow() {
+  const start = new Date();
+  const end = new Date(start);
+  end.setMinutes(end.getMinutes() + CHECK_IN_WINDOW_MINUTES);
+  return { start, end };
+}
+
 function selectedDate(kind) {
-  return parseLocalDatetime(selectedValue(kind));
+  const selected = parseLocalDatetime(selectedValue(kind));
+  if (selected) {
+    return selected;
+  }
+
+  const hold = bookingHoldWindow();
+  return kind === 'checkin' ? hold.start : hold.end;
 }
 
 function setPickerValue(kind, date) {
@@ -201,6 +219,20 @@ function formatMoney(value) {
   }).format(number) + ' VND';
 }
 
+function formatCurrencyAmount(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return 'Contact';
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    currency: 'VND',
+    maximumFractionDigits: 0,
+    style: 'currency',
+  }).format(number);
+}
+
 function formatHourlyRate(value) {
   const number = Number(value);
 
@@ -211,9 +243,20 @@ function formatHourlyRate(value) {
   return `${formatMoney(number)} / hour`;
 }
 
-function getHourlyRateForDate(lot, date) {
+function selectedBookingVehicle() {
+  const vehicleId = elements.bookingVehicleId?.value;
+  return customerVehicles.find((vehicle) => String(vehicle.id) === String(vehicleId)) || null;
+}
+
+function selectedBookingVehicleType() {
+  const optionType = elements.bookingVehicleId?.selectedOptions?.[0]?.dataset.vehicleType;
+  const queryType = new URLSearchParams(window.location.search).get('vehicleType');
+  return selectedBookingVehicle()?.vehicleType || optionType || queryType || 'CAR';
+}
+
+function getHourlyRateForDate(lot, date, vehicleType = selectedBookingVehicleType()) {
   const fallbackRate = Number(lot?.hourlyRate);
-  const rules = getActiveCarPricingRules(lot);
+  const rules = getActivePricingRules(lot, vehicleType);
   const matchingRule = date ? rules.find((rule) => ruleAppliesAt(rule, date)) : null;
   const ruleRate = Number(matchingRule?.hourlyRate);
 
@@ -229,14 +272,15 @@ function renderBaseHourlyRate(lot = currentLot) {
     return;
   }
 
-  const number = getHourlyRateForDate(lot, selectedDate('checkin'));
+  const vehicleType = selectedBookingVehicleType();
+  const number = getHourlyRateForDate(lot, selectedDate('checkin'), vehicleType);
 
   if (!Number.isFinite(number) || number <= 0) {
-    elements.baseHourlyRate.textContent = 'Contact';
+    elements.baseHourlyRate.innerHTML = `Contact<small>for ${escapeHtml(formatVehicleType(vehicleType))}</small>`;
     return;
   }
 
-  elements.baseHourlyRate.innerHTML = `${escapeHtml(formatMoney(number))}<small>/hour</small>`;
+  elements.baseHourlyRate.innerHTML = `${escapeHtml(formatMoney(number))}<small>/hour for ${escapeHtml(formatVehicleType(vehicleType))}</small>`;
 }
 
 function escapeHtml(value) {
@@ -307,22 +351,19 @@ function normalizeServiceLabel(value) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function getSelectedDurationHours() {
-  const checkIn = selectedDate('checkin');
-  const checkOut = selectedDate('checkout');
-
-  if (!checkIn || !checkOut || checkOut <= checkIn) {
-    return 4;
-  }
-
-  const hours = (checkOut.getTime() - checkIn.getTime()) / 36e5;
-  return Math.max(0.5, hours);
+function isPaidSelectableService(service) {
+  const label = normalizeServiceLabel(service?.name).toLowerCase();
+  return Object.prototype.hasOwnProperty.call(PAID_SERVICE_PRICES, label);
 }
 
-function formatDuration(hours) {
-  return Number.isInteger(hours)
-    ? `${hours} hrs`
-    : `${hours.toFixed(1)} hrs`;
+function serviceDisplayPrice(service) {
+  const label = normalizeServiceLabel(service?.name).toLowerCase();
+  const configuredPrice = PAID_SERVICE_PRICES[label];
+  return Number.isFinite(configuredPrice) ? configuredPrice : Number(service?.price || 0);
+}
+
+function getSelectedServiceIds() {
+  return [...selectedServiceIds].filter(Boolean);
 }
 
 function getRuleMinute(value) {
@@ -346,11 +387,13 @@ function getDateMinute(date) {
   return date.getHours() * 60 + date.getMinutes();
 }
 
-function getActiveCarPricingRules(lot) {
+function getActivePricingRules(lot, vehicleType = selectedBookingVehicleType()) {
   const rules = Array.isArray(lot?.pricingRules) ? lot.pricingRules : [];
-  const carRules = rules.filter((rule) => rule.active !== false && (!rule.vehicleType || rule.vehicleType === 'CAR'));
+  const activeRules = rules.filter((rule) => rule.active !== false);
+  const vehicleRules = activeRules.filter((rule) => rule.vehicleType === vehicleType);
+  const sharedRules = activeRules.filter((rule) => !rule.vehicleType);
 
-  return carRules.length ? carRules : rules.filter((rule) => rule.active !== false);
+  return vehicleRules.length ? vehicleRules : sharedRules.length ? sharedRules : activeRules;
 }
 
 function ruleAppliesAt(rule, date) {
@@ -369,89 +412,6 @@ function ruleAppliesAt(rule, date) {
   return start < end
     ? current >= start && current < end
     : current >= start || current < end;
-}
-
-function nextPricingBoundary(cursor, rules) {
-  const boundaries = rules
-    .flatMap((rule) => [getRuleMinute(rule.startTime), getRuleMinute(rule.endTime)])
-    .filter((minute) => minute !== null);
-
-  if (!boundaries.length) {
-    return null;
-  }
-
-  return boundaries.reduce((nearest, minute) => {
-    const candidate = new Date(cursor);
-    candidate.setHours(Math.floor(minute / 60), minute % 60, 0, 0);
-
-    if (candidate <= cursor) {
-      candidate.setDate(candidate.getDate() + 1);
-    }
-
-    return !nearest || candidate < nearest ? candidate : nearest;
-  }, null);
-}
-
-function calculateParkingFeeByRules(lot, checkIn, checkOut) {
-  const fallbackRate = Number(lot?.hourlyRate);
-  const rules = getActiveCarPricingRules(lot);
-
-  if (!checkIn || !checkOut || checkOut <= checkIn || !Number.isFinite(fallbackRate) || fallbackRate <= 0) {
-    return null;
-  }
-
-  if (!rules.length) {
-    return fallbackRate * getSelectedDurationHours();
-  }
-
-  let fee = 0;
-  let cursor = new Date(checkIn);
-
-  while (cursor < checkOut) {
-    const rule = rules.find((candidate) => ruleAppliesAt(candidate, cursor));
-    const rate = Number(rule?.hourlyRate || fallbackRate);
-    const boundary = nextPricingBoundary(cursor, rules);
-    let segmentEnd = boundary && boundary < checkOut ? boundary : checkOut;
-
-    if (segmentEnd <= cursor) {
-      segmentEnd = checkOut;
-    }
-
-    const segmentHours = (segmentEnd.getTime() - cursor.getTime()) / 36e5;
-    fee += rate * segmentHours;
-    cursor = segmentEnd;
-  }
-
-  return fee;
-}
-
-function renderBookingBreakdown(lot = currentLot) {
-  const checkIn = selectedDate('checkin');
-  const checkOut = selectedDate('checkout');
-  const durationHours = getSelectedDurationHours();
-  const parkingFee = calculateParkingFeeByRules(lot, checkIn, checkOut);
-
-  if (!Number.isFinite(parkingFee)) {
-    setText(elements.bookingParkingFeeLabel, `Parking Fee (${formatDuration(durationHours)})`);
-    setText(elements.bookingParkingFee, 'Contact');
-    setText(elements.bookingServiceFee, 'Contact');
-    setText(elements.bookingDiscount, 'Contact');
-    setText(elements.bookingTax, 'Contact');
-    setText(elements.bookingTotal, 'Contact');
-    return;
-  }
-
-  const serviceFee = 0;
-  const discount = 0;
-  const tax = 0;
-  const total = parkingFee + serviceFee + tax - discount;
-
-  setText(elements.bookingParkingFeeLabel, `Parking Fee (${formatDuration(durationHours)})`);
-  setText(elements.bookingParkingFee, formatMoney(parkingFee));
-  setText(elements.bookingServiceFee, formatMoney(serviceFee));
-  setText(elements.bookingDiscount, `-${formatMoney(discount)}`);
-  setText(elements.bookingTax, formatMoney(tax));
-  setText(elements.bookingTotal, formatMoney(total));
 }
 
 function normalizeLot(lot) {
@@ -476,6 +436,21 @@ function setText(element, value) {
   }
 }
 
+function setBookButtonState(label, disabled = false) {
+  if (!elements.bookButton) {
+    return;
+  }
+
+  elements.bookButton.disabled = disabled;
+  elements.bookButton.classList.toggle('disabled', disabled);
+  const textNode = [...elements.bookButton.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
+  if (textNode) {
+    textNode.textContent = ` ${label} `;
+  } else {
+    elements.bookButton.prepend(document.createTextNode(` ${label} `));
+  }
+}
+
 function getCapacitySummary(capacities = []) {
   const activeCapacities = capacities.filter((capacity) => Number(capacity.totalCapacity) > 0);
   const total = activeCapacities.reduce((sum, capacity) => sum + Number(capacity.totalCapacity || 0), 0);
@@ -484,44 +459,86 @@ function getCapacitySummary(capacities = []) {
   return { available, hasCapacity: total > 0, total };
 }
 
+function getCapacitySummaryForVehicle(capacities = [], vehicleType = selectedBookingVehicleType()) {
+  const capacity = capacities.find((item) => item.vehicleType === vehicleType);
+
+  if (!capacity || Number(capacity.totalCapacity) <= 0) {
+    return { available: 0, hasCapacity: false, total: 0 };
+  }
+
+  return {
+    available: Number(capacity.available || 0),
+    hasCapacity: true,
+    total: Number(capacity.totalCapacity || 0),
+  };
+}
+
 function renderPricingRules(pricingRules = [], fallbackRate) {
   if (!elements.pricingRulesBody) {
     return;
   }
 
-  const activeRules = pricingRules
-    .filter((rule) => rule.active !== false)
-    .slice()
-    .sort((first, second) => {
-      const vehicleOrder = String(first.vehicleType || '').localeCompare(String(second.vehicleType || ''));
-      return vehicleOrder || String(first.startTime || '').localeCompare(String(second.startTime || ''));
-    });
+  const activeRules = pricingRules.filter((rule) => rule.active !== false);
+  const rateSlots = [
+    ['day', 'Day', '07:00:00', '17:00:00'],
+    ['evening', 'Evening', '17:00:00', '22:00:00'],
+    ['night', 'Night', '22:00:00', '07:00:00'],
+  ];
+  const vehicleGroups = [
+    ['CAR', 'Car'],
+    ['MOTORBIKE', 'Motorbike'],
+  ];
+  const ruleFor = (vehicleType, startTime, endTime) => activeRules.find((rule) => (
+    rule.vehicleType === vehicleType
+    && String(rule.startTime || '').startsWith(startTime.slice(0, 5))
+    && String(rule.endTime || '').startsWith(endTime.slice(0, 5))
+  ));
 
   if (!activeRules.length) {
     elements.pricingRulesBody.innerHTML = `
-      <tr>
-        <td>Base rate</td>
-        <td>${escapeHtml(formatHourlyRate(fallbackRate))}</td>
-      </tr>
+      <div class="empty-state">Base rate: ${escapeHtml(formatHourlyRate(fallbackRate))}</div>
     `;
     return;
   }
 
-  elements.pricingRulesBody.innerHTML = activeRules.map((rule) => `
-    <tr>
-      <td>
-        <strong>${escapeHtml(formatVehicleType(rule.vehicleType))}</strong>
-        <span>${escapeHtml(formatTimeRange(rule.startTime, rule.endTime))}</span>
-      </td>
-      <td>${escapeHtml(formatHourlyRate(rule.hourlyRate))}</td>
-    </tr>
+  elements.pricingRulesBody.innerHTML = vehicleGroups.map(([vehicleType, vehicleLabel]) => `
+    <div class="staff-rate-group-card">
+      <div class="staff-rate-group-title">
+        <strong>${escapeHtml(vehicleLabel)}</strong>
+        <span>${escapeHtml(formatVehicleType(vehicleType))} hourly pricing</span>
+      </div>
+      <div class="staff-rate-group-list">
+        ${rateSlots.map(([slotClass, slotLabel, startTime, endTime]) => {
+          const rule = ruleFor(vehicleType, startTime, endTime);
+
+          return `
+            <div class="staff-rate-row compact">
+              <div>
+                <span class="material-symbols-outlined staff-rate-icon ${slotClass}" aria-hidden="true">${slotClass === 'day' ? 'light_mode' : slotClass === 'evening' ? 'wb_twilight' : 'dark_mode'}</span>
+                <div>
+                  <strong>${escapeHtml(slotLabel)}</strong>
+                  <small>${escapeHtml(formatTimeRange(startTime, endTime))}</small>
+                </div>
+              </div>
+              <p>${rule ? escapeHtml(formatCurrencyAmount(rule.hourlyRate)) : '-'}${rule ? '<span>/hr</span>' : ''}</p>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
   `).join('');
 }
 
 function renderSpotHint(capacities = []) {
-  const { available, hasCapacity } = getCapacitySummary(capacities);
+  const vehicleType = selectedBookingVehicleType();
+  const { available, hasCapacity, total } = getCapacitySummaryForVehicle(capacities, vehicleType);
 
-  setText(elements.detailSpotHint, hasCapacity ? `${available} slots available` : 'Capacity not configured');
+  setText(
+    elements.detailSpotHint,
+    hasCapacity
+      ? `${available} / ${total} ${formatVehicleType(vehicleType).toLowerCase()} slots available`
+      : `${formatVehicleType(vehicleType)} capacity not configured`,
+  );
 }
 
 function renderSlotStatusPill(capacities = []) {
@@ -549,21 +566,112 @@ function renderServices(services = []) {
       label: normalizeServiceLabel(service.name),
     }))
     .filter((service) => service.label);
+  const amenityServices = activeServices.filter((service) => !isPaidSelectableService(service));
 
-  if (!activeServices.length) {
+  if (!amenityServices.length) {
     elements.amenityGrid.innerHTML = '<div class="amenity-item">No amenities configured yet</div>';
     return;
   }
 
-  elements.amenityGrid.innerHTML = activeServices.map((service) => `
+  elements.amenityGrid.innerHTML = amenityServices.map((service) => `
     <div class="amenity-item">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm4.4 7.4-5.1 5.1-2.7-2.7L7.2 13.2l4.1 4.1 6.5-6.5-1.4-1.4Z" />
       </svg>
       <span>${escapeHtml(service.label)}</span>
-      ${Number(service.price) > 0 ? `<small>${escapeHtml(formatMoney(service.price))}</small>` : ''}
     </div>
   `).join('');
+}
+
+function renderBookingServices(services = []) {
+  if (!elements.bookingServiceOptions) {
+    return;
+  }
+
+  const paidServices = services
+    .filter((service) => service.active !== false)
+    .filter(isPaidSelectableService)
+    .map((service) => ({
+      ...service,
+      label: normalizeServiceLabel(service.name),
+      displayPrice: serviceDisplayPrice(service),
+    }));
+
+  if (!paidServices.length) {
+    elements.bookingServiceOptions.innerHTML = '<div class="booking-service-empty">No paid services available</div>';
+    return;
+  }
+
+  elements.bookingServiceOptions.innerHTML = paidServices.map((service) => `
+    <label class="booking-service-option ${selectedServiceIds.has(String(service.id)) ? 'active' : ''}">
+      <input type="checkbox" name="bookingServiceIds" value="${escapeHtml(service.id)}" ${selectedServiceIds.has(String(service.id)) ? 'checked' : ''} />
+      <span>
+        <strong>${escapeHtml(service.label)}</strong>
+        <small>Optional service</small>
+      </span>
+      <b>${escapeHtml(formatMoney(service.displayPrice))}</b>
+    </label>
+  `).join('');
+
+  elements.bookingServiceOptions.querySelectorAll('input[name="bookingServiceIds"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      if (input.checked) {
+        selectedServiceIds.add(input.value);
+      } else {
+        selectedServiceIds.delete(input.value);
+      }
+      input.closest('.booking-service-option')?.classList.toggle('active', input.checked);
+    });
+  });
+}
+
+async function loadCustomerVehicles() {
+  if (!elements.bookingVehicleId) {
+    return;
+  }
+
+  try {
+    const vehicles = await apiRequest('/customer/vehicles');
+    const activeVehicles = vehicles.filter((vehicle) => vehicle.status !== 'INACTIVE');
+    customerVehicles = activeVehicles;
+
+    if (!activeVehicles.length) {
+      elements.bookingVehicleId.innerHTML = '<option value="">No active vehicles found</option>';
+      setBookButtonState('Add a vehicle first', true);
+      renderBaseHourlyRate();
+      renderSpotHint(currentLot?.capacities || []);
+      return;
+    }
+
+    elements.bookingVehicleId.innerHTML = activeVehicles.map((vehicle) => `
+      <option value="${escapeHtml(vehicle.id)}" data-vehicle-type="${escapeHtml(vehicle.vehicleType)}" ${vehicle.defaultVehicle ? 'selected' : ''}>
+        ${escapeHtml(vehicle.plateNumber || 'No plate')} - ${escapeHtml(formatVehicleType(vehicle.vehicleType))}
+      </option>
+    `).join('');
+    setBookButtonState('Book Now');
+    renderBaseHourlyRate();
+    renderSpotHint(currentLot?.capacities || []);
+  } catch (error) {
+    customerVehicles = [];
+    elements.bookingVehicleId.innerHTML = '<option value="">Sign in to load vehicles</option>';
+    setBookButtonState('Sign in to book');
+    renderBaseHourlyRate();
+    renderSpotHint(currentLot?.capacities || []);
+  }
+}
+
+function buildDirectBookingRequest() {
+  const hold = bookingHoldWindow();
+  return {
+    parkingLotId: currentLot?.id,
+    vehicleId: elements.bookingVehicleId?.value || '',
+    startTime: hold.start.toISOString(),
+    endTime: hold.end.toISOString(),
+    deliveryMethod: 'SELF_DROP_OFF',
+    serviceIds: getSelectedServiceIds(),
+    promotionCode: null,
+    paymentMethod: 'QR',
+  };
 }
 
 function renderDetail(lot, mode = 'Online') {
@@ -586,7 +694,7 @@ function renderDetail(lot, mode = 'Online') {
   renderSpotHint(currentLot.capacities);
   renderSlotStatusPill(currentLot.capacities);
   renderServices(currentLot.services);
-  renderBookingBreakdown(currentLot);
+  renderBookingServices(currentLot.services);
   setText(elements.bookingMeta, mode);
 
 }
@@ -595,7 +703,11 @@ function refreshBookingTimeLabels() {
   setText(elements.bookingCheckIn, formatBookingDateTime(selectedDate('checkin')));
   setText(elements.bookingCheckOut, formatBookingDateTime(selectedDate('checkout')));
   renderBaseHourlyRate(currentLot);
-  renderBookingBreakdown(currentLot);
+}
+
+function refreshBookingVehiclePricing() {
+  renderBaseHourlyRate(currentLot);
+  renderSpotHint(currentLot?.capacities || []);
 }
 
 function closeBookingPickers(except) {
@@ -730,25 +842,34 @@ async function loadDetail() {
 function bindActions() {
   setupBookingDateTimeInputs();
 
-  elements.bookButton?.addEventListener('click', () => {
-    const target = new URL('/confirm-booking.html', window.location.origin);
+  elements.bookingVehicleId?.addEventListener('change', refreshBookingVehiclePricing);
 
-    if (currentLot?.id) {
-      target.searchParams.set('parkingLotId', currentLot.id);
+  elements.bookButton?.addEventListener('click', async () => {
+    if (!elements.bookingVehicleId?.value) {
+      window.location.href = '/auth.html';
+      return;
     }
 
-    const checkIn = selectedDate('checkin');
-    const checkOut = selectedDate('checkout');
-
-    if (checkIn) {
-      target.searchParams.set('startTime', checkIn.toISOString());
+    if (!currentLot?.id || String(currentLot.id).startsWith('sample-')) {
+      setBookButtonState('Open a real parking lot', false);
+      return;
     }
 
-    if (checkOut) {
-      target.searchParams.set('endTime', checkOut.toISOString());
-    }
+    setBookButtonState('Creating...', true);
 
-    window.location.href = `${target.pathname}${target.search}`;
+    try {
+      const booking = await apiRequest('/customer/bookings', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}` },
+        body: jsonBody(buildDirectBookingRequest()),
+      });
+      setBookButtonState(`Booked ${booking.bookingCode || ''}`, true);
+      window.setTimeout(() => {
+        window.location.href = '/customer.html';
+      }, 900);
+    } catch (error) {
+      setBookButtonState(error.message || 'Booking failed', false);
+    }
   });
 
   elements.directionsButton?.addEventListener('click', () => {
@@ -762,6 +883,9 @@ function bindActions() {
 }
 
 bindActions();
-loadDetail().catch((error) => {
-  renderDetail(previewLot, 'Preview data');
-});
+loadDetail()
+  .then(loadCustomerVehicles)
+  .catch((error) => {
+    renderDetail(previewLot, 'Preview data');
+    loadCustomerVehicles();
+  });

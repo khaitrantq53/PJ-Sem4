@@ -78,15 +78,8 @@ const parkingDetailPage = {
               <div class="detail-two-column">
                 <div>
                   <h3>Hourly Rates by Vehicle</h3>
-                  <div class="detail-table-wrap">
-                    <table class="detail-table detail-rate-table">
-                      <tbody id="pricingRulesBody">
-                        <tr>
-                          <td>Loading pricing rules</td>
-                          <td>-</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                  <div class="detail-hourly-rates-list staff-hourly-rates-list" id="pricingRulesBody">
+                    <div class="empty-state">Loading pricing rules</div>
                   </div>
                 </div>
 
@@ -132,54 +125,26 @@ const parkingDetailPage = {
                 </div>
               </div>
 
-              <div class="booking-duration">
-                <h3>Select Duration</h3>
-                <div class="booking-time-picker" data-booking-picker="checkin">
-                  <button class="booking-time-card" type="button" data-booking-picker-trigger="checkin">
-                  <span>Check-in</span>
-                  <strong id="bookingCheckIn">Today, 2:00 PM</strong>
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M7 2h2v2h6V2h2v2h3v18H4V4h3V2Zm11 8H6v10h12V10ZM6 8h12V6H6v2Z" />
-                  </svg>
-                  </button>
-                  <div class="booking-picker-popover" data-booking-picker-popover="checkin">
-                    <label>
-                      <span>Date</span>
-                      <input id="bookingCheckInDate" type="date" />
-                    </label>
-                    <label>
-                      <span>Time</span>
-                      <input id="bookingCheckInTime" type="time" step="900" />
-                    </label>
-                  </div>
-                </div>
-                <div class="booking-time-picker" data-booking-picker="checkout">
-                  <button class="booking-time-card" type="button" data-booking-picker-trigger="checkout">
-                  <span>Check-out</span>
-                  <strong id="bookingCheckOut">Today, 6:00 PM</strong>
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M7 2h2v2h6V2h2v2h3v18H4V4h3V2Zm11 8H6v10h12V10ZM6 8h12V6H6v2Z" />
-                  </svg>
-                  </button>
-                  <div class="booking-picker-popover" data-booking-picker-popover="checkout">
-                    <label>
-                      <span>Date</span>
-                      <input id="bookingCheckOutDate" type="date" />
-                    </label>
-                    <label>
-                      <span>Time</span>
-                      <input id="bookingCheckOutTime" type="time" step="900" />
-                    </label>
-                  </div>
+              <div class="booking-hold-info">
+                <span class="material-symbols-outlined" aria-hidden="true">timer</span>
+                <div>
+                  <strong>20-minute check-in window</strong>
+                  <small>Your spot is held after booking. Staff must check you in before it expires.</small>
                 </div>
               </div>
 
-              <div class="booking-price-breakdown">
-                <div><span id="bookingParkingFeeLabel">Parking Fee (4 hrs)</span><strong id="bookingParkingFee">-</strong></div>
-                <div><span>Service Fee</span><strong id="bookingServiceFee">-</strong></div>
-                <div><span>Discount</span><strong id="bookingDiscount">-</strong></div>
-                <div><span>Tax</span><strong id="bookingTax">-</strong></div>
-                <div class="booking-total-row"><span>Total Amount</span><strong id="bookingTotal">-</strong></div>
+              <div class="booking-vehicle">
+                <label for="bookingVehicleId">Vehicle</label>
+                <select id="bookingVehicleId">
+                  <option value="">Loading your vehicles</option>
+                </select>
+              </div>
+
+              <div class="booking-services">
+                <h3>Additional Services</h3>
+                <div class="booking-service-options" id="bookingServiceOptions">
+                  <div class="booking-service-empty">Loading services</div>
+                </div>
               </div>
 
               <button class="booking-confirm" id="bookButton" type="button">
@@ -193,7 +158,7 @@ const parkingDetailPage = {
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M11 17h2v-6h-2v6Zm0-8h2V7h-2v2Zm1-7a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z" />
                 </svg>
-                Free cancellation up to 1 hour before check-in.
+                This booking expires automatically if staff does not check you in within 20 minutes.
               </p>
             </div>
           </aside>

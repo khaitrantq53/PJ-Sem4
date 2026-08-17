@@ -14,11 +14,8 @@ const emptyVehicleForm = {
 };
 
 const vehicleTypes = [
-  ['CAR', 'Standard Sedan'],
-  ['ELECTRIC_CAR', 'Electric Vehicle'],
-  ['TRUCK', 'SUV / Truck'],
+  ['CAR', 'Car'],
   ['MOTORBIKE', 'Motorbike'],
-  ['BICYCLE', 'Bicycle'],
 ];
 
 function vehicleTypeLabel(type) {
@@ -31,7 +28,7 @@ function vehicleShortType(type) {
   }
 
   if (type === 'CAR') {
-    return 'Sedan';
+    return 'Car';
   }
 
   return vehicleTypeLabel(type);

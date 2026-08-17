@@ -616,11 +616,11 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     }
 
     private List<BookingStatus> occupiedStatuses() {
-        return List.of(BookingStatus.CHECKED_IN, BookingStatus.OVERDUE);
+        return List.of(BookingStatus.CHECKED_IN);
     }
 
     private List<BookingStatus> capacityHoldStatuses() {
-        return List.of(BookingStatus.PENDING_APPROVAL, BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.OVERDUE);
+        return List.of(BookingStatus.PENDING_APPROVAL, BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN);
     }
 
     private void assertVersion(Long currentVersion, Long expectedVersion) {

@@ -14,7 +14,6 @@ public final class StaffDtos {
             long blocked,
             long available,
             long pendingApprovals,
-            long overdue,
             long todayBookings,
             BigDecimal revenue,
             String currency,

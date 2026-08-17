@@ -6,7 +6,7 @@ import {
 } from '../../services/api.js';
 import { CustomerMobileNav, CustomerSidebar, initialsFor } from './CustomerChrome.jsx';
 
-const activeBookingStatuses = ['PENDING_APPROVAL', 'PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'OVERDUE'];
+const activeBookingStatuses = ['PENDING_APPROVAL', 'PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN'];
 const finishedBookingStatuses = ['COMPLETED', 'CHECKED_OUT'];
 
 function isUnauthorized(error) {

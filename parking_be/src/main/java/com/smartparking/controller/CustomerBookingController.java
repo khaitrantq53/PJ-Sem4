@@ -58,6 +58,11 @@ public class CustomerBookingController {
         return ApiResponse.ok(Map.of("bookingCode", booking.bookingCode()), RequestContext.requestId());
     }
 
+    @PostMapping("/{bookingId}/checkout-preview")
+    ApiResponse<BookingDtos.CheckoutPreviewResponse> checkoutPreview(@PathVariable UUID bookingId) {
+        return ApiResponse.ok(bookingService.customerCheckoutPreview(SecurityUtils.currentUser(), bookingId), RequestContext.requestId());
+    }
+
     @PostMapping("/{bookingId}/cancel")
     ApiResponse<BookingDtos.CommandResponse> cancel(@PathVariable UUID bookingId,
                                                     @RequestBody(required = false) BookingDtos.ReasonRequest request) {

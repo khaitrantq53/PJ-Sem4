@@ -42,6 +42,11 @@ const elements = {
 
 let currentLot = null;
 let previewTimer = null;
+const PAID_SERVICE_PRICES = {
+  'car wash': 10000,
+  'ev charging': 50000,
+};
+const initialServiceIds = new Set(new URLSearchParams(window.location.search).getAll('serviceIds'));
 
 function getParkingLotId() {
   const params = new URLSearchParams(window.location.search);
@@ -83,12 +88,26 @@ function formatServiceName(value) {
     return 'Additional service';
   }
 
-  if (normalizeServiceName(name).includes('wash')) {
+  const normalized = normalizeServiceName(name);
+  if (normalized.includes('ev') || normalized.includes('electric')) {
+    return 'EV Charging';
+  }
+
+  if (normalized.includes('wash')) {
     return 'Car Wash';
   }
 
   return name.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function isPaidSelectableService(service) {
+  return Object.prototype.hasOwnProperty.call(PAID_SERVICE_PRICES, normalizeServiceName(formatServiceName(service?.name)));
+}
+
+function serviceDisplayPrice(service) {
+  const configuredPrice = PAID_SERVICE_PRICES[normalizeServiceName(formatServiceName(service?.name))];
+  return Number.isFinite(configuredPrice) ? configuredPrice : Number(service?.price || 0);
 }
 
 function setButtonState(label, disabled = false) {
@@ -116,6 +135,11 @@ function formatOptionalMoney(money) {
   }
 
   return formatMoney(money);
+}
+
+function moneyAmount(money) {
+  const amount = Number(money?.amount);
+  return Number.isFinite(amount) ? amount : 0;
 }
 
 function formatServicePrice(value) {
@@ -194,6 +218,10 @@ function updateReturnLink() {
       returnUrl.searchParams.set('endTime', toIso(elements.endTime.value));
     }
 
+    getSelectedServiceIds().forEach((serviceId) => {
+      returnUrl.searchParams.append('serviceIds', serviceId);
+    });
+
     elements.returnLink.href = `${returnUrl.pathname}${returnUrl.search}`;
   }
 }
@@ -224,8 +252,11 @@ function renderAvailability(availableCapacity) {
 
 function renderPriceBreakdown(preview) {
   const priceBreakdown = preview?.priceBreakdown;
+  const selectedServiceFee = getSelectedServiceFeeAmount();
   setText(elements.parkingFee, formatMoney(priceBreakdown?.parkingFee));
-  if (priceBreakdown?.serviceFee && Number(priceBreakdown.serviceFee.amount) > 0) {
+  if (selectedServiceFee > 0) {
+    setText(elements.serviceFee, formatVndAmount(selectedServiceFee));
+  } else if (priceBreakdown?.serviceFee && Number(priceBreakdown.serviceFee.amount) > 0) {
     setText(elements.serviceFee, formatMoney(priceBreakdown.serviceFee));
   } else {
     renderSelectedServiceFee();
@@ -234,7 +265,17 @@ function renderPriceBreakdown(preview) {
   setText(elements.discount, formatOptionalMoney(priceBreakdown?.discount));
   setText(elements.platformFee, formatOptionalMoney(priceBreakdown?.platformFee));
   setText(elements.tax, formatOptionalMoney(priceBreakdown?.tax));
-  setText(elements.totalPrice, formatMoney(priceBreakdown?.total));
+  if (selectedServiceFee > 0 && priceBreakdown) {
+    const total = moneyAmount(priceBreakdown.parkingFee)
+      + selectedServiceFee
+      + moneyAmount(priceBreakdown.pickupFee)
+      + moneyAmount(priceBreakdown.platformFee)
+      + moneyAmount(priceBreakdown.tax)
+      - moneyAmount(priceBreakdown.discount);
+    setText(elements.totalPrice, formatVndAmount(total));
+  } else {
+    setText(elements.totalPrice, formatMoney(priceBreakdown?.total));
+  }
   renderAvailability(preview?.availableCapacity);
 }
 
@@ -313,7 +354,7 @@ function renderAdditionalServices(services = []) {
   }
 
   const additionalServices = services
-    .filter((service) => service.active !== false && Number(service.price) > 0);
+    .filter((service) => service.active !== false && isPaidSelectableService(service));
 
   if (!additionalServices.length) {
     elements.additionalServicesGrid.innerHTML = '<div class="checkout-empty-services">No additional services from this parking lot.</div>';
@@ -322,13 +363,13 @@ function renderAdditionalServices(services = []) {
   }
 
   elements.additionalServicesGrid.innerHTML = additionalServices.map((service) => `
-    <label class="checkout-extra-option">
-      <input type="checkbox" name="serviceIds" value="${escapeHtml(service.id)}" data-price="${escapeHtml(service.price || 0)}" />
+    <label class="checkout-extra-option ${initialServiceIds.has(String(service.id)) ? 'active' : ''}">
+      <input type="checkbox" name="serviceIds" value="${escapeHtml(service.id)}" data-price="${escapeHtml(serviceDisplayPrice(service))}" ${initialServiceIds.has(String(service.id)) ? 'checked' : ''} />
       <span>
         <strong>${escapeHtml(formatServiceName(service.name))}</strong>
         <small>Provided by this parking lot</small>
       </span>
-      <b>${escapeHtml(formatServicePrice(service.price))}</b>
+      <b>${escapeHtml(formatServicePrice(serviceDisplayPrice(service)))}</b>
     </label>
   `).join('');
 
@@ -336,6 +377,7 @@ function renderAdditionalServices(services = []) {
     input.addEventListener('change', () => {
       input.closest('.checkout-extra-option')?.classList.toggle('active', input.checked);
       renderSelectedServiceFee();
+      updateReturnLink();
       schedulePreview();
     });
   });

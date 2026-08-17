@@ -20,7 +20,7 @@ function formatDateTime(value) {
 }
 
 function isActiveBooking(booking) {
-  return ['PENDING_APPROVAL', 'PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'OVERDUE'].includes(booking.status);
+  return ['PENDING_APPROVAL', 'PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN'].includes(booking.status);
 }
 
 function supportNotifications(bookings) {

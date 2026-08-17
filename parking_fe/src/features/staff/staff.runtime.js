@@ -47,10 +47,19 @@ function formData(form) {
 function money(value, currency = 'VND') {
   const amount = Number(value?.amount ?? value ?? 0);
   return new Intl.NumberFormat('en-US', {
-    currency,
+    currency: value?.currency || currency,
     maximumFractionDigits: 0,
     style: 'currency',
   }).format(Number.isFinite(amount) ? amount : 0);
+}
+
+function moneyAmount(value) {
+  const amount = Number(value?.amount ?? value ?? 0);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function moneyCurrency(value, fallback = 'VND') {
+  return value?.currency || fallback;
 }
 
 function formatDate(value) {
@@ -180,7 +189,6 @@ async function loadStaffDashboard() {
     setText('#staffReserved', summary.reserved);
     setText('#staffBlocked', summary.blocked);
     setText('#staffPending', summary.pendingApprovals);
-    setText('#staffOverdue', summary.overdue);
     setText('#staffTodayBookings', summary.todayBookings);
     setText('#staffRevenue', money(summary.revenue, summary.currency || 'VND'));
     setText('#staffOfflineDevices', summary.offlineDevices);
@@ -238,14 +246,18 @@ let bookingLotsCache = [];
 let activeBookingTab = '';
 let activeBookingStatusGroup = '';
 let staffBookingDurationTimer = null;
+let checkoutPreviewTimer = null;
 let checkoutDraft = null;
-const STAFF_ACTIVE_BOOKING_STATUSES = ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'OVERDUE'];
+const STAFF_ACTIVE_BOOKING_STATUSES = ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN'];
 const staffLotIcons = {
   amenity: (name) => `<span class="material-symbols-outlined" aria-hidden="true">${amenityIcon(name)}</span>`,
   service: '<span class="material-symbols-outlined" aria-hidden="true">local_car_wash</span>',
 };
 const STAFF_AMENITY_NAMES = ['EV Charging', 'Camera/Security', 'Covered Parking', 'Valet', 'Car Wash', '24/7 Access'];
-const STAFF_SERVICE_FORM_ROWS = 4;
+const STAFF_PAID_AMENITY_PRICES = {
+  'car wash': 10000,
+  'ev charging': 50000,
+};
 
 function parkingLotCounts(lots) {
   return lots.reduce((counts, lot) => {
@@ -292,6 +304,10 @@ function findPricingRule(vehicleType, startTime, endTime) {
     && String(rule.startTime || '').startsWith(startTime.slice(0, 5))
     && String(rule.endTime || '').startsWith(endTime.slice(0, 5))
   ));
+}
+
+function findCapacity(vehicleType) {
+  return selectedLotCapacities.find((capacity) => capacity.vehicleType === vehicleType);
 }
 
 function upsertById(items, item) {
@@ -377,37 +393,21 @@ function findServiceByName(name) {
 }
 
 function renderStaffLotCapacity(capacities = []) {
-  const totals = capacities.reduce((summary, item) => {
-    summary.total += Number(item.totalCapacity || 0);
-    summary.reserved += Number(item.reserved || 0);
-    summary.blocked += Number(item.blocked || 0);
-    summary.checkedIn += Number(item.checkedIn || 0);
-    summary.available += Number(item.available || 0);
-    return summary;
-  }, {
-    available: 0,
-    blocked: 0,
-    checkedIn: 0,
-    reserved: 0,
-    total: 0,
-  });
-  const reservedPercent = totals.total ? Math.min(100, Math.round((totals.reserved / totals.total) * 100)) : 0;
-  const blockedPercent = totals.total ? Math.min(100, Math.round((totals.blocked / totals.total) * 100)) : 0;
+  const capacityFor = (vehicleType) => capacities.find((item) => item.vehicleType === vehicleType) || {};
+  const bookedFor = (capacity) => Number(capacity.reserved || 0) + Number(capacity.checkedIn || 0);
+  const carCapacity = capacityFor('CAR');
+  const motorbikeCapacity = capacityFor('MOTORBIKE');
+  const carAvailable = Number(carCapacity.available || 0);
+  const carBooked = bookedFor(carCapacity);
+  const motorbikeAvailable = Number(motorbikeCapacity.available || 0);
+  const motorbikeBooked = bookedFor(motorbikeCapacity);
+  const total = Number(carCapacity.totalCapacity || 0) + Number(motorbikeCapacity.totalCapacity || 0);
 
-  setText('#staffCapacityTotal', totals.total.toLocaleString('en-US'));
-  setText('#staffCapacityReserved', totals.reserved.toLocaleString('en-US'));
-  setText('#staffCapacityBlocked', totals.blocked.toLocaleString('en-US'));
-  setText('#staffCapacityReservedPercent', `(${reservedPercent}%)`);
-  setText('#staffCapacityBlockedPercent', `(${blockedPercent}%)`);
-
-  const reservedBar = $('#staffCapacityBar .reserved');
-  const blockedBar = $('#staffCapacityBar .blocked');
-  if (reservedBar) {
-    reservedBar.style.width = `${reservedPercent}%`;
-  }
-  if (blockedBar) {
-    blockedBar.style.width = `${blockedPercent}%`;
-  }
+  setText('#staffCapacityTotal', total.toLocaleString('en-US'));
+  setText('#staffCapacityCarAvailable', carAvailable.toLocaleString('en-US'));
+  setText('#staffCapacityCarBooked', carBooked.toLocaleString('en-US'));
+  setText('#staffCapacityMotorbikeAvailable', motorbikeAvailable.toLocaleString('en-US'));
+  setText('#staffCapacityMotorbikeBooked', motorbikeBooked.toLocaleString('en-US'));
 }
 
 function renderStaffLotPricing(rules = []) {
@@ -416,35 +416,55 @@ function renderStaffLotPricing(rules = []) {
     return;
   }
   const activeRules = rules.filter((rule) => rule.active !== false);
-  element.innerHTML = activeRules.length ? activeRules.map((rule) => `
-    <div class="staff-rate-row">
-      <div>
-        ${(() => {
-          const meta = pricingRuleMeta(rule);
-          return `<span class="material-symbols-outlined staff-rate-icon ${meta.className}" aria-hidden="true">${meta.icon}</span>`;
-        })()}
-        <div>
-          <strong>${escapeHtml(pricingRuleMeta(rule).label)}</strong>
-          <small>${escapeHtml(rule.startTime && rule.endTime ? `${String(rule.startTime).slice(0, 5)} - ${String(rule.endTime).slice(0, 5)}` : 'Active hourly pricing')}</small>
-        </div>
+  const rateSlots = [
+    ['day', 'Day', '07:00:00', '17:00:00'],
+    ['evening', 'Evening', '17:00:00', '22:00:00'],
+    ['night', 'Night', '22:00:00', '07:00:00'],
+  ];
+  const vehicleGroups = [
+    ['CAR', 'Car'],
+    ['MOTORBIKE', 'Motorbike'],
+  ];
+  const ruleFor = (vehicleType, startTime, endTime) => activeRules.find((rule) => (
+    rule.vehicleType === vehicleType
+    && String(rule.startTime || '').startsWith(startTime.slice(0, 5))
+    && String(rule.endTime || '').startsWith(endTime.slice(0, 5))
+  ));
+
+  if (!activeRules.length) {
+    element.innerHTML = '<div class="empty-state">No pricing rules yet.</div>';
+    return;
+  }
+
+  element.innerHTML = vehicleGroups.map(([vehicleType, vehicleLabel]) => `
+    <div class="staff-rate-group-card">
+      <div class="staff-rate-group-title">
+        <strong>${escapeHtml(vehicleLabel)}</strong>
+        <span>${escapeHtml(vehicleTypeLabel(vehicleType))} hourly pricing</span>
       </div>
-      <p>${escapeHtml(money(rule.hourlyRate, 'VND'))}<span>/hr</span></p>
+      <div class="staff-rate-group-list">
+        ${rateSlots.map(([slotClass, slotLabel, startTime, endTime]) => {
+          const rule = ruleFor(vehicleType, startTime, endTime);
+          const meta = pricingRuleMeta({ startTime, endTime, vehicleType });
+          return `
+            <div class="staff-rate-row compact">
+              <div>
+                <span class="material-symbols-outlined staff-rate-icon ${slotClass || meta.className}" aria-hidden="true">${meta.icon}</span>
+                <div>
+                  <strong>${escapeHtml(slotLabel)}</strong>
+                  <small>${escapeHtml(`${startTime.slice(0, 5)} - ${endTime.slice(0, 5)}`)}</small>
+                </div>
+              </div>
+              <p>${rule ? escapeHtml(money(rule.hourlyRate, 'VND')) : '-'}${rule ? '<span>/hr</span>' : ''}</p>
+            </div>
+          `;
+        }).join('')}
+      </div>
     </div>
-  `).join('') : '<div class="empty-state">No pricing rules yet.</div>';
+  `).join('');
 }
 
 function renderStaffLotServices(services = []) {
-  const list = $('#staffAdditionalServices');
-  if (list) {
-    const activeServices = services.filter((service) => service.active !== false && !isAmenityService(service));
-    list.innerHTML = activeServices.length ? activeServices.map((service) => `
-      <div class="staff-service-row">
-        <div>${staffLotIcons.service}<span>${escapeHtml(service.name)}</span></div>
-        <strong>${escapeHtml(money(service.price, 'VND'))}</strong>
-      </div>
-    `).join('') : '<div class="empty-state">No services loaded.</div>';
-  }
-
   const amenities = $('#staffAmenities');
   if (amenities) {
     const activeAmenities = services.filter((service) => service.active !== false && isAmenityService(service));
@@ -488,23 +508,15 @@ function syncStaffParkingLotForm(lot) {
   setFormValue(form, 'longitude', lot?.longitude ?? '');
   setFormValue(form, 'description', lot?.description || '');
 
-  const capacitySummary = selectedLotCapacities.reduce((summary, item) => {
-    summary.total += Number(item.totalCapacity || 0);
-    return summary;
-  }, { total: 0 });
-  setFormValue(form, 'capacity_total', capacitySummary.total || '');
+  setFormValue(form, 'capacity_car', findCapacity('CAR')?.totalCapacity ?? '');
+  setFormValue(form, 'capacity_motorbike', findCapacity('MOTORBIKE')?.totalCapacity ?? '');
 
-  setFormValue(form, 'price_day', findPricingRule('CAR', '07:00:00', '17:00:00')?.hourlyRate ?? '');
-  setFormValue(form, 'price_evening', findPricingRule('CAR', '17:00:00', '22:00:00')?.hourlyRate ?? '');
-  setFormValue(form, 'price_night', findPricingRule('CAR', '22:00:00', '07:00:00')?.hourlyRate ?? '');
-
-  const additionalServices = selectedLotServices.filter((service) => !isAmenityService(service));
-  Array.from({ length: STAFF_SERVICE_FORM_ROWS }, (_, index) => index + 1).forEach((row) => {
-    const service = additionalServices[row - 1];
-    setFormValue(form, `service_${row}_name`, service?.name || '');
-    setFormValue(form, `service_${row}_price`, service?.price ?? '');
-    setFormChecked(form, `service_${row}_active`, service ? service.active !== false : true);
-  });
+  setFormValue(form, 'price_car_day', findPricingRule('CAR', '07:00:00', '17:00:00')?.hourlyRate ?? '');
+  setFormValue(form, 'price_car_evening', findPricingRule('CAR', '17:00:00', '22:00:00')?.hourlyRate ?? '');
+  setFormValue(form, 'price_car_night', findPricingRule('CAR', '22:00:00', '07:00:00')?.hourlyRate ?? '');
+  setFormValue(form, 'price_motorbike_day', findPricingRule('MOTORBIKE', '07:00:00', '17:00:00')?.hourlyRate ?? '');
+  setFormValue(form, 'price_motorbike_evening', findPricingRule('MOTORBIKE', '17:00:00', '22:00:00')?.hourlyRate ?? '');
+  setFormValue(form, 'price_motorbike_night', findPricingRule('MOTORBIKE', '22:00:00', '07:00:00')?.hourlyRate ?? '');
 
   STAFF_AMENITY_NAMES.forEach((amenity) => {
     const checked = selectedLotServices.some((service) => normalizeFilterValue(service.name) === normalizeFilterValue(amenity) && service.active !== false);
@@ -639,23 +651,33 @@ function closeStaffLotModal() {
 }
 
 async function saveStaffLotCapacity(parkingLotId, data) {
-  if (data.capacity_total === undefined) {
-    return;
-  }
-  const capacity = await apiRequest(`/staff/parking-lots/${parkingLotId}/capacities/CAR`, {
-    method: 'PUT',
-    body: jsonBody({
-      totalCapacity: Number(data.capacity_total),
-    }),
-  });
-  upsertCapacity(capacity);
+  const capacityFields = [
+    ['capacity_car', 'CAR'],
+    ['capacity_motorbike', 'MOTORBIKE'],
+  ];
+  const capacities = await Promise.all(capacityFields.map(([fieldName, vehicleType]) => {
+    const value = data[fieldName];
+    if (value === undefined || value === '') {
+      return null;
+    }
+    return apiRequest(`/staff/parking-lots/${parkingLotId}/capacities/${vehicleType}`, {
+      method: 'PUT',
+      body: jsonBody({
+        totalCapacity: Number(value),
+      }),
+    });
+  }).filter(Boolean));
+  capacities.forEach(upsertCapacity);
 }
 
 async function saveStaffLotPricing(parkingLotId, data) {
   const rateFields = [
-    ['price_day', 'CAR', '07:00:00', '17:00:00'],
-    ['price_evening', 'CAR', '17:00:00', '22:00:00'],
-    ['price_night', 'CAR', '22:00:00', '07:00:00'],
+    ['price_car_day', 'CAR', '07:00:00', '17:00:00'],
+    ['price_car_evening', 'CAR', '17:00:00', '22:00:00'],
+    ['price_car_night', 'CAR', '22:00:00', '07:00:00'],
+    ['price_motorbike_day', 'MOTORBIKE', '07:00:00', '17:00:00'],
+    ['price_motorbike_evening', 'MOTORBIKE', '17:00:00', '22:00:00'],
+    ['price_motorbike_night', 'MOTORBIKE', '22:00:00', '07:00:00'],
   ];
   const rules = await Promise.all(rateFields.map(([fieldName, vehicleType, startTime, endTime]) => {
     const value = data[fieldName];
@@ -677,26 +699,6 @@ async function saveStaffLotPricing(parkingLotId, data) {
 }
 
 async function saveStaffLotServices(parkingLotId, data) {
-  const additionalServices = selectedLotServices.filter((service) => !isAmenityService(service));
-  const serviceRequests = Array.from({ length: STAFF_SERVICE_FORM_ROWS }, (_, index) => index + 1).map((row) => {
-    const name = data[`service_${row}_name`];
-    if (!name) {
-      return null;
-    }
-    const existing = additionalServices[row - 1];
-    const path = existing?.id
-      ? `/staff/parking-lots/${parkingLotId}/services/${existing.id}`
-      : `/staff/parking-lots/${parkingLotId}/services`;
-    return apiRequest(path, {
-      method: existing?.id ? 'PUT' : 'POST',
-      body: jsonBody({
-        active: data[`service_${row}_active`] === 'on',
-        name,
-        price: Number(data[`service_${row}_price`] || 0),
-      }),
-    });
-  }).filter(Boolean);
-
   const amenityRequests = STAFF_AMENITY_NAMES.map((amenity) => {
     const existing = findServiceByName(amenity);
     const active = data[`amenity_${amenity}`] === 'on';
@@ -711,12 +713,12 @@ async function saveStaffLotServices(parkingLotId, data) {
       body: jsonBody({
         active,
         name: amenity,
-        price: 0,
+        price: STAFF_PAID_AMENITY_PRICES[normalizeFilterValue(amenity)] || 0,
       }),
     });
   }).filter(Boolean);
 
-  const services = await Promise.all([...serviceRequests, ...amenityRequests]);
+  const services = await Promise.all(amenityRequests);
   services.forEach(upsertService);
 }
 
@@ -836,11 +838,12 @@ function parseBookingDate(value) {
 }
 
 function formatBookingDuration(milliseconds) {
-  const totalMinutes = Math.max(0, Math.floor(milliseconds / 60000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
 
-  return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+  return [hours, minutes, seconds].map((part) => String(part).padStart(2, '0')).join(':');
 }
 
 function checkedInDuration(booking) {
@@ -869,7 +872,7 @@ function hasRunningCheckedInBooking() {
   return bookingsCache.some((booking) => {
     return booking.actualCheckInTime
       && !booking.actualCheckOutTime
-      && ['CHECKED_IN', 'OVERDUE'].includes(booking.status);
+      && booking.status === 'CHECKED_IN';
   });
 }
 
@@ -880,9 +883,6 @@ function bookingStatusClass(status) {
   }
   if (normalized.includes('completed') || normalized.includes('checked_out') || normalized.includes('checked out') || normalized.includes('cancel') || normalized.includes('declin')) {
     return 'completed';
-  }
-  if (normalized.includes('overdue')) {
-    return 'overdue';
   }
   return 'active';
 }
@@ -910,6 +910,77 @@ function bookingVehicleDetail(booking) {
     || booking.vehicleName
     || booking.paymentMethod
     || 'Vehicle request';
+}
+
+function bookingSelectedServices(booking) {
+  const services = Array.isArray(booking?.services) ? booking.services : [];
+  const selectedServices = services
+    .map((service) => ({
+      name: service.serviceName || service.name,
+      price: service.price,
+    }))
+    .filter((service) => service.name);
+
+  if (!selectedServices.length) {
+    return '<div class="staff-booking-services empty">No services</div>';
+  }
+
+  return `
+    <div class="staff-booking-services">
+      ${selectedServices.map((service) => `
+        <span>
+          ${escapeHtml(service.name)}
+          ${service.price ? `<small>${escapeHtml(money(service.price, service.price.currency))}</small>` : ''}
+        </span>
+      `).join('')}
+    </div>
+  `;
+}
+
+function bookingServiceItems(booking) {
+  return (Array.isArray(booking?.services) ? booking.services : [])
+    .map((service) => ({
+      name: service.serviceName || service.name,
+      price: service.price,
+    }))
+    .filter((service) => service.name);
+}
+
+function checkoutServicesHtml(booking) {
+  const services = bookingServiceItems(booking);
+
+  if (!services.length) {
+    return '<span class="empty">No services selected</span>';
+  }
+
+  return services.map((service) => `
+    <span>
+      ${escapeHtml(service.name)}
+      ${service.price ? `<small>${escapeHtml(money(service.price))}</small>` : ''}
+    </span>
+  `).join('');
+}
+
+function checkoutParkingFee(booking, preview) {
+  if (preview?.priceBreakdown?.parkingFee) {
+    return preview.priceBreakdown.parkingFee;
+  }
+
+  const breakdown = booking?.priceBreakdown || {};
+  const currency = moneyCurrency(preview?.totalAmount || breakdown.parkingFee);
+  const total = moneyAmount(preview?.totalAmount);
+  const serviceFee = moneyAmount(breakdown.serviceFee);
+  const overtimeFee = moneyAmount(preview?.overtimeFee || breakdown.overtimeFee);
+  const pickupFee = moneyAmount(breakdown.pickupFee);
+  const platformFee = moneyAmount(breakdown.platformFee);
+  const tax = moneyAmount(breakdown.tax);
+  const discount = moneyAmount(breakdown.discount);
+  const parkingFee = total - serviceFee - overtimeFee - pickupFee - platformFee - tax + discount;
+
+  return {
+    amount: Math.max(0, parkingFee),
+    currency,
+  };
 }
 
 function bookingCustomerLabel(booking) {
@@ -949,7 +1020,7 @@ function bookingMatchesStatusGroup(booking) {
 
   const status = String(booking.status || '');
   if (activeBookingStatusGroup === 'active') {
-    return ['PENDING_APPROVAL', 'PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'OVERDUE'].includes(status);
+    return ['PENDING_APPROVAL', 'PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN'].includes(status);
   }
   if (activeBookingStatusGroup === 'completed') {
     return ['COMPLETED', 'CANCELLED', 'DECLINED', 'EXPIRED'].includes(status);
@@ -992,7 +1063,6 @@ function setStaffBookingViewMode(mode) {
   const isPendingApprovals = mode === 'pending';
   const isChangeRequests = mode === 'change';
   const isExtensionRequests = mode === 'extension';
-  const isOverdue = mode === 'overdue';
   const filters = $('#staffBookingFilters');
   const pagination = $('#staffBookingPaginationFooter');
   const tableCard = $('#staffBookingTableCard');
@@ -1000,31 +1070,27 @@ function setStaffBookingViewMode(mode) {
   const tableHead = $('#staffBookingTableHead');
   const changePanel = $('#staffChangeRequestsPanel');
   const extensionPanel = $('#staffExtensionRequestsPanel');
-  const overduePanel = $('#staffOverduePanel');
 
   const titles = {
     change: 'Change Requests',
     extension: 'Extension Requests',
-    overdue: 'Overdue Vehicles',
     pending: 'Pending Approvals',
     table: 'Active Bookings',
   };
   const subtitles = {
     change: 'Review and manage active booking modification requests from customers.',
     extension: 'Review and approve customer requests to extend their active parking sessions. Approving a request will automatically charge their payment method on file.',
-    overdue: 'Monitor and manage vehicles that have exceeded their booked departure time. Action required to free up capacity.',
     pending: 'Review new booking requests before they become active reservations.',
-    table: 'Track bookings that are currently moving through payment, check-in, parking, or overdue handling.',
+    table: 'Track bookings that are currently moving through payment, check-in, and parking.',
   };
 
   $('#staffBookingsTitle') && setText('#staffBookingsTitle', titles[mode] || titles.table);
   $('#staffBookingsSubtitle') && setText('#staffBookingsSubtitle', subtitles[mode] || subtitles.table);
-  filters?.classList.toggle('is-hidden', isPendingApprovals || isChangeRequests || isExtensionRequests || isOverdue);
-  pagination?.classList.toggle('is-hidden', isPendingApprovals || isChangeRequests || isExtensionRequests || isOverdue);
-  tableCard?.classList.toggle('is-hidden', isChangeRequests || isExtensionRequests || isOverdue);
+  filters?.classList.toggle('is-hidden', isPendingApprovals || isChangeRequests || isExtensionRequests);
+  pagination?.classList.toggle('is-hidden', isPendingApprovals || isChangeRequests || isExtensionRequests);
+  tableCard?.classList.toggle('is-hidden', isChangeRequests || isExtensionRequests);
   changePanel?.classList.toggle('is-hidden', !isChangeRequests);
   extensionPanel?.classList.toggle('is-hidden', !isExtensionRequests);
-  overduePanel?.classList.toggle('is-hidden', !isOverdue);
   table?.classList.toggle('staff-pending-approvals-table', isPendingApprovals);
 
   if (!tableHead) {
@@ -1046,8 +1112,7 @@ function setStaffBookingViewMode(mode) {
         <th>Booking ID</th>
         <th>Plate / Vehicle</th>
         <th>Status</th>
-        <th>Arrival</th>
-        <th>Departure</th>
+        <th>Services</th>
         <th>Checked-in Hours</th>
         <th>Actions</th>
       </tr>
@@ -1302,126 +1367,6 @@ function renderExtensionRequests() {
   bindStaffExtensionRequestActions();
 }
 
-function overdueMinutes(booking) {
-  if (!booking?.endTime) {
-    return 0;
-  }
-
-  const end = new Date(booking.endTime).getTime();
-  if (Number.isNaN(end)) {
-    return 0;
-  }
-  return Math.max(0, Math.round((Date.now() - end) / 60000));
-}
-
-function overdueDurationLabel(minutes) {
-  if (minutes >= 60) {
-    const hours = Math.floor(minutes / 60);
-    const rest = minutes % 60;
-    return `+${hours}h${rest ? ` ${rest}m` : ''}`;
-  }
-  return `+${minutes}m`;
-}
-
-function overduePriority(minutes) {
-  if (minutes >= 90) {
-    return {
-      action: 'Trigger Fine',
-      className: 'critical',
-      label: 'Critical',
-      tone: 'pink',
-    };
-  }
-  if (minutes >= 30) {
-    return {
-      action: 'Issue Warning',
-      className: 'warning',
-      label: 'Warning',
-      tone: 'ochre',
-    };
-  }
-  return {
-    action: 'Monitor',
-    className: 'grace',
-    label: 'Grace Period',
-    tone: 'lavender',
-  };
-}
-
-function renderOverdueBookings() {
-  const list = $('#staffOverdueList');
-  if (!list) {
-    return;
-  }
-
-  const overdueBookings = bookingsCache
-    .filter((booking) => booking.status === 'OVERDUE' || overdueMinutes(booking) > 0 && ['CHECKED_IN', 'CONFIRMED'].includes(booking.status))
-    .sort((a, b) => overdueMinutes(b) - overdueMinutes(a));
-
-  if (!overdueBookings.length) {
-    list.innerHTML = `
-      <div class="staff-overdue-empty">
-        <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 16.2-4.2-4.2-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2Z" /></svg></span>
-        <strong>All Clear</strong>
-        <p>No vehicles are currently overdue. Everything is running smoothly.</p>
-      </div>
-    `;
-    return;
-  }
-
-  list.innerHTML = overdueBookings.map((booking) => {
-    const minutes = overdueMinutes(booking);
-    const priority = overduePriority(minutes);
-    const bookingLabel = booking.bookingCode || booking.id;
-    const vehicleLabel = bookingVehicleLabel(booking);
-    const departure = bookingDateParts(booking.endTime);
-    const lotName = bookingLotName(booking.parkingLotId);
-
-    return `
-      <article class="staff-overdue-card ${escapeHtml(priority.className)}">
-        <i class="staff-overdue-accent tone-${escapeHtml(priority.tone)}"></i>
-        <div class="staff-overdue-card-head">
-          <div>
-            <span class="staff-overdue-priority ${escapeHtml(priority.className)}">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="${priority.className === 'critical' ? 'M11 2h2v12h-2V2Zm0 16h2v4h-2v-4Z' : priority.className === 'warning' ? 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 5h-2v6h2V7Zm0 8h-2v2h2v-2Z' : 'M11 17h2v-6h-2v6Zm0-8h2V7h-2v2Z'}" /></svg>
-              ${escapeHtml(priority.label)}
-            </span>
-            <h3>${escapeHtml(bookingLabel)}</h3>
-          </div>
-          <div class="staff-overdue-time">
-            <strong>${escapeHtml(overdueDurationLabel(minutes))}</strong>
-            <span>Overdue</span>
-          </div>
-        </div>
-        <dl class="staff-overdue-details">
-          <div>
-            <dt>Plate</dt>
-            <dd>${escapeHtml(vehicleLabel)}</dd>
-          </div>
-          <div>
-            <dt>Original Dep.</dt>
-            <dd>${escapeHtml(departure.time)}</dd>
-          </div>
-          <div>
-            <dt>Lot / Zone</dt>
-            <dd>${escapeHtml(lotName)}</dd>
-          </div>
-        </dl>
-        <div class="staff-overdue-card-actions">
-          ${priority.className === 'grace'
-            ? `<button class="monitor" type="button" data-staff-overdue-action="monitor" data-booking-id="${escapeHtml(booking.id)}">Monitor</button>`
-            : `
-              <button class="contact" type="button" data-staff-overdue-action="contact" data-booking-id="${escapeHtml(booking.id)}">Contact</button>
-              <button class="${priority.className === 'critical' ? 'fine' : 'warn'}" type="button" data-staff-overdue-action="${priority.className === 'critical' ? 'fine' : 'warn'}" data-booking-id="${escapeHtml(booking.id)}">${escapeHtml(priority.action)}</button>
-            `}
-        </div>
-      </article>
-    `;
-  }).join('');
-
-  bindStaffOverdueActions();
-}
-
 function renderStaffBookings() {
   const pendingCount = bookingsCache.filter((booking) => booking.status === 'PENDING_APPROVAL').length;
   const filteredBookings = bookingsCache.filter(bookingMatchesFilters);
@@ -1432,9 +1377,7 @@ function renderStaffBookings() {
       ? 'change'
       : activeBookingTab === 'EXTENSION_REQUESTS'
         ? 'extension'
-        : activeBookingTab === 'OVERDUE'
-          ? 'overdue'
-          : 'table';
+        : 'table';
   const isPendingApprovals = mode === 'pending';
   setStaffBookingViewMode(mode);
   setText('#staffPendingBookingCount', pendingCount);
@@ -1447,11 +1390,6 @@ function renderStaffBookings() {
 
   if (mode === 'extension') {
     renderExtensionRequests();
-    return;
-  }
-
-  if (mode === 'overdue') {
-    renderOverdueBookings();
     return;
   }
 
@@ -1474,7 +1412,7 @@ function renderStaffBookings() {
   if (!filteredBookings.length) {
     table.innerHTML = `
       <tr>
-        <td colspan="7">
+        <td colspan="6">
           <div class="empty-state">${escapeHtml(emptyMessage)}</div>
         </td>
       </tr>
@@ -1484,13 +1422,12 @@ function renderStaffBookings() {
 
   table.innerHTML = filteredBookings.map((booking) => {
     const statusClassName = bookingStatusClass(booking.status);
-    const arrival = bookingDateParts(booking.startTime);
-    const departure = bookingDateParts(booking.endTime);
     const duration = checkedInDuration(booking);
     const rowAccent = statusClassName === 'pending' ? ' pending' : statusClassName === 'completed' ? ' completed' : '';
     const bookingLabel = booking.bookingCode || booking.id;
     const vehicleLabel = bookingVehicleLabel(booking);
     const vehicleDetail = bookingVehicleDetail(booking);
+    const selectedServices = bookingSelectedServices(booking);
     const lotName = bookingLotName(booking.parkingLotId);
     let actions = `
         <button class="staff-booking-icon-action" type="button" title="Edit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19h1.4l9.9-9.9-1.4-1.4L5 17.6V19Zm14.7-11.3-3.4-3.4 1-1a1.5 1.5 0 0 1 2.1 0l1.3 1.3a1.5 1.5 0 0 1 0 2.1l-1 1Z" /></svg></button>
@@ -1514,7 +1451,7 @@ function renderStaffBookings() {
         <button class="staff-booking-approve" type="button" data-staff-booking-action="check-in" data-booking-id="${escapeHtml(booking.id)}">Check In</button>
         <button class="staff-booking-icon-action" type="button" title="More"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" /></svg></button>
       `;
-    } else if (booking.status === 'CHECKED_IN' || booking.status === 'OVERDUE') {
+    } else if (booking.status === 'CHECKED_IN') {
       actions = `
         <button class="staff-booking-toggle-action" type="button" data-staff-booking-action="check-out" data-booking-id="${escapeHtml(booking.id)}">
           <span aria-hidden="true"></span>
@@ -1546,8 +1483,7 @@ function renderStaffBookings() {
           </div>
         </td>
         <td><span class="staff-booking-status ${escapeHtml(statusClassName)}">${escapeHtml(booking.status || '-')}</span></td>
-        <td><strong>${escapeHtml(arrival.time)}</strong><span>${escapeHtml(arrival.day)}</span></td>
-        <td><strong>${escapeHtml(departure.time)}</strong><span>${escapeHtml(departure.day)}</span></td>
+        <td>${selectedServices}</td>
         <td>
           <div class="staff-booking-duration ${escapeHtml(duration.className)}">
             <strong>${escapeHtml(duration.value)}</strong>
@@ -1610,10 +1546,18 @@ async function staffCheckOutBooking(booking) {
 
 function openStaffCheckoutModal(booking, preview) {
   checkoutDraft = { booking, preview };
+  renderStaffCheckoutPreview(booking, preview);
+
   setText('#staffCheckoutBookingCode', booking.bookingCode || booking.id);
-  setText('#staffCheckoutAmount', money(preview.totalAmount));
-  setText('#staffCheckoutOvertime', `${Number(preview.overtimeMinutes || 0)} minutes`);
-  setText('#staffCheckoutOvertimeFee', money(preview.overtimeFee));
+  setText('#staffCheckoutCustomer', bookingCustomerLabel(booking));
+  setText('#staffCheckoutCustomerPhone', bookingCustomerDetail(booking));
+  setText('#staffCheckoutVehicle', bookingVehicleLabel(booking));
+  setText('#staffCheckoutVehicleDetail', bookingVehicleDetail(booking));
+
+  const services = $('#staffCheckoutServices');
+  if (services) {
+    services.innerHTML = checkoutServicesHtml(booking);
+  }
 
   const notes = $('#staffCheckoutNotes');
   if (notes) {
@@ -1625,9 +1569,54 @@ function openStaffCheckoutModal(booking, preview) {
     modal.classList.remove('hidden');
     modal.setAttribute('aria-hidden', 'false');
   }
+
+  startStaffCheckoutPreviewTimer();
+}
+
+function renderStaffCheckoutPreview(booking, preview) {
+  const actualCheckIn = parseBookingDate(booking.actualCheckInTime);
+  const actualCheckOut = parseBookingDate(preview.actualCheckOutTime) || new Date();
+  const duration = actualCheckIn ? formatBookingDuration(actualCheckOut.getTime() - actualCheckIn.getTime()) : '-';
+  const serviceFee = preview.priceBreakdown?.serviceFee || booking.priceBreakdown?.serviceFee || { amount: 0, currency: moneyCurrency(preview.totalAmount) };
+  const totalAmount = preview.priceBreakdown?.total || preview.totalAmount;
+  const parkingFee = checkoutParkingFee(booking, preview);
+
+  setText('#staffCheckoutDuration', duration);
+  setText('#staffCheckoutParkingFee', money(parkingFee));
+  setText('#staffCheckoutServiceFee', money(serviceFee));
+  setText('#staffCheckoutAmount', money(totalAmount));
+}
+
+function stopStaffCheckoutPreviewTimer() {
+  if (checkoutPreviewTimer) {
+    window.clearInterval(checkoutPreviewTimer);
+    checkoutPreviewTimer = null;
+  }
+}
+
+function startStaffCheckoutPreviewTimer() {
+  stopStaffCheckoutPreviewTimer();
+  checkoutPreviewTimer = window.setInterval(async () => {
+    if (!checkoutDraft?.booking?.id) {
+      stopStaffCheckoutPreviewTimer();
+      return;
+    }
+
+    try {
+      const preview = await apiRequest(`/staff/bookings/${checkoutDraft.booking.id}/checkout-preview`, {
+        method: 'POST',
+      });
+      checkoutDraft = { ...checkoutDraft, preview };
+      renderStaffCheckoutPreview(checkoutDraft.booking, preview);
+    } catch (error) {
+      stopStaffCheckoutPreviewTimer();
+      setStatus('#staffBookingsStatus', error.message, true);
+    }
+  }, 1000);
 }
 
 function closeStaffCheckoutModal() {
+  stopStaffCheckoutPreviewTimer();
   checkoutDraft = null;
   const modal = $('#staffCheckoutModal');
   if (modal) {
@@ -1641,6 +1630,7 @@ async function confirmStaffCheckOut() {
     return;
   }
 
+  stopStaffCheckoutPreviewTimer();
   const { booking, preview } = checkoutDraft;
   const button = $('#staffCheckoutConfirmButton');
   const conditionNotes = $('#staffCheckoutNotes')?.value?.trim() || 'Vehicle checked out by staff';
@@ -1656,6 +1646,7 @@ async function confirmStaffCheckOut() {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey() },
       body: jsonBody({
+        actualCheckOutTime: preview.actualCheckOutTime,
         conditionNotes,
         expectedVersion: preview.version ?? booking.version,
       }),
@@ -1669,7 +1660,7 @@ async function confirmStaffCheckOut() {
   } finally {
     if (button) {
       button.disabled = false;
-      button.textContent = 'Check Out';
+      button.textContent = 'Confirm Check Out';
     }
   }
 }
@@ -1795,21 +1786,6 @@ function bindStaffExtensionRequestActions() {
   });
 }
 
-function bindStaffOverdueActions() {
-  $all('[data-staff-overdue-action]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const action = button.dataset.staffOverdueAction;
-      const messages = {
-        contact: 'Customer contact flow will open after notification API is connected.',
-        fine: 'Fine trigger flow will open after penalty API is connected.',
-        monitor: 'Vehicle marked for monitoring in this session.',
-        warn: 'Warning flow will open after notification API is connected.',
-      };
-      setStatus('#staffBookingsStatus', messages[action] || 'Overdue action selected.');
-    });
-  });
-}
-
 function populateBookingLotFilter() {
   const select = $('#staffBookingLotFilter');
   if (!select) {
@@ -1862,7 +1838,7 @@ function bindStaffBookingsPage() {
       if (document.body.dataset.page === 'staff-bookings' && hasRunningCheckedInBooking()) {
         renderStaffBookings();
       }
-    }, 30000);
+    }, 1000);
   }
   $('#staffVerifyQrButton')?.addEventListener('click', async () => {
     const bookingCode = window.prompt('Booking code / QR code', '');
@@ -1888,11 +1864,6 @@ function bindStaffBookingsPage() {
       setStatus('#staffBookingsStatus', error.message, true);
     }
   });
-  $('#staffOverdueRefreshButton')?.addEventListener('click', loadStaffBookings);
-  $('#staffOverdueFilterButton')?.addEventListener('click', () => {
-    setStatus('#staffBookingsStatus', 'Overdue filters will open after alert filtering is connected.');
-  });
-
   $all('[data-staff-booking-tab]').forEach((button) => {
     button.addEventListener('click', () => {
       activeBookingTab = button.dataset.staffBookingTab || '';

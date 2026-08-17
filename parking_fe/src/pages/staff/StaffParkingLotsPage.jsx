@@ -39,33 +39,31 @@ const parkingLotsContent = `
         </div>
       </section>
 
-      <section class="staff-lot-section">
-        <h2>Additional Services</h2>
-        <div class="staff-services-list" id="staffAdditionalServices">
-          <div class="empty-state">No services loaded.</div>
-        </div>
-      </section>
     </div>
 
     <aside class="staff-lot-overview-aside">
       <section class="staff-lot-section staff-capacity-section">
         <h2>Slot Capacity</h2>
         <div class="staff-capacity-summary">
-          <span>Total Available Slots</span>
+          <span>Total Slots</span>
           <strong id="staffCapacityTotal">0</strong>
-        </div>
-        <div class="staff-capacity-bar" id="staffCapacityBar">
-          <span class="reserved" style="width: 0%"></span>
-          <span class="blocked" style="width: 0%"></span>
         </div>
         <div class="staff-capacity-breakdown">
           <div>
-            <span><i class="reserved"></i> Reserved</span>
-            <strong><em id="staffCapacityReserved">0</em> <small id="staffCapacityReservedPercent">(0%)</small></strong>
+            <span><i class="car-available"></i> Car available</span>
+            <strong><em id="staffCapacityCarAvailable">0</em></strong>
           </div>
           <div>
-            <span><i class="blocked"></i> Blocked</span>
-            <strong><em id="staffCapacityBlocked">0</em> <small id="staffCapacityBlockedPercent">(0%)</small></strong>
+            <span><i class="car-booked"></i> Car booked</span>
+            <strong><em id="staffCapacityCarBooked">0</em></strong>
+          </div>
+          <div>
+            <span><i class="motorbike-available"></i> Motorbike available</span>
+            <strong><em id="staffCapacityMotorbikeAvailable">0</em></strong>
+          </div>
+          <div>
+            <span><i class="motorbike-booked"></i> Motorbike booked</span>
+            <strong><em id="staffCapacityMotorbikeBooked">0</em></strong>
           </div>
         </div>
       </section>
@@ -90,35 +88,39 @@ const parkingLotsContent = `
 
       <form class="staff-lot-edit-form" id="staffParkingLotForm">
         <div class="staff-lot-modal-body">
-          <section class="staff-lot-form-section">
-            <h3>Basic Information</h3>
-            <div class="staff-lot-field-stack">
-              <label class="staff-popup-field"><span>Parking Name</span><input name="name" type="text" required /></label>
-              <label class="staff-popup-field"><span>Address</span><input name="address" type="text" required /></label>
-              <div class="staff-popup-two-grid">
-                <label class="staff-popup-field"><span>Latitude</span><input name="latitude" type="text" /></label>
-                <label class="staff-popup-field"><span>Longitude</span><input name="longitude" type="text" /></label>
+          <div class="staff-lot-form-main-stack">
+            <section class="staff-lot-form-section">
+              <h3>Basic Information</h3>
+              <div class="staff-lot-field-stack">
+                <label class="staff-popup-field"><span>Parking Name</span><input name="name" type="text" required /></label>
+                <label class="staff-popup-field"><span>Address</span><input name="address" type="text" required /></label>
+                <div class="staff-popup-two-grid">
+                  <label class="staff-popup-field"><span>Latitude</span><input name="latitude" type="text" /></label>
+                  <label class="staff-popup-field"><span>Longitude</span><input name="longitude" type="text" /></label>
+                </div>
+                <label class="staff-popup-field"><span>Description</span><textarea name="description" rows="3"></textarea></label>
               </div>
-              <label class="staff-popup-field"><span>Description</span><textarea name="description" rows="3"></textarea></label>
-            </div>
-          </section>
+            </section>
+
+          </div>
 
           <div class="staff-lot-form-side-stack">
             <section class="staff-lot-form-section staff-popup-capacity-section">
               <h3>Slot Capacity</h3>
               <div class="staff-lot-capacity-fields">
-                <label class="staff-popup-field"><span>Total Available Slots</span><input name="capacity_total" type="number" min="0" step="1" /></label>
+                <label class="staff-popup-field"><span>Car slots</span><input name="capacity_car" type="number" min="0" step="1" /></label>
+                <label class="staff-popup-field"><span>Motorbike slots</span><input name="capacity_motorbike" type="number" min="0" step="1" /></label>
               </div>
             </section>
 
             <section class="staff-lot-form-section staff-popup-amenities-section">
               <h3>Amenities</h3>
               <div class="staff-amenity-checklist">
-                <label><input name="amenity_EV Charging" type="checkbox" /><span>EV Charging</span></label>
+                <label><input name="amenity_EV Charging" type="checkbox" /><span>EV Charging<small>+ ₫50,000 / booking</small></span></label>
                 <label><input name="amenity_Camera/Security" type="checkbox" /><span>Camera/Security</span></label>
                 <label><input name="amenity_Covered Parking" type="checkbox" /><span>Covered Parking</span></label>
                 <label><input name="amenity_Valet" type="checkbox" /><span>Valet</span></label>
-                <label><input name="amenity_Car Wash" type="checkbox" /><span>Car Wash</span></label>
+                <label><input name="amenity_Car Wash" type="checkbox" /><span>Car Wash<small>+ ₫10,000 / booking</small></span></label>
                 <label><input name="amenity_24/7 Access" type="checkbox" /><span>24/7 Access</span></label>
               </div>
             </section>
@@ -126,30 +128,26 @@ const parkingLotsContent = `
             <section class="staff-lot-form-section staff-popup-rates-section">
               <h3>Hourly Rates</h3>
               <div class="staff-lot-rate-edit-list">
-                <div class="staff-popup-rate-row">
-                  <label class="staff-popup-field"><span>Day (07:00-17:00)</span><div class="staff-money-input"><em>₫</em><input name="price_day" type="number" min="0" step="1000" /></div></label>
-                  <label class="staff-popup-field"><span>Evening (17:00-22:00)</span><div class="staff-money-input"><em>₫</em><input name="price_evening" type="number" min="0" step="1000" /></div></label>
+                <div class="staff-popup-rate-group">
+                  <h4>Car</h4>
+                  <div class="staff-popup-rate-row">
+                    <label class="staff-popup-field"><span>Day (07:00-17:00)</span><div class="staff-money-input"><em>₫</em><input name="price_car_day" type="number" min="0" step="1000" /></div></label>
+                    <label class="staff-popup-field"><span>Evening (17:00-22:00)</span><div class="staff-money-input"><em>₫</em><input name="price_car_evening" type="number" min="0" step="1000" /></div></label>
+                  </div>
+                  <label class="staff-popup-field staff-night-rate"><span>Night (22:00-07:00)</span><div class="staff-money-input"><em>₫</em><input name="price_car_night" type="number" min="0" step="1000" /></div></label>
                 </div>
-                <label class="staff-popup-field staff-night-rate"><span>Night (22:00-07:00)</span><div class="staff-money-input"><em>₫</em><input name="price_night" type="number" min="0" step="1000" /></div></label>
+                <div class="staff-popup-rate-group">
+                  <h4>Motorbike</h4>
+                  <div class="staff-popup-rate-row">
+                    <label class="staff-popup-field"><span>Day (07:00-17:00)</span><div class="staff-money-input"><em>₫</em><input name="price_motorbike_day" type="number" min="0" step="1000" /></div></label>
+                    <label class="staff-popup-field"><span>Evening (17:00-22:00)</span><div class="staff-money-input"><em>₫</em><input name="price_motorbike_evening" type="number" min="0" step="1000" /></div></label>
+                  </div>
+                  <label class="staff-popup-field staff-night-rate"><span>Night (22:00-07:00)</span><div class="staff-money-input"><em>₫</em><input name="price_motorbike_night" type="number" min="0" step="1000" /></div></label>
+                </div>
               </div>
             </section>
           </div>
 
-          <section class="staff-lot-form-section wide">
-            <h3>Additional Services</h3>
-            <div class="staff-service-edit-list">
-              <div>
-                <label class="staff-popup-field"><span>Service Name</span><input name="service_1_name" type="text" /></label>
-                <label class="staff-popup-field"><span>Price</span><input name="service_1_price" type="text" /></label>
-                <label class="staff-service-active"><input name="service_1_active" type="checkbox" checked /><span>Active</span></label>
-              </div>
-              <div>
-                <label class="staff-popup-field"><span>Service Name</span><input name="service_2_name" type="text" /></label>
-                <label class="staff-popup-field"><span>Price</span><input name="service_2_price" type="text" /></label>
-                <label class="staff-service-active"><input name="service_2_active" type="checkbox" checked /><span>Active</span></label>
-              </div>
-            </div>
-          </section>
         </div>
 
         <div class="staff-lot-modal-actions">

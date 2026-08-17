@@ -88,17 +88,6 @@ public class BookingOperationJobs {
         log.info("MarkNoShowBookingJob processed {}", bookings.size());
     }
 
-    @Scheduled(cron = "${smart-parking.jobs.mark-overdue-cron}")
-    @Transactional
-    public void markOverdueBookings() {
-        OffsetDateTime cutoff = OffsetDateTime.now().minusMinutes(properties.operation().checkoutGraceMinutes());
-        List<Booking> bookings = bookingRepository
-                .findByStatusAndEndTimeBefore(BookingStatus.CHECKED_IN, cutoff, batch())
-                .getContent();
-        bookings.forEach(booking -> transitionBooking(booking, BookingStatus.OVERDUE, "Mark overdue"));
-        log.info("MarkOverdueBookingJob processed {}", bookings.size());
-    }
-
     @Scheduled(cron = "${smart-parking.jobs.mark-device-offline-cron}")
     @Transactional
     public void markDeviceOffline() {

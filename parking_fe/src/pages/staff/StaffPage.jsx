@@ -42,7 +42,6 @@ const dashboardContent = `
       <div class="staff-section-title"><h2>Operational Status</h2><span>Needs attention</span></div>
       <div class="staff-status-list">
         <article><div>${icons.bookings}<span>Pending</span></div><strong id="staffPending">0</strong></article>
-        <article><div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.8 5.3 3.5 20.5 18.7 19.2 20l-2-2H4V6h2.2L4 4.8ZM8.2 8H6v8h9.2l-7-8ZM20 6v10.3L17.7 14H18V8h-6.3l-2-2H20Z" /></svg><span>Overdue</span></div><strong id="staffOverdue">0</strong></article>
         <article><div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2.8 4.2 1.4-1.4 17 17-1.4 1.4-2.4-2.4A10.8 10.8 0 0 1 12 20a11 11 0 0 1-9.7-5.8l1.8-1A9 9 0 0 0 12 18c1.4 0 2.8-.3 4-.9L2.8 4.2ZM12 4a11 11 0 0 1 9.7 5.8l-1.8 1A9 9 0 0 0 12 6c-1.3 0-2.5.3-3.6.7L6.8 5A10.8 10.8 0 0 1 12 4Z" /></svg><span>Offline</span></div><strong class="danger" id="staffOfflineDevices">0</strong></article>
       </div>
     </section>

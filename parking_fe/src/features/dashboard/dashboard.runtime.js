@@ -171,7 +171,7 @@ function adminBookingTotal(booking) {
 function adminParkingDuration(booking) {
   const start = parseDate(booking?.actualCheckInTime) || parseDate(booking?.startTime);
   const end = parseDate(booking?.actualCheckOutTime)
-    || (['CHECKED_IN', 'OVERDUE'].includes(booking?.status) ? new Date() : parseDate(booking?.endTime));
+    || (booking?.status === 'CHECKED_IN' ? new Date() : parseDate(booking?.endTime));
 
   if (!start || !end || end <= start) {
     return '-';
@@ -1249,7 +1249,7 @@ function renderAdminBookings(items = [], pagination = null) {
     return;
   }
 
-  const activeCount = items.filter((booking) => ['CHECKED_IN', 'OVERDUE', 'CONFIRMED'].includes(booking.status)).length;
+  const activeCount = items.filter((booking) => ['CHECKED_IN', 'CONFIRMED'].includes(booking.status)).length;
   const totalRevenue = items.reduce((sum, booking) => sum + Number(booking.total?.amount || 0), 0);
 
   setText('#adminBookingTotal', pagination?.totalElements ?? items.length);

@@ -53,33 +53,22 @@ const homePage = {
                 <label class="input-group">
                   <span>Vehicle type</span>
                   <select id="vehicleTypeInput" name="vehicleType">
-                    <option value="">All</option>
                     <option value="CAR">Car</option>
                     <option value="MOTORBIKE">Motorbike</option>
-                    <option value="ELECTRIC_CAR">Electric car</option>
                   </select>
                 </label>
                 <label class="input-group">
-                  <span>Max price</span>
-                  <input id="maxPriceInput" name="maxPrice" type="number" min="0" step="1000" placeholder="VND/hour" />
-                </label>
-              </div>
-
-              <div class="time-row">
-                <label class="input-group">
-                  <span>Start time</span>
-                  <input id="startTimeInput" name="startTime" type="datetime-local" />
-                </label>
-                <label class="input-group">
-                  <span>End time</span>
-                  <input id="endTimeInput" name="endTime" type="datetime-local" />
+                  <span>Service</span>
+                  <select id="serviceInput" name="service">
+                    <option value="">Any service</option>
+                    <option value="EV Charging">EV Charging</option>
+                    <option value="Car Wash">Car Wash</option>
+                  </select>
                 </label>
               </div>
 
               <div class="quick-filters" aria-label="Quick filters">
                 <button type="button" data-filter="open">Open now</button>
-                <button type="button" data-filter="cheap">Under 30k</button>
-                <button type="button" data-filter="ev">EV charging</button>
               </div>
             </div>
           </form>

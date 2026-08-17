@@ -160,7 +160,7 @@ Package: `common`
 - `PaymentTransactionStatus`: `SUCCESS`, `FAILED`
 - `RefundStatus`: `PENDING`, `SUCCEEDED`, `FAILED`
 - `RequestStatus`: `PENDING`, `APPROVED`, `REJECTED`
-- `VehicleType`: `MOTORBIKE`, `CAR`, `ELECTRIC_CAR`, `BICYCLE`
+- `VehicleType`: `MOTORBIKE`, `CAR`, `ELECTRIC_CAR`, `TRUCK`
 - `VehicleStatus`: `ACTIVE`, `INACTIVE`
 - `DeliveryMethod`: `SELF_DROP_OFF`, `PICKUP`
 - `RecordType`: `CHECK_IN`, `CHECK_OUT`

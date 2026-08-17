@@ -48,6 +48,8 @@ public interface BookingService {
 
     BookingDtos.CheckoutPreviewResponse checkoutPreview(CurrentUser currentUser, UUID bookingId);
 
+    BookingDtos.CheckoutPreviewResponse customerCheckoutPreview(CurrentUser currentUser, UUID bookingId);
+
     BookingDtos.CommandResponse checkIn(CurrentUser currentUser, UUID bookingId, BookingDtos.CheckInRequest request, String idempotencyKey);
 
     BookingDtos.CommandResponse checkOut(CurrentUser currentUser, UUID bookingId, BookingDtos.CheckOutRequest request, String idempotencyKey);

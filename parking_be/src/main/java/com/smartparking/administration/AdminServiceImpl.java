@@ -341,7 +341,6 @@ public class AdminServiceImpl implements AdminService {
             case EXPIRE_PENDING_APPROVAL -> expirePendingApproval(booking, now);
             case EXPIRE_PENDING_PAYMENT -> expirePendingPayment(booking, now);
             case MARK_NO_SHOW -> markNoShow(booking, now);
-            case MARK_OVERDUE -> markOverdue(booking, now);
             case RELEASE_RESERVATION -> releaseTerminalReservation(booking);
         }
         if (booking.getStatus() != previous) {
@@ -415,13 +414,6 @@ public class AdminServiceImpl implements AdminService {
         }
         booking.setStatus(BookingStatus.NO_SHOW);
         releaseReservation(booking);
-    }
-
-    private void markOverdue(Booking booking, OffsetDateTime now) {
-        if (booking.getStatus() != BookingStatus.CHECKED_IN || booking.getEndTime().isAfter(now)) {
-            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Booking không đủ điều kiện overdue");
-        }
-        booking.setStatus(BookingStatus.OVERDUE);
     }
 
     private void releaseTerminalReservation(Booking booking) {

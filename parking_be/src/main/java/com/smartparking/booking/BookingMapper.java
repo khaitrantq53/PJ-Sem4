@@ -11,9 +11,12 @@ import java.util.List;
 @Component
 public class BookingMapper {
     private final CustomerProfileRepository customerProfileRepository;
+    private final BookingServiceItemRepository serviceItemRepository;
 
-    public BookingMapper(CustomerProfileRepository customerProfileRepository) {
+    public BookingMapper(CustomerProfileRepository customerProfileRepository,
+                         BookingServiceItemRepository serviceItemRepository) {
         this.customerProfileRepository = customerProfileRepository;
+        this.serviceItemRepository = serviceItemRepository;
     }
 
     public BookingDtos.BookingResponse toResponse(Booking booking) {
@@ -39,6 +42,7 @@ public class BookingMapper {
                 booking.getActualCheckInTime(),
                 booking.getActualCheckOutTime(),
                 priceBreakdown(booking),
+                selectedServices(booking),
                 availableActions(booking),
                 booking.getVersion(),
                 booking.getCreatedAt(),
@@ -69,6 +73,7 @@ public class BookingMapper {
                 booking.getActualCheckInTime(),
                 booking.getActualCheckOutTime(),
                 money(booking.getTotalAmount(), booking.getCurrency()),
+                selectedServices(booking),
                 availableActions(booking),
                 booking.getVersion(),
                 booking.getCreatedAt(),
@@ -107,7 +112,7 @@ public class BookingMapper {
         return switch (booking.getStatus()) {
             case PENDING_PAYMENT -> List.of(AvailableAction.COMPLETE_PAYMENT, AvailableAction.CANCEL);
             case CONFIRMED -> List.of(AvailableAction.VIEW_QR, AvailableAction.CANCEL, AvailableAction.REQUEST_CHANGE, AvailableAction.REQUEST_EXTENSION);
-            case CHECKED_IN, OVERDUE -> List.of(AvailableAction.REQUEST_EXTENSION);
+            case CHECKED_IN -> List.of(AvailableAction.REQUEST_EXTENSION);
             default -> List.of();
         };
     }
@@ -117,13 +122,23 @@ public class BookingMapper {
             case PENDING_APPROVAL -> "WAIT_STAFF_APPROVAL";
             case PENDING_PAYMENT -> "COMPLETE_PAYMENT";
             case CONFIRMED -> "VIEW_QR";
-            case CHECKED_IN, OVERDUE -> "WAIT_CHECK_OUT";
+            case CHECKED_IN -> "WAIT_CHECK_OUT";
             default -> null;
         };
     }
 
     private BookingDtos.Money money(java.math.BigDecimal amount, String currency) {
         return new BookingDtos.Money(amount, currency);
+    }
+
+    private List<BookingDtos.SelectedServiceResponse> selectedServices(Booking booking) {
+        return serviceItemRepository.findByBookingId(booking.getId()).stream()
+                .map(item -> new BookingDtos.SelectedServiceResponse(
+                        item.getServiceId(),
+                        item.getServiceName(),
+                        money(item.getPrice(), booking.getCurrency())
+                ))
+                .toList();
     }
 
     private String customerName(Booking booking) {

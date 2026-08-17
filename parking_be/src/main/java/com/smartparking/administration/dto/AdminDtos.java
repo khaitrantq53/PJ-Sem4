@@ -44,7 +44,6 @@ public final class AdminDtos {
         EXPIRE_PENDING_APPROVAL,
         EXPIRE_PENDING_PAYMENT,
         MARK_NO_SHOW,
-        MARK_OVERDUE,
         RELEASE_RESERVATION
     }
 

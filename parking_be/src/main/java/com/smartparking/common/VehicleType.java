@@ -4,6 +4,5 @@ public enum VehicleType {
     MOTORBIKE,
     CAR,
     ELECTRIC_CAR,
-    BICYCLE,
     TRUCK
 }

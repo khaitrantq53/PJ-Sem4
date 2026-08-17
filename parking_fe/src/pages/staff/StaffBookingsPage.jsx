@@ -22,7 +22,6 @@ const bookingsContent = `
     </button>
     <button type="button" data-staff-booking-tab="CHANGE_REQUESTS">Change Requests</button>
     <button type="button" data-staff-booking-tab="EXTENSION_REQUESTS">Extension Requests</button>
-    <button type="button" data-staff-booking-tab="OVERDUE">Overdue</button>
   </nav>
 
   <section class="staff-booking-table-card" id="staffBookingTableCard">
@@ -33,8 +32,7 @@ const bookingsContent = `
             <th>Booking ID</th>
             <th>Plate / Vehicle</th>
             <th>Status</th>
-            <th>Arrival</th>
-            <th>Departure</th>
+            <th>Services</th>
             <th>Checked-in Hours</th>
             <th>Actions</th>
           </tr>
@@ -71,56 +69,76 @@ const bookingsContent = `
     <div class="staff-extension-request-grid" id="staffExtensionRequestList"></div>
   </section>
 
-  <section class="staff-overdue-panel is-hidden" id="staffOverduePanel">
-    <div class="staff-overdue-actions">
-      <button class="staff-overdue-filter" type="button" id="staffOverdueFilterButton">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v2H4V7Zm3 4h10v2H7v-2Zm3 4h4v2h-4v-2Z" /></svg>
-        Filter
-      </button>
-      <button class="staff-overdue-refresh" type="button" id="staffOverdueRefreshButton">Refresh List</button>
-    </div>
-    <div class="staff-overdue-grid" id="staffOverdueList"></div>
-  </section>
-
   <section class="staff-checkout-modal hidden" id="staffCheckoutModal" aria-hidden="true">
     <div class="staff-checkout-modal-card" role="dialog" aria-modal="true" aria-labelledby="staffCheckoutTitle">
       <div class="staff-checkout-modal-head">
         <div>
-          <span>Active booking</span>
+          <span>Ready to check out</span>
           <h2 id="staffCheckoutTitle">Confirm Check Out</h2>
+          <p id="staffCheckoutSubtitle">Review this parking session before ending it.</p>
         </div>
         <button type="button" data-staff-checkout-close aria-label="Close checkout dialog">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z" /></svg>
         </button>
       </div>
 
-      <div class="staff-checkout-summary">
-        <div>
-          <span>Booking ID</span>
-          <strong id="staffCheckoutBookingCode">-</strong>
-        </div>
-        <div>
-          <span>Amount to pay</span>
-          <strong id="staffCheckoutAmount">-</strong>
-        </div>
-        <div>
-          <span>Overtime</span>
-          <strong id="staffCheckoutOvertime">-</strong>
-        </div>
-        <div>
-          <span>Overtime fee</span>
-          <strong id="staffCheckoutOvertimeFee">-</strong>
-        </div>
-      </div>
+      <div class="staff-checkout-body">
+        <section class="staff-checkout-identity">
+          <div>
+            <span>Booking</span>
+            <strong id="staffCheckoutBookingCode">-</strong>
+          </div>
+          <div>
+            <span>Customer</span>
+            <strong id="staffCheckoutCustomer">-</strong>
+            <small id="staffCheckoutCustomerPhone">-</small>
+          </div>
+          <div>
+            <span>Vehicle</span>
+            <strong id="staffCheckoutVehicle">-</strong>
+            <small id="staffCheckoutVehicleDetail">-</small>
+          </div>
+        </section>
 
-      <label class="staff-checkout-notes">
-        <span>Vehicle condition notes</span>
-        <textarea id="staffCheckoutNotes" rows="3">Vehicle checked out by staff</textarea>
-      </label>
+        <section class="staff-checkout-session">
+          <div>
+            <span>Parking time</span>
+            <strong id="staffCheckoutDuration">-</strong>
+          </div>
+        </section>
+
+        <section class="staff-checkout-services-card">
+          <div>
+            <span>Selected services</span>
+            <small>Requested by customer</small>
+          </div>
+          <div class="staff-checkout-services" id="staffCheckoutServices">-</div>
+        </section>
+
+        <section class="staff-checkout-bill">
+          <div>
+            <span>Parking fee</span>
+            <strong id="staffCheckoutParkingFee">-</strong>
+          </div>
+          <div>
+            <span>Service fee</span>
+            <strong id="staffCheckoutServiceFee">-</strong>
+          </div>
+          <div class="staff-checkout-total-row">
+            <span>Total Amount</span>
+            <strong id="staffCheckoutAmount">-</strong>
+          </div>
+        </section>
+
+        <label class="staff-checkout-notes">
+          <span>Vehicle condition notes</span>
+          <textarea id="staffCheckoutNotes" rows="3" placeholder="Vehicle condition, customer note, lost ticket...">Vehicle checked out by staff</textarea>
+        </label>
+      </div>
 
       <div class="staff-checkout-modal-actions">
         <button type="button" data-staff-checkout-close>Cancel</button>
-        <button type="button" id="staffCheckoutConfirmButton">Check Out</button>
+        <button type="button" id="staffCheckoutConfirmButton">Confirm Check Out</button>
       </div>
     </div>
   </section>

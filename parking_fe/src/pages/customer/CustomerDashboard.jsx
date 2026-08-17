@@ -4,6 +4,7 @@ import {
   apiRequest,
   getParkingLotDetail,
   getParkingLotPricingRules,
+  jsonBody,
 } from '../../services/api.js';
 import { CustomerMobileNav, CustomerSidebar, initialsFor } from './CustomerChrome.jsx';
 
@@ -13,9 +14,11 @@ const emptyProfile = {
   phone: '',
 };
 
-const activeStatuses = ['PENDING_APPROVAL', 'PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'OVERDUE'];
+const activeStatuses = ['PENDING_APPROVAL', 'PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN'];
 const finishedStatuses = ['COMPLETED', 'CHECKED_OUT'];
 const recentCompletedStatuses = ['COMPLETED'];
+const customerCancelableStatuses = ['PENDING_APPROVAL', 'CONFIRMED'];
+const CHECK_IN_WINDOW_MS = 20 * 60 * 1000;
 const HOUR_IN_MS = 60 * 60 * 1000;
 
 function formatMoney(value, currency = 'VND') {
@@ -59,13 +62,18 @@ function isSettlementBooking(booking) {
     && !isPaidBooking(booking);
 }
 
+function canCustomerCancelBooking(booking) {
+  return Boolean(booking)
+    && customerCancelableStatuses.includes(booking.status)
+    && !booking.actualCheckInTime;
+}
+
 function displayBookingPriority(booking) {
   if (isSettlementBooking(booking)) return 0;
   if (booking?.status === 'PENDING_PAYMENT') return 1;
-  if (booking?.status === 'OVERDUE') return 2;
-  if (booking?.status === 'CHECKED_IN') return 3;
-  if (booking?.status === 'CONFIRMED') return 4;
-  if (booking?.status === 'PENDING_APPROVAL') return 5;
+  if (booking?.status === 'CHECKED_IN') return 2;
+  if (booking?.status === 'CONFIRMED') return 3;
+  if (booking?.status === 'PENDING_APPROVAL') return 4;
   if (isSettlementBooking(booking)) return 6;
   return 9;
 }
@@ -84,6 +92,19 @@ function selectHighlightedBooking(items) {
 
 function statusText(value) {
   return String(value || '-').replaceAll('_', ' ');
+}
+
+function vehicleTypeText(value) {
+  if (!value) {
+    return '';
+  }
+
+  const labels = {
+    CAR: 'Car',
+    MOTORBIKE: 'Motorbike',
+  };
+
+  return labels[value] || statusText(value);
 }
 
 function bookingTotal(booking) {
@@ -142,7 +163,7 @@ function formatDuration(milliseconds) {
 function formatParkingDuration(booking, now) {
   const start = parseDate(booking?.actualCheckInTime) || parseDate(booking?.startTime);
   const end = parseDate(booking?.actualCheckOutTime)
-    || (['CHECKED_IN', 'OVERDUE'].includes(booking?.status) ? now : parseDate(booking?.endTime));
+    || (booking?.status === 'CHECKED_IN' ? now : parseDate(booking?.endTime));
 
   if (!start || !end || end <= start) {
     return '-';
@@ -207,14 +228,22 @@ function parseBandMinutes(value, fallback) {
   return Math.max(0, Math.min(1440, hours * 60 + minutes));
 }
 
-function normalizePriceBands(lot, fallbackRate) {
+function normalizePriceBands(lot, fallbackRate, vehicleType) {
   const sourceBands = lot?.pricingRules || lot?.priceBands || lot?.pricingBands || lot?.pricing?.bands;
 
   if (!Array.isArray(sourceBands) || !sourceBands.length) {
     return fallbackRate > 0 ? [{ endMinutes: 1440, label: 'All day', rate: fallbackRate, startMinutes: 0 }] : [];
   }
 
-  return sourceBands
+  const matchingBands = sourceBands
+    .filter((band) => band.active !== false)
+    .filter((band) => !vehicleType || !band.vehicleType || band.vehicleType === vehicleType);
+
+  if (!matchingBands.length) {
+    return fallbackRate > 0 ? [{ endMinutes: 1440, label: 'All day', rate: fallbackRate, startMinutes: 0 }] : [];
+  }
+
+  return matchingBands
     .map((band) => {
       const rate = Number(band.hourlyRate ?? band.rate ?? band.price?.amount ?? band.price);
 
@@ -279,8 +308,9 @@ function calculateParkingFeeByBands(startTime, endTime, bands, fallbackRate) {
     const boundary = nextBandBoundary(cursor, bands);
     const segmentEnd = boundary < endTime ? boundary : endTime;
     const minutes = Math.max(0, (segmentEnd.getTime() - cursor.getTime()) / 60000);
+    const segmentHours = Math.round((minutes / 60) * 100) / 100;
     const rate = rateForDate(cursor, bands, fallbackRate);
-    total += rate * (minutes / 60);
+    total += rate * segmentHours;
     cursor = segmentEnd;
   }
 
@@ -291,16 +321,20 @@ function activeParkingPricing(booking, lot, now) {
   const actualCheckIn = parseDate(booking?.actualCheckInTime);
   const actualCheckOut = parseDate(booking?.actualCheckOutTime);
 
-  if (!booking || !actualCheckIn || !['CHECKED_IN', 'OVERDUE', 'CHECKED_OUT', 'COMPLETED', 'PENDING_PAYMENT'].includes(booking.status)) {
+  if (!booking || !actualCheckIn || !['CHECKED_IN', 'CHECKED_OUT', 'COMPLETED', 'PENDING_PAYMENT'].includes(booking.status)) {
     return null;
   }
 
-  const endTime = actualCheckOut || now;
+  if (actualCheckOut) {
+    return null;
+  }
+
+  const endTime = now;
   const elapsed = Math.max(0, endTime.getTime() - actualCheckIn.getTime());
   const billedHours = elapsed > 0 ? Math.ceil(elapsed / HOUR_IN_MS) : 0;
   const currency = moneyCurrency(moneyPart(booking, 'parkingFee'));
   const fallbackRate = bookingHourlyRate(booking, lot);
-  const bands = normalizePriceBands(lot, fallbackRate);
+  const bands = normalizePriceBands(lot, fallbackRate, booking.vehicleType);
 
   if (!billedHours || !bands.length) {
     return {
@@ -346,6 +380,8 @@ function activeTimerState(booking, now) {
   const actualCheckIn = parseDate(booking.actualCheckInTime);
   const actualCheckOut = parseDate(booking.actualCheckOutTime);
   const scheduledEnd = parseDate(booking.endTime);
+  const createdAt = parseDate(booking.createdAt);
+  const holdDeadline = scheduledEnd || (createdAt ? new Date(createdAt.getTime() + CHECK_IN_WINDOW_MS) : null);
 
   if (actualCheckIn && actualCheckOut) {
     return {
@@ -357,15 +393,33 @@ function activeTimerState(booking, now) {
     };
   }
 
-  if ((booking.status === 'CHECKED_IN' || booking.status === 'OVERDUE') && actualCheckIn) {
+  if (booking.status === 'CHECKED_IN' && actualCheckIn) {
     const totalWindow = scheduledEnd ? Math.max(1, scheduledEnd.getTime() - actualCheckIn.getTime()) : 1;
     const elapsed = Math.max(0, now.getTime() - actualCheckIn.getTime());
     return {
-      className: booking.status === 'OVERDUE' ? 'overdue' : 'active',
+      className: 'active',
       label: 'PARKING TIME USED',
       progress: `${Math.min(100, (elapsed / totalWindow) * 100)}%`,
       sublabel: `Started at ${formatDateTime(actualCheckIn)}`,
       value: formatDuration(elapsed),
+    };
+  }
+
+  if (['PENDING_APPROVAL', 'CONFIRMED'].includes(booking.status) && holdDeadline) {
+    const holdStart = parseDate(booking.startTime) || createdAt || new Date(holdDeadline.getTime() - CHECK_IN_WINDOW_MS);
+    const totalWindow = Math.max(1, holdDeadline.getTime() - holdStart.getTime());
+    const remaining = Math.max(0, holdDeadline.getTime() - now.getTime());
+    const remainingProgress = Math.max(0, Math.min(100, (remaining / totalWindow) * 100));
+    const expired = remaining <= 0;
+
+    return {
+      className: expired ? 'waiting expired' : 'waiting',
+      label: 'CHECK-IN DEADLINE',
+      progress: `${remainingProgress}%`,
+      sublabel: expired
+        ? 'Check-in window expired. This booking will be cancelled automatically.'
+        : 'Please check in within 20 minutes. It will be cancelled automatically if staff does not verify your entry in time.',
+      value: formatDuration(remaining),
     };
   }
 
@@ -396,7 +450,7 @@ function timelineState(booking, key) {
   }
 
   if (key === 'checkedIn') {
-    if (status === 'CHECKED_IN' || status === 'OVERDUE') return 'current';
+    if (status === 'CHECKED_IN') return 'current';
     if (status === 'PENDING_PAYMENT' || booking.actualCheckOutTime || finishedStatuses.includes(status)) return 'done';
     return 'pending';
   }
@@ -443,9 +497,11 @@ export function CustomerDashboard() {
   const [bookings, setBookings] = useState([]);
   const [lots, setLots] = useState([]);
   const [activeBookingDetail, setActiveBookingDetail] = useState(null);
+  const [checkoutPreview, setCheckoutPreview] = useState(null);
   const [qrCode, setQrCode] = useState('');
   const [status, setStatus] = useState('Loading');
   const [loading, setLoading] = useState(true);
+  const [canceling, setCanceling] = useState(false);
   const [now, setNow] = useState(() => new Date());
 
   const activeBookings = useMemo(
@@ -466,7 +522,7 @@ export function CustomerDashboard() {
   const displayBooking = activeBookingDetail || currentBooking || settlementBooking;
 
   const currentVehicle = useMemo(() => {
-    return vehicles.find((vehicle) => vehicle.id === displayBooking?.vehicleId) || null;
+    return vehicles.find((vehicle) => String(vehicle.id) === String(displayBooking?.vehicleId)) || null;
   }, [displayBooking, vehicles]);
 
   const currentLot = useMemo(() => {
@@ -491,19 +547,44 @@ export function CustomerDashboard() {
   const total = bookingTotal(displayBooking);
   const timerInfo = activeTimerState(displayBooking, now);
   const livePricing = activeParkingPricing(displayBooking, currentLot, now);
-  const displayParkingFee = livePricing?.parkingFee || moneyPart(displayBooking, 'parkingFee');
-  const displayTotal = livePricing?.total || total;
+  const previewBreakdown = checkoutPreview && displayBooking && checkoutPreview.bookingId === displayBooking.id
+    ? checkoutPreview.priceBreakdown
+    : null;
+  const hasBillableParking = Boolean(displayBooking?.actualCheckInTime);
+  const isRunningBill = hasBillableParking
+    && displayBooking?.status === 'CHECKED_IN'
+    && !displayBooking?.actualCheckOutTime;
+  const syncedBreakdown = previewBreakdown || (isRunningBill ? null : displayBooking?.priceBreakdown);
+  const displayParkingFee = hasBillableParking ? syncedBreakdown?.parkingFee || null : null;
+  const displayServiceFee = syncedBreakdown?.serviceFee || null;
+  const displayTax = syncedBreakdown?.tax || null;
+  const displayTotal = hasBillableParking ? syncedBreakdown?.total || null : null;
   const showPaymentQr = ['CHECKED_OUT', 'PENDING_PAYMENT'].includes(displayBooking?.status) && !isPaidBooking(displayBooking);
-  const paymentQr = paymentQrPayload(displayBooking, displayTotal);
+  const showCancelBooking = canCustomerCancelBooking(displayBooking);
+  const paymentQr = paymentQrPayload(displayBooking, displayTotal || total);
   const pageHeading = displayBooking?.status === 'CHECKED_OUT'
     ? 'Final Bill'
     : displayBooking?.status === 'PENDING_PAYMENT'
       ? 'Payment Required'
       : 'Active Booking';
-  const vehicleLabel = currentVehicle
-    ? `${currentVehicle.brand || currentVehicle.vehicleType} ${currentVehicle.plateNumber}`
+  const bookingVehicleBrand = currentVehicle?.brand || displayBooking?.vehicleBrand || displayBooking?.vehicleType;
+  const bookingVehiclePlate = currentVehicle?.plateNumber || displayBooking?.plateNumber;
+  const bookingVehicleColor = currentVehicle?.color || displayBooking?.vehicleColor;
+  const bookingVehicleType = currentVehicle?.vehicleType || displayBooking?.vehicleType;
+  const vehicleLabel = bookingVehiclePlate
+    ? `${bookingVehicleBrand ? vehicleTypeText(bookingVehicleBrand) : vehicleTypeText(bookingVehicleType)} ${bookingVehiclePlate}`
     : 'Vehicle pending';
+  const vehicleMeta = [
+    bookingVehicleColor,
+    vehicleTypeText(bookingVehicleType),
+  ].filter(Boolean).join(' - ') || 'Vehicle details';
   const mapsHref = parkingLotMapsHref(currentLot);
+  const shouldRefreshCheckoutPreview = Boolean(
+    displayBooking?.id
+    && displayBooking.status === 'CHECKED_IN'
+    && displayBooking.actualCheckInTime
+    && !displayBooking.actualCheckOutTime,
+  );
 
   async function loadDashboard(options = {}) {
     const silent = Boolean(options.silent);
@@ -512,6 +593,7 @@ export function CustomerDashboard() {
       setLoading(true);
       setStatus('Loading');
       setActiveBookingDetail(null);
+      setCheckoutPreview(null);
       setQrCode('');
     }
 
@@ -535,13 +617,18 @@ export function CustomerDashboard() {
       let detail = null;
       let qr = '';
       let lotDetail = null;
+      let preview = null;
 
       if (highlightedBooking) {
-        const [detailResult, qrResult, lotResult, pricingRulesResult] = await Promise.allSettled([
+        const canPreviewCheckout = highlightedBooking.status === 'CHECKED_IN';
+        const [detailResult, qrResult, lotResult, pricingRulesResult, previewResult] = await Promise.allSettled([
           apiRequest(`/customer/bookings/${highlightedBooking.id}`),
           apiRequest(`/customer/bookings/${highlightedBooking.id}/qr-code`),
           getParkingLotDetail(highlightedBooking.parkingLotId),
           getParkingLotPricingRules(highlightedBooking.parkingLotId),
+          canPreviewCheckout
+            ? apiRequest(`/customer/bookings/${highlightedBooking.id}/checkout-preview`, { method: 'POST' })
+            : Promise.resolve(null),
         ]);
 
         if (detailResult.status === 'fulfilled') {
@@ -558,6 +645,10 @@ export function CustomerDashboard() {
             pricingRules: pricingRulesResult.status === 'fulfilled' ? pricingRulesResult.value : lotResult.value.pricingRules,
           };
         }
+
+        if (previewResult.status === 'fulfilled') {
+          preview = previewResult.value;
+        }
       }
 
       setAccount(currentAccount);
@@ -566,6 +657,7 @@ export function CustomerDashboard() {
       setBookings(bookingPage.items);
       setLots(lotDetail ? [lotDetail, ...lotPage.items.filter((lot) => lot.id !== lotDetail.id)] : lotPage.items);
       setActiveBookingDetail(detail);
+      setCheckoutPreview(preview);
       setQrCode(qr);
       setStatus('Online');
     } catch (error) {
@@ -582,6 +674,33 @@ export function CustomerDashboard() {
     }
   }
 
+  async function handleCancelBooking() {
+    if (!displayBooking?.id || !showCancelBooking) {
+      return;
+    }
+
+    const confirmed = window.confirm('Cancel this booking?');
+    if (!confirmed) {
+      return;
+    }
+
+    setCanceling(true);
+    setStatus('Cancelling');
+
+    try {
+      await apiRequest(`/customer/bookings/${displayBooking.id}/cancel`, {
+        method: 'POST',
+        body: jsonBody({ reason: 'Cancelled by customer before check-in' }),
+      });
+      await loadDashboard({ silent: true });
+      setStatus('Booking cancelled');
+    } catch (error) {
+      setStatus(error.message || 'Unable to cancel booking');
+    } finally {
+      setCanceling(false);
+    }
+  }
+
   useEffect(() => {
     document.title = 'ParkFinder | Active Booking';
     document.body.className = 'customer-dashboard-page';
@@ -594,6 +713,35 @@ export function CustomerDashboard() {
 
     return () => window.clearInterval(refreshTimer);
   }, []);
+
+  useEffect(() => {
+    if (!shouldRefreshCheckoutPreview) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    async function refreshCheckoutPreview() {
+      try {
+        const preview = await apiRequest(`/customer/bookings/${displayBooking.id}/checkout-preview`, {
+          method: 'POST',
+        });
+        if (!cancelled) {
+          setCheckoutPreview(preview);
+        }
+      } catch (error) {
+        // The full dashboard refresh handles status changes and auth failures.
+      }
+    }
+
+    refreshCheckoutPreview();
+    const timer = window.setInterval(refreshCheckoutPreview, 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [displayBooking?.id, displayBooking?.status, displayBooking?.actualCheckInTime, displayBooking?.actualCheckOutTime, shouldRefreshCheckoutPreview]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1000);
@@ -664,19 +812,9 @@ export function CustomerDashboard() {
 
                         <div className="active-booking-info-grid">
                           <div>
-                            <span>Scheduled Check-In</span>
-                            <strong>{formatDateTime(displayBooking.startTime)}</strong>
-                            <small>{displayBooking.actualCheckInTime ? `Actual: ${formatDateTime(displayBooking.actualCheckInTime)}` : 'Staff verification pending'}</small>
-                          </div>
-                          <div>
-                            <span>Scheduled Check-Out</span>
-                            <strong>{formatDateTime(displayBooking.endTime)}</strong>
-                            <small>{displayBooking.actualCheckOutTime ? `Actual: ${formatDateTime(displayBooking.actualCheckOutTime)}` : 'Not checked out yet'}</small>
-                          </div>
-                          <div>
                             <span>Vehicle</span>
                             <strong>{vehicleLabel}</strong>
-                            <small>{currentVehicle?.color || currentVehicle?.vehicleType || 'Vehicle details'}</small>
+                            <small>{vehicleMeta}</small>
                           </div>
                           <div className="active-booking-map-cell">
                             <a
@@ -713,6 +851,16 @@ export function CustomerDashboard() {
                       ))}
                     </div>
                   </section>
+                  {showCancelBooking ? (
+                    <button
+                      className="active-booking-cancel-button"
+                      disabled={canceling}
+                      onClick={handleCancelBooking}
+                      type="button"
+                    >
+                      {canceling ? 'Cancelling...' : 'Cancel Booking'}
+                    </button>
+                  ) : null}
                 </div>
 
                 <aside className="active-booking-right">
@@ -727,9 +875,9 @@ export function CustomerDashboard() {
                     <h3>Price Summary</h3>
                     <div>
                       <span>Parking Fee</span>
-                      <strong>{formatMoney(displayParkingFee)}</strong>
+                      <strong>{hasBillableParking ? formatMoney(displayParkingFee) : '-'}</strong>
                     </div>
-                    {livePricing ? (
+                    {hasBillableParking && previewBreakdown && livePricing ? (
                       <small className="active-booking-summary-note">
                         {livePricing.billedHours} billed hour{livePricing.billedHours === 1 ? '' : 's'}
                         {livePricing.usesBands ? ' by time band' : ` x ${formatMoney(livePricing.hourlyRate)}/hour`}
@@ -737,15 +885,15 @@ export function CustomerDashboard() {
                     ) : null}
                     <div>
                       <span>Service Fee</span>
-                      <strong>{formatMoney(moneyPart(displayBooking, 'serviceFee'))}</strong>
+                      <strong>{displayServiceFee ? formatMoney(displayServiceFee) : '-'}</strong>
                     </div>
                     <div>
                       <span>Tax</span>
-                      <strong>{formatMoney(moneyPart(displayBooking, 'tax'))}</strong>
+                      <strong>{displayTax ? formatMoney(displayTax) : '-'}</strong>
                     </div>
                     <div className="active-booking-total">
                       <span>Total Amount</span>
-                      <strong>{formatMoney(displayTotal)}</strong>
+                      <strong>{hasBillableParking ? formatMoney(displayTotal) : '-'}</strong>
                     </div>
                     <div>
                       <span>Payment</span>
@@ -761,7 +909,7 @@ export function CustomerDashboard() {
                         </div>
                         <div>
                           <span>Payment QR</span>
-                          <strong>{formatMoney(displayTotal)}</strong>
+                          <strong>{formatMoney(displayTotal || total)}</strong>
                           <small>{displayBooking.bookingCode || displayBooking.id}</small>
                         </div>
                       </div>
@@ -794,7 +942,7 @@ export function CustomerDashboard() {
             {recentBookings.length ? (
               <div className="active-booking-recent-list">
                 {recentBookings.map((booking) => {
-                  const vehicle = vehicles.find((item) => item.id === booking.vehicleId);
+                  const vehicle = vehicles.find((item) => String(item.id) === String(booking.vehicleId));
                   const lot = lots.find((item) => item.id === booking.parkingLotId);
                   const isPaid = String(booking.paymentStatus || '').toUpperCase() === 'PAID';
                   const amount = formatMoney(bookingTotal(booking));
@@ -804,7 +952,7 @@ export function CustomerDashboard() {
                     <article className="active-booking-recent-card" key={booking.id}>
                       <div>
                         <span>Vehicle</span>
-                        <strong>{vehicle?.plateNumber || booking.vehiclePlateNumber || booking.plateNumber || 'Vehicle pending'}</strong>
+                        <strong>{vehicle?.plateNumber || booking.plateNumber || 'Vehicle pending'}</strong>
                       </div>
                       <div>
                         <span>Parking Lot</span>

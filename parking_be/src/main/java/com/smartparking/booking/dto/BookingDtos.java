@@ -46,6 +46,13 @@ public final class BookingDtos {
     ) {
     }
 
+    public record SelectedServiceResponse(
+            UUID serviceId,
+            String serviceName,
+            Money price
+    ) {
+    }
+
     public record BookingPreviewResponse(
             UUID parkingLotId,
             UUID vehicleId,
@@ -78,6 +85,7 @@ public final class BookingDtos {
             OffsetDateTime actualCheckInTime,
             OffsetDateTime actualCheckOutTime,
             PriceBreakdown priceBreakdown,
+            List<SelectedServiceResponse> services,
             List<AvailableAction> availableActions,
             Long version,
             OffsetDateTime createdAt,
@@ -107,6 +115,7 @@ public final class BookingDtos {
             OffsetDateTime actualCheckInTime,
             OffsetDateTime actualCheckOutTime,
             Money total,
+            List<SelectedServiceResponse> services,
             List<AvailableAction> availableActions,
             Long version,
             OffsetDateTime createdAt,
@@ -166,13 +175,14 @@ public final class BookingDtos {
 
     public record CheckoutPreviewResponse(UUID bookingId, BookingStatus status, OffsetDateTime scheduledEndTime,
                                           OffsetDateTime actualCheckOutTime, long overtimeMinutes,
-                                          Money overtimeFee, Money totalAmount, Long version) {
+                                          Money overtimeFee, Money totalAmount, PriceBreakdown priceBreakdown,
+                                          Long version) {
     }
 
     public record CheckInRequest(@NotBlank String qrCode, String plateNumber, String conditionNotes, Long expectedVersion) {
     }
 
-    public record CheckOutRequest(String conditionNotes, Long expectedVersion) {
+    public record CheckOutRequest(String conditionNotes, OffsetDateTime actualCheckOutTime, Long expectedVersion) {
     }
 
     public record DoneRequest(String note, Long expectedVersion) {
