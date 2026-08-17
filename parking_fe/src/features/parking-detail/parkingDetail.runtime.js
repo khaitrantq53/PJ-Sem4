@@ -1,10 +1,14 @@
 import {
   apiRequest,
+  clearSession,
   getParkingLotCapacities,
   getParkingLotDetail,
   getParkingLotPricingRules,
+  getParkingLotReviews,
   getParkingLotServices,
+  getStoredAccount,
   jsonBody,
+  saveSession,
   searchParkingLots,
 } from '../../services/api.js';
 
@@ -31,6 +35,7 @@ const CHECK_IN_WINDOW_MINUTES = 20;
 const selectedServiceIds = new Set(new URLSearchParams(window.location.search).getAll('serviceIds'));
 
 const elements = {
+  topActions: document.querySelector('.top-actions'),
   galleryBadge: document.querySelector('#galleryBadge'),
   lotName: document.querySelector('#lotName'),
   lotAddress: document.querySelector('#lotAddress'),
@@ -46,6 +51,10 @@ const elements = {
   baseHourlyRate: document.querySelector('#baseHourlyRate'),
   pricingRulesBody: document.querySelector('#pricingRulesBody'),
   amenityGrid: document.querySelector('#amenityGrid'),
+  reviewAverage: document.querySelector('#reviewAverage'),
+  reviewStars: document.querySelector('#reviewStars'),
+  reviewCount: document.querySelector('#reviewCount'),
+  reviewList: document.querySelector('#reviewList'),
   bookingServiceOptions: document.querySelector('#bookingServiceOptions'),
   bookingVehicleId: document.querySelector('#bookingVehicleId'),
   detailSpotHint: document.querySelector('#detailSpotHint'),
@@ -60,6 +69,171 @@ const elements = {
   bookButton: document.querySelector('#bookButton'),
   directionsButton: document.querySelector('#directionsButton'),
 };
+
+const accountMenuIcons = {
+  book: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H20v17H7.5A2.5 2.5 0 0 0 5 21.5v-17ZM7.5 4A.5.5 0 0 0 7 4.5V17.1c.2-.1.3-.1.5-.1H18V4H7.5ZM4 4h1v18H4V4Z" /></svg>',
+  dashboard: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h7V4H4v9Zm9 7h7V4h-7v16ZM4 20h7v-5H4v5Z" /></svg>',
+  logout: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h9v2H6v14h7v2H4V3Zm12.6 5.4L20.2 12l-3.6 3.6-1.4-1.4 1.2-1.2H10v-2h6.4l-1.2-1.2 1.4-1.4Z" /></svg>',
+  user: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.4 0-8 2.1-8 5v1h16v-1c0-2.9-3.6-5-8-5Z" /></svg>',
+  users: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8.5 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM8 13c-3.3 0-6 1.7-6 3.8V20h12v-3.2C14 14.7 11.3 13 8 13Zm8.5 1c-.9 0-1.8.2-2.6.5a4 4 0 0 1 2.1 3.4V20h6v-2.6c0-1.9-2.5-3.4-5.5-3.4Z" /></svg>',
+  vehicles: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h1a2 2 0 0 1 2 2v5h-2v-2H4v2H2v-5a2 2 0 0 1 2-2h1Zm2.1 0h9.8l-1.1-3.2a.8.8 0 0 0-.8-.6H9a.8.8 0 0 0-.8.6L7.1 11ZM6 14a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm12 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z" /></svg>',
+};
+
+function getAccountContact(account) {
+  return account?.email || account?.phone || 'Email not updated';
+}
+
+function getAccountDisplayName(account) {
+  const label = account?.fullName
+    || account?.name
+    || account?.displayName
+    || account?.email?.replace(/@.*/, '')
+    || account?.phone
+    || 'Customer';
+
+  return String(label)
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((piece) => piece.charAt(0).toUpperCase() + piece.slice(1))
+    .join(' ');
+}
+
+function getAccountInitials(account) {
+  const label = getAccountDisplayName(account).replace(/@.*/, '');
+  const pieces = label.split(/[.\-_\s]+/).filter(Boolean);
+  const initials = pieces.length > 1 ? `${pieces[0][0]}${pieces[1][0]}` : label.slice(0, 2);
+  return initials.toUpperCase();
+}
+
+function getAccountMenuItems(account) {
+  if (account?.role === 'ADMIN') {
+    return [
+      { href: '/admin-users.html', icon: accountMenuIcons.dashboard, label: 'User Management' },
+      { href: '/admin-staff.html', icon: accountMenuIcons.users, label: 'Staff Management' },
+      { href: '/admin-bookings.html', icon: accountMenuIcons.book, label: 'Bookings' },
+    ];
+  }
+
+  if (account?.role === 'STAFF') {
+    return [
+      { href: '/staff.html', icon: accountMenuIcons.dashboard, label: 'Staff Dashboard' },
+      { href: '/staff-parking-lots.html', icon: accountMenuIcons.vehicles, label: 'My Parking Lot' },
+      { href: '/staff-bookings.html', icon: accountMenuIcons.book, label: 'Bookings' },
+    ];
+  }
+
+  return [
+    { href: '/customer.html', icon: accountMenuIcons.dashboard, label: 'Active Bookings' },
+    { href: '/customer-vehicles.html', icon: accountMenuIcons.vehicles, label: 'Vehicles' },
+    { href: '/customer-profile.html', icon: accountMenuIcons.user, label: 'My Profile' },
+  ];
+}
+
+function renderSignedInHeader(account) {
+  if (!elements.topActions) {
+    return;
+  }
+
+  const accountName = getAccountDisplayName(account);
+  const accountContact = getAccountContact(account);
+  const initials = getAccountInitials(account);
+  const menuItems = getAccountMenuItems(account);
+
+  elements.topActions.innerHTML = `
+    <div class="account-menu" data-account-menu>
+      <button class="account-menu-trigger" type="button" aria-haspopup="menu" aria-expanded="false" data-account-menu-trigger>
+        <span class="account-avatar" aria-hidden="true">${escapeHtml(initials)}</span>
+      </button>
+
+      <div class="account-menu-content" role="menu" aria-hidden="true" data-account-menu-content>
+        <div class="account-menu-label">
+          <span class="account-avatar large" aria-hidden="true">${escapeHtml(initials)}</span>
+          <span>
+            <strong>${escapeHtml(accountName)}</strong>
+            <small>${escapeHtml(accountContact)}</small>
+          </span>
+        </div>
+        <hr />
+        ${menuItems.map((item) => `<a class="account-menu-item" role="menuitem" href="${item.href}">${item.icon}<span>${escapeHtml(item.label)}</span></a>`).join('')}
+        <hr />
+        <button class="account-menu-item destructive" type="button" role="menuitem" data-action="logout">${accountMenuIcons.logout}<span>Log out</span></button>
+      </div>
+    </div>
+  `;
+
+  const menu = elements.topActions.querySelector('[data-account-menu]');
+  const trigger = elements.topActions.querySelector('[data-account-menu-trigger]');
+  const content = elements.topActions.querySelector('[data-account-menu-content]');
+
+  const setOpen = (open) => {
+    menu?.classList.toggle('open', open);
+    trigger?.setAttribute('aria-expanded', open ? 'true' : 'false');
+    content?.setAttribute('aria-hidden', open ? 'false' : 'true');
+  };
+
+  const closeOnOutsideClick = (event) => {
+    if (!menu?.contains(event.target)) {
+      setOpen(false);
+      document.removeEventListener('click', closeOnOutsideClick);
+    }
+  };
+
+  trigger?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const open = !menu?.classList.contains('open');
+    setOpen(open);
+    if (open) {
+      window.setTimeout(() => document.addEventListener('click', closeOnOutsideClick), 0);
+    } else {
+      document.removeEventListener('click', closeOnOutsideClick);
+    }
+  });
+
+  content?.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-action="logout"]')) {
+      setOpen(false);
+    }
+  });
+
+  elements.topActions.querySelector('[data-action="logout"]')?.addEventListener('click', () => {
+    clearSession();
+    window.location.href = '/auth.html';
+  });
+}
+
+async function hydrateDetailAuth() {
+  const storedAccount = getStoredAccount();
+
+  if (!storedAccount) {
+    return;
+  }
+
+  renderSignedInHeader(storedAccount);
+
+  try {
+    const currentAccount = await apiRequest('/auth/me');
+    let hydratedAccount = currentAccount;
+
+    if (currentAccount.role === 'CUSTOMER') {
+      try {
+        const customerProfile = await apiRequest('/customers/me');
+        hydratedAccount = {
+          ...currentAccount,
+          ...customerProfile,
+          role: currentAccount.role,
+          status: currentAccount.status,
+        };
+      } catch (profileError) {
+        hydratedAccount = currentAccount;
+      }
+    }
+
+    saveSession({ account: hydratedAccount });
+    renderSignedInHeader(hydratedAccount);
+  } catch (error) {
+    // Keep the local session visible if the backend is temporarily unavailable.
+  }
+}
 
 function getLotId() {
   return new URLSearchParams(window.location.search).get('id');
@@ -362,6 +536,32 @@ function serviceDisplayPrice(service) {
   return Number.isFinite(configuredPrice) ? configuredPrice : Number(service?.price || 0);
 }
 
+function uniqueServicesByLabel(services = []) {
+  const byLabel = new Map();
+
+  services.forEach((service) => {
+    const label = normalizeServiceLabel(service.name);
+    const key = label.toLowerCase();
+
+    if (!key) {
+      return;
+    }
+
+    const normalizedService = {
+      ...service,
+      label,
+      displayPrice: serviceDisplayPrice(service),
+    };
+    const current = byLabel.get(key);
+
+    if (!current || selectedServiceIds.has(String(service.id))) {
+      byLabel.set(key, normalizedService);
+    }
+  });
+
+  return [...byLabel.values()];
+}
+
 function getSelectedServiceIds() {
   return [...selectedServiceIds].filter(Boolean);
 }
@@ -419,6 +619,7 @@ function normalizeLot(lot) {
     ...lot,
     capacities: Array.isArray(lot.capacities) ? lot.capacities : [],
     pricingRules: Array.isArray(lot.pricingRules) ? lot.pricingRules : [],
+    reviews: Array.isArray(lot.reviews) ? lot.reviews : [],
     services: Array.isArray(lot.services) ? lot.services : [],
     latitude: parseCoordinate(lot.latitude),
     longitude: parseCoordinate(lot.longitude),
@@ -590,19 +791,22 @@ function renderBookingServices(services = []) {
 
   const paidServices = services
     .filter((service) => service.active !== false)
-    .filter(isPaidSelectableService)
-    .map((service) => ({
-      ...service,
-      label: normalizeServiceLabel(service.name),
-      displayPrice: serviceDisplayPrice(service),
-    }));
+    .filter(isPaidSelectableService);
+  const uniquePaidServices = uniqueServicesByLabel(paidServices);
+  const visibleServiceIds = new Set(uniquePaidServices.map((service) => String(service.id)));
 
-  if (!paidServices.length) {
+  paidServices.forEach((service) => {
+    if (!visibleServiceIds.has(String(service.id))) {
+      selectedServiceIds.delete(String(service.id));
+    }
+  });
+
+  if (!uniquePaidServices.length) {
     elements.bookingServiceOptions.innerHTML = '<div class="booking-service-empty">No paid services available</div>';
     return;
   }
 
-  elements.bookingServiceOptions.innerHTML = paidServices.map((service) => `
+  elements.bookingServiceOptions.innerHTML = uniquePaidServices.map((service) => `
     <label class="booking-service-option ${selectedServiceIds.has(String(service.id)) ? 'active' : ''}">
       <input type="checkbox" name="bookingServiceIds" value="${escapeHtml(service.id)}" ${selectedServiceIds.has(String(service.id)) ? 'checked' : ''} />
       <span>
@@ -623,6 +827,46 @@ function renderBookingServices(services = []) {
       input.closest('.booking-service-option')?.classList.toggle('active', input.checked);
     });
   });
+}
+
+function reviewStars(rating) {
+  const value = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
+  return '★'.repeat(value) + '☆'.repeat(5 - value);
+}
+
+function renderReviews(reviews = []) {
+  if (!elements.reviewList) {
+    return;
+  }
+
+  const validReviews = reviews.filter((review) => Number(review.rating) > 0);
+  const average = validReviews.length
+    ? validReviews.reduce((total, review) => total + Number(review.rating), 0) / validReviews.length
+    : 0;
+
+  setText(elements.reviewAverage, validReviews.length ? average.toFixed(1) : '-');
+  setText(elements.reviewStars, validReviews.length ? reviewStars(average) : '-----');
+  setText(elements.reviewCount, validReviews.length ? `${validReviews.length} review${validReviews.length === 1 ? '' : 's'}` : 'No reviews yet');
+
+  if (!validReviews.length) {
+    elements.reviewList.innerHTML = `
+      <article>
+        <div><strong>No customer reviews yet</strong><span>New parking lot</span></div>
+        <p>Completed customer reviews will appear here after payment is confirmed.</p>
+      </article>
+    `;
+    return;
+  }
+
+  elements.reviewList.innerHTML = validReviews.slice(0, 6).map((review) => `
+    <article>
+      <div>
+        <strong>${escapeHtml(review.customerName || 'Customer')}</strong>
+        <span>${escapeHtml(reviewStars(review.rating))}</span>
+      </div>
+      <p>${escapeHtml(review.content || 'No written comment.')}</p>
+    </article>
+  `).join('');
 }
 
 async function loadCustomerVehicles() {
@@ -695,6 +939,7 @@ function renderDetail(lot, mode = 'Online') {
   renderSlotStatusPill(currentLot.capacities);
   renderServices(currentLot.services);
   renderBookingServices(currentLot.services);
+  renderReviews(currentLot.reviews);
   setText(elements.bookingMeta, mode);
 
 }
@@ -798,11 +1043,12 @@ async function loadPublicLotConfig(lot) {
     return lot;
   }
 
-  const [detail, capacities, pricingRules, services] = await Promise.all([
+  const [detail, capacities, pricingRules, services, reviewPage] = await Promise.all([
     getParkingLotDetail(lot.id).catch(() => lot),
     getParkingLotCapacities(lot.id).catch(() => []),
     getParkingLotPricingRules(lot.id).catch(() => []),
     getParkingLotServices(lot.id).catch(() => []),
+    getParkingLotReviews(lot.id, { size: 20 }).catch(() => ({ items: [] })),
   ]);
 
   return {
@@ -810,6 +1056,7 @@ async function loadPublicLotConfig(lot) {
     ...detail,
     capacities,
     pricingRules,
+    reviews: reviewPage.items || [],
     services,
   };
 }
@@ -882,6 +1129,7 @@ function bindActions() {
   });
 }
 
+hydrateDetailAuth();
 bindActions();
 loadDetail()
   .then(loadCustomerVehicles)

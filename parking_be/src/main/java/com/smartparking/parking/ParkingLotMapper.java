@@ -28,10 +28,15 @@ public class ParkingLotMapper {
     }
 
     public ParkingDtos.ParkingLotListResponse toListResponse(ParkingLot parkingLot) {
-        return toListResponse(parkingLot, null);
+        return toListResponse(parkingLot, null, null, 0);
     }
 
     public ParkingDtos.ParkingLotListResponse toListResponse(ParkingLot parkingLot, BigDecimal hourlyRate) {
+        return toListResponse(parkingLot, hourlyRate, null, 0);
+    }
+
+    public ParkingDtos.ParkingLotListResponse toListResponse(ParkingLot parkingLot, BigDecimal hourlyRate,
+                                                             BigDecimal averageRating, long reviewCount) {
         return new ParkingDtos.ParkingLotListResponse(
                 parkingLot.getId(),
                 parkingLot.getName(),
@@ -40,6 +45,8 @@ public class ParkingLotMapper {
                 parkingLot.getLongitude(),
                 parkingLot.getStatus(),
                 hourlyRate,
+                averageRating,
+                reviewCount,
                 parkingLot.getVersion(),
                 parkingLot.getUpdatedAt()
         );

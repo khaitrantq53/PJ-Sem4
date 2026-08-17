@@ -7979,6 +7979,31 @@ h1 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.detail-rate-wide {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail-lower-grid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.detail-lower-grid .detail-section {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 0;
+  padding: 18px;
+}
+
+.detail-lower-grid .detail-section:last-child {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 18px;
+}
+
 .detail-table-wrap {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -8040,13 +8065,16 @@ h1 {
 }
 
 .detail-hourly-rates-list {
+  display: grid;
   gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .detail-hourly-rates-list .staff-rate-group-card {
   border-color: var(--line);
   border-radius: 8px;
   background: var(--surface);
+  min-width: 0;
 }
 
 .detail-hourly-rates-list .staff-rate-row {
@@ -8159,8 +8187,8 @@ h1 {
 
 .review-layout {
   display: grid;
-  gap: 24px;
-  grid-template-columns: minmax(180px, 1fr) minmax(0, 2fr);
+  gap: 16px;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(0, 1.4fr);
 }
 
 .review-score-card {
@@ -8172,12 +8200,12 @@ h1 {
   flex-direction: column;
   gap: 6px;
   height: fit-content;
-  padding: 18px;
+  padding: 16px;
   text-align: center;
 }
 
 .review-score-card strong {
-  font-size: 48px;
+  font-size: 40px;
   line-height: 1;
 }
 
@@ -8216,8 +8244,9 @@ h1 {
 }
 
 .review-list span {
-  color: var(--muted);
+  color: #eab308;
   font-size: 12px;
+  font-weight: 900;
 }
 
 .booking-column {
@@ -12294,6 +12323,8 @@ th {
     grid-template-columns: 1fr;
   }
 
+  .detail-hourly-rates-list,
+  .detail-lower-grid,
   .detail-two-column,
   .review-layout {
     grid-template-columns: 1fr;
@@ -14112,7 +14143,7 @@ body,
   border-radius: 8px;
   display: grid;
   gap: 16px;
-  grid-template-columns: minmax(130px, 1fr) minmax(180px, 1.6fr) minmax(120px, 1fr) minmax(110px, 0.8fr);
+  grid-template-columns: minmax(130px, 1fr) minmax(180px, 1.6fr) minmax(120px, 1fr) minmax(110px, 0.8fr) minmax(96px, 0.7fr);
   padding: 14px 16px;
 }
 
@@ -14137,6 +14168,39 @@ body,
   overflow-wrap: anywhere;
 }
 
+.active-booking-review-cell {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+}
+
+.active-booking-review-button {
+  background: #F59E0B;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  min-height: 36px;
+  padding: 0 16px;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.active-booking-review-button:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.active-booking-reviewed {
+  color: #eab308 !important;
+  font-size: 15px !important;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
 .active-booking-recent-empty {
   background: var(--surface-container-low);
   border: 1px dashed var(--outline-variant);
@@ -14145,6 +14209,181 @@ body,
   font-size: 13px;
   font-weight: 750;
   padding: 18px;
+}
+
+.active-review-modal {
+  align-items: center;
+  background: rgba(10, 10, 10, 0.42);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 1200;
+}
+
+.active-review-card {
+  background: #fff;
+  border: 1px solid rgba(10, 10, 10, 0.08);
+  border-radius: 18px;
+  box-shadow: 0 28px 80px rgba(10, 10, 10, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 520px;
+  padding: 24px;
+  width: min(100%, 520px);
+}
+
+.active-review-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.active-review-head span,
+.active-review-session span,
+.active-review-field span {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.active-review-head h2 {
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.active-review-head button {
+  align-items: center;
+  background: #f5f5f5;
+  border: 0;
+  border-radius: 999px;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+
+.active-review-head svg {
+  height: 18px;
+  width: 18px;
+}
+
+.active-review-session {
+  background: #f7f7f7;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.active-review-session strong {
+  color: var(--text);
+  display: block;
+  font-size: 15px;
+}
+
+.active-review-session small {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  font-weight: 750;
+  margin-top: 4px;
+}
+
+.active-review-stars {
+  display: flex;
+  gap: 8px;
+}
+
+.active-review-stars button {
+  background: transparent;
+  border: 0;
+  color: #d4d4d4;
+  cursor: pointer;
+  font-size: 34px;
+  line-height: 1;
+  padding: 0 2px;
+  transition:
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.active-review-stars button.active {
+  color: #eab308;
+}
+
+.active-review-stars button:hover {
+  transform: translateY(-1px);
+}
+
+.active-review-field textarea {
+  background: #f7f7f7;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: var(--text);
+  font: inherit;
+  line-height: 1.45;
+  padding: 14px;
+  resize: vertical;
+  width: 100%;
+}
+
+.active-review-field textarea:focus {
+  background: #fff;
+  border-color: #0a0a0a;
+  box-shadow: none;
+  outline: 0;
+}
+
+.active-review-error {
+  background: #fef2f2;
+  border-radius: 10px;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 800;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.active-review-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.active-review-actions button {
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+  min-height: 42px;
+  padding: 0 18px;
+}
+
+.active-review-actions button:first-child {
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+
+.active-review-actions button:last-child {
+  background: #0a0a0a;
+  border: 0;
+  color: #fff;
+}
+
+.active-review-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 @media (max-width: 1180px) {

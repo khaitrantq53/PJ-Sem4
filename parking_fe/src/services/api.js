@@ -286,3 +286,19 @@ export function getParkingLotPricingRules(parkingLotId) {
 export function getParkingLotServices(parkingLotId) {
   return getParkingLotPublicCollection(parkingLotId, 'services', 'Cannot load parking lot services');
 }
+
+export async function getParkingLotReviews(parkingLotId, params = {}) {
+  const query = toQuery({
+    ...params,
+    page: params.page ?? 0,
+    size: params.size ?? 8,
+  });
+  const response = await fetch(`${API_BASE}/public/parking-lots/${parkingLotId}/reviews?${query}`);
+  const payload = await response.json();
+
+  if (!response.ok || payload.success === false) {
+    throw new Error(getErrorMessage(payload, 'Cannot load parking lot reviews'));
+  }
+
+  return normalizePage(payload);
+}

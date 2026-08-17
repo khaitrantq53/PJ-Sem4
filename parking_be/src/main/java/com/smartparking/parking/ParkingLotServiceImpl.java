@@ -14,6 +14,7 @@ import com.smartparking.common.VehicleType;
 import com.smartparking.common.exception.BusinessException;
 import com.smartparking.common.exception.ErrorCode;
 import com.smartparking.common.security.CurrentUser;
+import com.smartparking.feedback.ReviewRepository;
 import com.smartparking.parking.dto.ParkingDtos;
 import com.smartparking.pricing.ParkingPricingRule;
 import com.smartparking.pricing.ParkingPricingRuleRepository;
@@ -46,6 +47,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     private final BookingRepository bookingRepository;
     private final ParkingLotMapper mapper;
     private final AuditService auditService;
+    private final ReviewRepository reviewRepository;
 
     public ParkingLotServiceImpl(ParkingLotRepository parkingLotRepository,
                                  ParkingLotStaffRepository parkingLotStaffRepository,
@@ -59,7 +61,8 @@ public class ParkingLotServiceImpl implements ParkingLotService {
                                  ParkingPolicyRepository policyRepository,
                                  BookingRepository bookingRepository,
                                  ParkingLotMapper mapper,
-                                 AuditService auditService) {
+                                 AuditService auditService,
+                                 ReviewRepository reviewRepository) {
         this.parkingLotRepository = parkingLotRepository;
         this.parkingLotStaffRepository = parkingLotStaffRepository;
         this.accountRepository = accountRepository;
@@ -73,6 +76,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
         this.bookingRepository = bookingRepository;
         this.mapper = mapper;
         this.auditService = auditService;
+        this.reviewRepository = reviewRepository;
     }
 
     @Override
@@ -552,7 +556,16 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     }
 
     private ParkingDtos.ParkingLotListResponse toPublicListResponse(ParkingLot parkingLot) {
-        return mapper.toListResponse(parkingLot, lowestActiveHourlyRate(parkingLot.getId()));
+        ReviewRepository.RatingSummary rating = reviewRepository.summarizeByParkingLotId(parkingLot.getId());
+        BigDecimal averageRating = rating.getReviewCount() > 0 && rating.getAverageRating() != null
+                ? BigDecimal.valueOf(rating.getAverageRating())
+                : null;
+        return mapper.toListResponse(
+                parkingLot,
+                lowestActiveHourlyRate(parkingLot.getId()),
+                averageRating,
+                rating.getReviewCount()
+        );
     }
 
     private BigDecimal lowestActiveHourlyRate(UUID parkingLotId) {

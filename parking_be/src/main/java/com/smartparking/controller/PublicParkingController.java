@@ -4,6 +4,8 @@ import com.smartparking.common.VehicleType;
 import com.smartparking.common.dto.ApiResponse;
 import com.smartparking.common.dto.PageResponse;
 import com.smartparking.common.security.RequestContext;
+import com.smartparking.feedback.ReviewService;
+import com.smartparking.feedback.dto.ReviewDtos;
 import com.smartparking.parking.ParkingLotService;
 import com.smartparking.parking.dto.ParkingDtos;
 import org.springframework.data.domain.Pageable;
@@ -22,9 +24,12 @@ import java.util.UUID;
 @RequestMapping("/api/v1/public/parking-lots")
 public class PublicParkingController {
     private final ParkingLotService parkingLotService;
+    private final ReviewService reviewService;
 
-    public PublicParkingController(ParkingLotService parkingLotService) {
+    public PublicParkingController(ParkingLotService parkingLotService,
+                                   ReviewService reviewService) {
         this.parkingLotService = parkingLotService;
+        this.reviewService = reviewService;
     }
 
     @GetMapping
@@ -76,6 +81,11 @@ public class PublicParkingController {
     @GetMapping("/{parkingLotId}/services")
     ApiResponse<List<ParkingDtos.ParkingServiceResponse>> services(@PathVariable UUID parkingLotId) {
         return ApiResponse.ok(parkingLotService.publicServices(parkingLotId), RequestContext.requestId());
+    }
+
+    @GetMapping("/{parkingLotId}/reviews")
+    PageResponse<ReviewDtos.ReviewResponse> reviews(@PathVariable UUID parkingLotId, Pageable pageable) {
+        return PageResponse.of(reviewService.publicReviews(parkingLotId, pageable), RequestContext.requestId());
     }
 
     @GetMapping("/{parkingLotId}/availability")

@@ -5,6 +5,8 @@ import com.smartparking.common.dto.ApiResponse;
 import com.smartparking.common.dto.PageResponse;
 import com.smartparking.common.security.RequestContext;
 import com.smartparking.common.security.SecurityUtils;
+import com.smartparking.feedback.ReviewService;
+import com.smartparking.feedback.dto.ReviewDtos;
 import com.smartparking.parking.ParkingLotService;
 import com.smartparking.parking.dto.ParkingDtos;
 import jakarta.validation.Valid;
@@ -27,9 +29,12 @@ import java.util.UUID;
 @RequestMapping("/api/v1/staff/parking-lots")
 public class StaffParkingController {
     private final ParkingLotService parkingLotService;
+    private final ReviewService reviewService;
 
-    public StaffParkingController(ParkingLotService parkingLotService) {
+    public StaffParkingController(ParkingLotService parkingLotService,
+                                  ReviewService reviewService) {
         this.parkingLotService = parkingLotService;
+        this.reviewService = reviewService;
     }
 
     @PostMapping
@@ -119,6 +124,11 @@ public class StaffParkingController {
     @GetMapping("/{parkingLotId}/services")
     ApiResponse<List<ParkingDtos.ParkingServiceResponse>> services(@PathVariable UUID parkingLotId) {
         return ApiResponse.ok(parkingLotService.services(SecurityUtils.currentUser(), parkingLotId), RequestContext.requestId());
+    }
+
+    @GetMapping("/{parkingLotId}/reviews")
+    PageResponse<ReviewDtos.ReviewResponse> reviews(@PathVariable UUID parkingLotId, Pageable pageable) {
+        return PageResponse.of(reviewService.staffReviews(SecurityUtils.currentUser(), parkingLotId, pageable), RequestContext.requestId());
     }
 
     @PostMapping("/{parkingLotId}/services")

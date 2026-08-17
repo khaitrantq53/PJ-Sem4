@@ -62,6 +62,8 @@ public final class ParkingDtos {
             BigDecimal longitude,
             ParkingLotStatus status,
             BigDecimal hourlyRate,
+            BigDecimal averageRating,
+            long reviewCount,
             Long version,
             OffsetDateTime updatedAt
     ) {

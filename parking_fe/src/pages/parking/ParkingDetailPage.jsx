@@ -3,25 +3,21 @@ import { PageShell } from '../../components/PageShell.jsx';
 const parkingDetailPage = {
   title: 'ParkFinder | Premium Parking Details',
   bodyClass: '',
-  pageKey: '',
+  pageKey: 'parking-detail',
   markup: `
     <div class="app-shell flow">
       <header class="topbar detail-topbar">
         <a class="brand" href="/" aria-label="ParkFinder">
-          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img">
+              <path d="M7 20V4h7.1c3.4 0 5.9 2.3 5.9 5.6s-2.5 5.7-5.9 5.7h-3.7V20H7Zm3.4-7.8h3.4c1.6 0 2.8-1 2.8-2.6S15.4 7 13.8 7h-3.4v5.2Z" />
+            </svg>
+          </span>
           <span>ParkFinder</span>
         </a>
 
-        <nav class="nav-links" aria-label="Primary navigation">
-          <a class="active" href="/">Find Parking</a>
-          <a href="/customer.html">Reservations</a>
-          <a href="/staff.html">Dashboard</a>
-        </nav>
-
-        <div class="top-actions detail-top-actions">
-          <a class="avatar-link" href="/auth.html" aria-label="Sign in">
-            <img src="/assets/garage-premium.svg" alt="" />
-          </a>
+        <div class="top-actions">
+          <a class="ghost-button" href="/auth.html">Sign in</a>
         </div>
       </header>
 
@@ -75,43 +71,41 @@ const parkingDetailPage = {
 
             <section class="detail-section detail-pricing-capacity">
               <h2>Pricing & Capacity</h2>
-              <div class="detail-two-column">
-                <div>
-                  <h3>Hourly Rates by Vehicle</h3>
-                  <div class="detail-hourly-rates-list staff-hourly-rates-list" id="pricingRulesBody">
-                    <div class="empty-state">Loading pricing rules</div>
-                  </div>
+              <div class="detail-rate-wide">
+                <h3>Hourly Rates by Vehicle</h3>
+                <div class="detail-hourly-rates-list staff-hourly-rates-list" id="pricingRulesBody">
+                  <div class="empty-state">Loading pricing rules</div>
                 </div>
+              </div>
+            </section>
 
+            <div class="detail-lower-grid">
+              <section class="detail-section detail-amenities">
                 <div>
                   <h3>Amenities & Services</h3>
                   <div class="amenity-grid" id="amenityGrid">
                     <div class="amenity-item">Loading amenities</div>
                   </div>
                 </div>
-              </div>
-            </section>
+              </section>
 
-            <section class="detail-section detail-reviews">
-              <h2>Reviews & Ratings</h2>
-              <div class="review-layout">
-                <div class="review-score-card">
-                  <strong>4.9</strong>
-                  <div aria-hidden="true">*****</div>
-                  <span>Reviews API pending</span>
+              <section class="detail-section detail-reviews">
+                <h3>Reviews & Ratings</h3>
+                <div class="review-layout">
+                  <div class="review-score-card">
+                    <strong id="reviewAverage">-</strong>
+                    <div id="reviewStars" aria-hidden="true">-----</div>
+                    <span id="reviewCount">No reviews yet</span>
+                  </div>
+                  <div class="review-list" id="reviewList">
+                    <article>
+                      <div><strong>Loading reviews</strong><span>Please wait</span></div>
+                      <p>Reviews from completed parking sessions will appear here.</p>
+                    </article>
+                  </div>
                 </div>
-                <div class="review-list">
-                  <article>
-                    <div><strong>Customer review</strong><span>Sample</span></div>
-                    <p>Review data exists in the database, but this public detail page still needs a public reviews endpoint.</p>
-                  </article>
-                  <article>
-                    <div><strong>Parking experience</strong><span>Sample</span></div>
-                    <p>The current page uses backend parking lot identity, address, coordinates, status, hourly rate, and update metadata.</p>
-                  </article>
-                </div>
-              </div>
-            </section>
+              </section>
+            </div>
           </div>
 
           <aside class="booking-column">

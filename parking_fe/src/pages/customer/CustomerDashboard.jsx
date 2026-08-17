@@ -189,6 +189,11 @@ function formatParkingDuration(booking, now) {
   return `${hours}h ${String(minutes).padStart(2, '0')}m`;
 }
 
+function reviewStars(rating) {
+  const value = Math.max(0, Math.min(5, Number(rating) || 0));
+  return '★'.repeat(value) + '☆'.repeat(5 - value);
+}
+
 function scheduledBookingHours(booking) {
   const start = parseDate(booking?.startTime);
   const end = parseDate(booking?.endTime);
@@ -511,6 +516,12 @@ export function CustomerDashboard() {
   const [status, setStatus] = useState('Loading');
   const [loading, setLoading] = useState(true);
   const [canceling, setCanceling] = useState(false);
+  const [reviews, setReviews] = useState([]);
+  const [reviewDialog, setReviewDialog] = useState(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewContent, setReviewContent] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState('');
   const [now, setNow] = useState(() => new Date());
 
   const activeBookings = useMemo(
@@ -549,6 +560,10 @@ export function CustomerDashboard() {
       .sort((left, right) => bookingSortDate(right) - bookingSortDate(left))
       .slice(0, 4);
   }, [activeBookingDetail, bookings]);
+
+  const reviewByBookingId = useMemo(() => {
+    return new Map(reviews.map((review) => [String(review.bookingId), review]));
+  }, [reviews]);
 
   const name = profileLabel(profile, account);
   const initials = initialsFor(name);
@@ -614,11 +629,12 @@ export function CustomerDashboard() {
         return;
       }
 
-      const [profileResponse, vehicleResponse, bookingPage, lotPage] = await Promise.all([
+      const [profileResponse, vehicleResponse, bookingPage, lotPage, reviewPage] = await Promise.all([
         apiRequest('/customers/me'),
         apiRequest('/customer/vehicles'),
         apiPage('/customer/bookings', { size: 20 }),
         apiPage('/public/parking-lots', { size: 12 }),
+        apiPage('/customer/reviews', { size: 100 }),
       ]);
 
       const highlightedBooking = selectHighlightedBooking(bookingPage.items);
@@ -664,6 +680,7 @@ export function CustomerDashboard() {
       setProfile(profileResponse);
       setVehicles(vehicleResponse);
       setBookings(bookingPage.items);
+      setReviews(reviewPage.items);
       setLots(lotDetail ? [lotDetail, ...lotPage.items.filter((lot) => lot.id !== lotDetail.id)] : lotPage.items);
       setActiveBookingDetail(detail);
       setCheckoutPreview(preview);
@@ -707,6 +724,57 @@ export function CustomerDashboard() {
       setStatus(error.message || 'Unable to cancel booking');
     } finally {
       setCanceling(false);
+    }
+  }
+
+  function openReviewDialog(booking) {
+    if (!booking || reviewByBookingId.has(String(booking.id))) {
+      return;
+    }
+
+    setReviewDialog(booking);
+    setReviewRating(5);
+    setReviewContent('');
+    setReviewError('');
+  }
+
+  function closeReviewDialog() {
+    if (reviewSubmitting) {
+      return;
+    }
+
+    setReviewDialog(null);
+    setReviewContent('');
+    setReviewError('');
+  }
+
+  async function handleSubmitReview(event) {
+    event.preventDefault();
+
+    if (!reviewDialog?.id) {
+      return;
+    }
+
+    setReviewSubmitting(true);
+    setReviewError('');
+
+    try {
+      const review = await apiRequest(`/customer/bookings/${reviewDialog.id}/review`, {
+        method: 'POST',
+        body: jsonBody({
+          content: reviewContent.trim() || null,
+          rating: reviewRating,
+        }),
+      });
+      setReviews((items) => [review, ...items.filter((item) => String(item.bookingId) !== String(review.bookingId))]);
+      setReviewDialog(null);
+      setReviewContent('');
+      setStatus('Review submitted');
+      await loadDashboard({ silent: true });
+    } catch (error) {
+      setReviewError(error.message || 'Unable to submit review');
+    } finally {
+      setReviewSubmitting(false);
     }
   }
 
@@ -956,6 +1024,7 @@ export function CustomerDashboard() {
                   const isPaid = String(booking.paymentStatus || '').toUpperCase() === 'PAID';
                   const amount = formatMoney(bookingTotal(booking));
                   const paidAmount = isPaid ? amount : `${amount} due`;
+                  const review = reviewByBookingId.get(String(booking.id));
 
                   return (
                     <article className="active-booking-recent-card" key={booking.id}>
@@ -975,6 +1044,19 @@ export function CustomerDashboard() {
                         <span>Parked Time</span>
                         <strong>{formatParkingDuration(booking, now)}</strong>
                       </div>
+                      <div className="active-booking-review-cell">
+                        {review ? (
+                          <strong className="active-booking-reviewed">{reviewStars(review.rating)}</strong>
+                        ) : (
+                          <button
+                            className="active-booking-review-button"
+                            onClick={() => openReviewDialog(booking)}
+                            type="button"
+                          >
+                            Review
+                          </button>
+                        )}
+                      </div>
                     </article>
                   );
                 })}
@@ -987,6 +1069,73 @@ export function CustomerDashboard() {
       </main>
 
       <CustomerMobileNav active="dashboard" />
+
+      {reviewDialog ? (
+        <section
+          aria-hidden="false"
+          className="active-review-modal"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeReviewDialog();
+            }
+          }}
+        >
+          <form className="active-review-card" onSubmit={handleSubmitReview}>
+            <div className="active-review-head">
+              <div>
+                <span>Parking Review</span>
+                <h2>{lots.find((lot) => lot.id === reviewDialog.parkingLotId)?.name || reviewDialog.parkingLotName || 'Your parking session'}</h2>
+              </div>
+              <button aria-label="Close review dialog" onClick={closeReviewDialog} type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="active-review-session">
+              <span>{reviewDialog.bookingCode || reviewDialog.id}</span>
+              <strong>{vehicleTypeText(reviewDialog.vehicleType)} {reviewDialog.plateNumber || 'Vehicle'}</strong>
+              <small>{formatParkingDuration(reviewDialog, now)} parked time</small>
+            </div>
+
+            <div className="active-review-stars" role="radiogroup" aria-label="Rating">
+              {[1, 2, 3, 4, 5].map((value) => (
+                <button
+                  aria-checked={reviewRating === value}
+                  className={value <= reviewRating ? 'active' : ''}
+                  key={value}
+                  onClick={() => setReviewRating(value)}
+                  role="radio"
+                  type="button"
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+
+            <label className="active-review-field">
+              <span>Your review</span>
+              <textarea
+                maxLength={2000}
+                onChange={(event) => setReviewContent(event.target.value)}
+                placeholder="Share what worked well, entry experience, safety, staff support..."
+                rows={5}
+                value={reviewContent}
+              />
+            </label>
+
+            {reviewError ? <p className="active-review-error">{reviewError}</p> : null}
+
+            <div className="active-review-actions">
+              <button disabled={reviewSubmitting} onClick={closeReviewDialog} type="button">Cancel</button>
+              <button disabled={reviewSubmitting} type="submit">
+                {reviewSubmitting ? 'Submitting...' : 'Submit Review'}
+              </button>
+            </div>
+          </form>
+        </section>
+      ) : null}
     </div>
   );
 }
