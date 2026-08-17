@@ -16,7 +16,6 @@ const emptyProfile = {
 
 const activeStatuses = ['PENDING_APPROVAL', 'PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN'];
 const finishedStatuses = ['COMPLETED', 'CHECKED_OUT'];
-const recentCompletedStatuses = ['COMPLETED'];
 const customerCancelableStatuses = ['PENDING_APPROVAL', 'CONFIRMED'];
 const CHECK_IN_WINDOW_MS = 20 * 60 * 1000;
 const HOUR_IN_MS = 60 * 60 * 1000;
@@ -54,6 +53,16 @@ function isActiveBooking(booking) {
 
 function isPaidBooking(booking) {
   return String(booking?.paymentStatus || '').toUpperCase() === 'PAID';
+}
+
+function isRecentCompletedBooking(booking) {
+  if (booking?.status === 'COMPLETED') {
+    return true;
+  }
+
+  return booking?.status === 'CHECKED_OUT'
+    && Boolean(booking.actualCheckOutTime)
+    && isPaidBooking(booking);
 }
 
 function isSettlementBooking(booking) {
@@ -535,7 +544,7 @@ export function CustomerDashboard() {
       : bookings;
 
     return mergedBookings
-      .filter((booking) => recentCompletedStatuses.includes(booking.status))
+      .filter(isRecentCompletedBooking)
       .slice()
       .sort((left, right) => bookingSortDate(right) - bookingSortDate(left))
       .slice(0, 4);
