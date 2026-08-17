@@ -131,39 +131,8 @@ const confirmBookingPage = {
 
             <section class="checkout-options-card">
               <h3>Additional Services</h3>
-              <div class="checkout-extra-grid">
-                <label class="checkout-extra-option">
-                  <input id="evOption" type="checkbox" value="EV_CHARGING" disabled />
-                  <span>
-                    <strong>EV Charging</strong>
-                    <small>Level 2 fast charging</small>
-                  </span>
-                  <b>Optional</b>
-                </label>
-                <label class="checkout-extra-option">
-                  <input id="valetOption" type="checkbox" value="VALET" disabled />
-                  <span>
-                    <strong>Valet Service</strong>
-                    <small>Arrival handling</small>
-                  </span>
-                  <b>Optional</b>
-                </label>
-                <label class="checkout-extra-option">
-                  <input type="checkbox" value="CAR_WASH" disabled />
-                  <span>
-                    <strong>Car Wash</strong>
-                    <small>Exterior wash</small>
-                  </span>
-                  <b>Optional</b>
-                </label>
-                <label class="checkout-extra-option">
-                  <input type="checkbox" value="SECURITY_SERVICE" disabled />
-                  <span>
-                    <strong>Security Service</strong>
-                    <small>Premium monitoring</small>
-                  </span>
-                  <b>Optional</b>
-                </label>
+              <div class="checkout-extra-grid" id="additionalServicesGrid">
+                <div class="checkout-empty-services">Loading additional services...</div>
               </div>
             </section>
           </section>
@@ -197,10 +166,6 @@ const confirmBookingPage = {
               <p class="secure-note">
                 Secured by Enterprise SSL Encryption
               </p>
-            </section>
-
-            <section class="checkout-map-card">
-              <div class="detail-map-art" aria-hidden="true"></div>
             </section>
           </aside>
         </form>

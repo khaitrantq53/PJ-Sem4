@@ -7801,26 +7801,25 @@ h1 {
   gap: 8px;
 }
 
-.detail-zone,
-.detail-status-pill,
-.detail-id-pill {
+.detail-status-pill {
+  background: #22c55e;
   border-radius: 4px;
+  color: var(--on-primary);
   font-size: 12px;
   font-weight: 750;
   line-height: 1.35;
   padding: 6px 9px;
+  text-transform: uppercase;
 }
 
-.detail-zone,
-.detail-id-pill {
+.detail-status-pill.full {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.detail-status-pill.unknown {
   background: var(--surface-container-low);
   color: var(--muted);
-}
-
-.detail-status-pill {
-  background: var(--primary);
-  color: var(--on-primary);
-  text-transform: uppercase;
 }
 
 .detail-heading-block h1 {
@@ -7849,25 +7848,12 @@ h1 {
 }
 
 .detail-hero-copy > p {
-  color: var(--muted);
-  font-size: 16px;
-  line-height: 1.65;
-  margin: 6px 0 0;
-  max-width: 820px;
-}
-
-.detail-system-meta {
-  color: var(--muted);
-  display: flex;
-  flex-wrap: wrap;
-  font-size: 12px;
-  gap: 18px;
-  margin-top: 2px;
-}
-
-.detail-system-meta strong {
   color: var(--text);
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.58;
+  margin: 8px 0 0;
+  max-width: 820px;
 }
 
 .detail-gallery {
@@ -8010,6 +7996,24 @@ h1 {
   text-align: right;
 }
 
+.detail-rate-table td:first-child strong,
+.detail-rate-table td:first-child span {
+  display: block;
+}
+
+.detail-rate-table td:first-child strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 850;
+  margin-bottom: 3px;
+}
+
+.detail-rate-table td:first-child span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .capacity-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -8089,6 +8093,7 @@ h1 {
 .amenity-item {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   font-size: 14px;
   font-weight: 700;
   gap: 10px;
@@ -8101,50 +8106,12 @@ h1 {
   width: 20px;
 }
 
-.hours-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.hours-list div {
-  align-items: center;
-  border-bottom: 1px solid var(--line);
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
-  padding: 9px 0;
-}
-
-.hours-list div:last-child {
-  border-bottom: 0;
-}
-
-.hours-list span {
+.amenity-item small {
   color: var(--muted);
-  font-size: 14px;
-}
-
-.hours-list strong {
-  font-size: 14px;
-}
-
-.hours-list .closed {
-  color: var(--text);
-}
-
-.detail-policy-box {
-  background: var(--surface-muted);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 18px;
-}
-
-.detail-policy-box ul {
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.65;
-  margin: 0;
-  padding-left: 20px;
+  flex: 1 0 100%;
+  font-size: 11px;
+  font-weight: 750;
+  padding-left: 30px;
 }
 
 .review-layout {
@@ -8228,7 +8195,17 @@ h1 {
   top: calc(var(--topbar-height) + 28px);
 }
 
-.booking-topline,
+.booking-topline {
+  align-items: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.booking-topline > div {
+  width: 100%;
+}
+
 .booking-summary div {
   align-items: flex-end;
   display: flex;
@@ -8237,41 +8214,57 @@ h1 {
 }
 
 .booking-price {
-  display: inline-block;
-  font-size: 28px;
+  align-items: baseline;
+  color: var(--text);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 30px;
   font-weight: 900;
+  gap: 4px;
+  justify-content: center;
   line-height: 1.2;
+  padding: 4px 0;
+  width: 100%;
 }
 
-.booking-unit {
+.booking-price small {
   color: var(--muted);
-  display: block;
-  font-size: 14px;
-  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .booking-availability {
-  align-items: flex-end;
+  align-items: center;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  width: 100%;
 }
 
-.booking-availability span {
-  background: var(--primary-soft);
-  border-radius: 4px;
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 800;
-  padding: 5px 9px;
+.booking-availability small {
+  align-items: center;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.18);
+  border-radius: 999px;
+  color: #15803d;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 850;
+  gap: 6px;
+  line-height: 1;
+  padding: 7px 9px;
+  white-space: nowrap;
 }
 
-.booking-availability span.offline {
-  background: var(--surface-container-high);
-  color: var(--text);
+.booking-availability small::before {
+  background: #22c55e;
+  border-radius: 999px;
+  content: "";
+  display: inline-block;
+  height: 6px;
+  width: 6px;
 }
 
-.booking-availability small,
 .booking-card p {
   color: var(--muted);
   font-size: 12px;
@@ -8769,6 +8762,11 @@ h1 {
   background: var(--surface-muted);
 }
 
+.checkout-extra-option.active {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.38);
+}
+
 .checkout-extra-option input {
   height: 20px;
   width: 20px;
@@ -8789,6 +8787,17 @@ h1 {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.4;
+}
+
+.checkout-empty-services {
+  background: var(--surface-muted);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 750;
+  grid-column: 1 / -1;
+  padding: 16px;
 }
 
 .checkout-side-column {
@@ -8940,23 +8949,6 @@ h1 {
 .secure-note svg {
   height: 16px;
   width: 16px;
-}
-
-.checkout-map-card {
-  border-radius: 12px;
-  box-shadow: 0 4px 14px rgba(28, 19, 48, 0.08);
-  filter: grayscale(1);
-  height: 128px;
-  opacity: 0.6;
-  overflow: hidden;
-  position: relative;
-}
-
-.checkout-map-card::after {
-  background: linear-gradient(to top, #fff, transparent);
-  content: "";
-  inset: 0;
-  position: absolute;
 }
 
 .checkout-redesign-page {
@@ -11873,7 +11865,6 @@ th {
 .checkout-parking-card,
 .checkout-options-card,
 .checkout-price-card,
-.checkout-map-card,
 .admin-metrics article,
 .admin-approval-card,
 .admin-user-filter-card,

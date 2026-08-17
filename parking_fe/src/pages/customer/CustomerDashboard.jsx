@@ -3,6 +3,7 @@ import {
   apiPage,
   apiRequest,
   getParkingLotDetail,
+  getParkingLotPricingRules,
 } from '../../services/api.js';
 import { CustomerMobileNav, CustomerSidebar, initialsFor } from './CustomerChrome.jsx';
 
@@ -14,6 +15,7 @@ const emptyProfile = {
 
 const activeStatuses = ['PENDING_APPROVAL', 'PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'OVERDUE'];
 const finishedStatuses = ['COMPLETED', 'CHECKED_OUT'];
+const recentCompletedStatuses = ['COMPLETED'];
 const HOUR_IN_MS = 60 * 60 * 1000;
 
 function formatMoney(value, currency = 'VND') {
@@ -206,7 +208,7 @@ function parseBandMinutes(value, fallback) {
 }
 
 function normalizePriceBands(lot, fallbackRate) {
-  const sourceBands = lot?.priceBands || lot?.pricingBands || lot?.pricing?.bands;
+  const sourceBands = lot?.pricingRules || lot?.priceBands || lot?.pricingBands || lot?.pricing?.bands;
 
   if (!Array.isArray(sourceBands) || !sourceBands.length) {
     return fallbackRate > 0 ? [{ endMinutes: 1440, label: 'All day', rate: fallbackRate, startMinutes: 0 }] : [];
@@ -252,6 +254,39 @@ function rateForDate(date, bands, fallbackRate) {
   return matchedBand?.rate || fallbackRate;
 }
 
+function nextBandBoundary(date, bands) {
+  const currentMinutes = date.getHours() * 60 + date.getMinutes();
+  const candidates = bands
+    .flatMap((band) => [band.startMinutes, band.endMinutes])
+    .filter((minutes) => minutes !== currentMinutes)
+    .map((minutes) => {
+      const candidate = new Date(date);
+      candidate.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+      if (candidate <= date) {
+        candidate.setDate(candidate.getDate() + 1);
+      }
+      return candidate;
+    });
+
+  return candidates.sort((left, right) => left - right)[0] || new Date(date.getTime() + 24 * HOUR_IN_MS);
+}
+
+function calculateParkingFeeByBands(startTime, endTime, bands, fallbackRate) {
+  let cursor = startTime;
+  let total = 0;
+
+  while (cursor < endTime) {
+    const boundary = nextBandBoundary(cursor, bands);
+    const segmentEnd = boundary < endTime ? boundary : endTime;
+    const minutes = Math.max(0, (segmentEnd.getTime() - cursor.getTime()) / 60000);
+    const rate = rateForDate(cursor, bands, fallbackRate);
+    total += rate * (minutes / 60);
+    cursor = segmentEnd;
+  }
+
+  return total;
+}
+
 function activeParkingPricing(booking, lot, now) {
   const actualCheckIn = parseDate(booking?.actualCheckInTime);
   const actualCheckOut = parseDate(booking?.actualCheckOutTime);
@@ -276,10 +311,7 @@ function activeParkingPricing(booking, lot, now) {
     };
   }
 
-  const parkingFeeAmount = Array.from({ length: billedHours }).reduce((sum, _, index) => {
-    const hourStart = new Date(actualCheckIn.getTime() + index * HOUR_IN_MS);
-    return sum + rateForDate(hourStart, bands, fallbackRate);
-  }, 0);
+  const parkingFeeAmount = calculateParkingFeeByBands(actualCheckIn, endTime, bands, fallbackRate);
 
   const serviceFee = moneyAmount(moneyPart(booking, 'serviceFee'));
   const pickupFee = moneyAmount(moneyPart(booking, 'pickupFee'));
@@ -447,6 +479,7 @@ export function CustomerDashboard() {
       : bookings;
 
     return mergedBookings
+      .filter((booking) => recentCompletedStatuses.includes(booking.status))
       .slice()
       .sort((left, right) => bookingSortDate(right) - bookingSortDate(left))
       .slice(0, 4);
@@ -472,11 +505,15 @@ export function CustomerDashboard() {
     : 'Vehicle pending';
   const mapsHref = parkingLotMapsHref(currentLot);
 
-  async function loadDashboard() {
-    setLoading(true);
-    setStatus('Loading');
-    setActiveBookingDetail(null);
-    setQrCode('');
+  async function loadDashboard(options = {}) {
+    const silent = Boolean(options.silent);
+
+    if (!silent) {
+      setLoading(true);
+      setStatus('Loading');
+      setActiveBookingDetail(null);
+      setQrCode('');
+    }
 
     try {
       const currentAccount = await apiRequest('/auth/me');
@@ -500,10 +537,11 @@ export function CustomerDashboard() {
       let lotDetail = null;
 
       if (highlightedBooking) {
-        const [detailResult, qrResult, lotResult] = await Promise.allSettled([
+        const [detailResult, qrResult, lotResult, pricingRulesResult] = await Promise.allSettled([
           apiRequest(`/customer/bookings/${highlightedBooking.id}`),
           apiRequest(`/customer/bookings/${highlightedBooking.id}/qr-code`),
           getParkingLotDetail(highlightedBooking.parkingLotId),
+          getParkingLotPricingRules(highlightedBooking.parkingLotId),
         ]);
 
         if (detailResult.status === 'fulfilled') {
@@ -515,7 +553,10 @@ export function CustomerDashboard() {
         }
 
         if (lotResult.status === 'fulfilled') {
-          lotDetail = lotResult.value;
+          lotDetail = {
+            ...lotResult.value,
+            pricingRules: pricingRulesResult.status === 'fulfilled' ? pricingRulesResult.value : lotResult.value.pricingRules,
+          };
         }
       }
 
@@ -528,12 +569,16 @@ export function CustomerDashboard() {
       setQrCode(qr);
       setStatus('Online');
     } catch (error) {
-      setStatus(error.message);
+      if (!silent) {
+        setStatus(error.message);
+      }
       if (error.message.toLowerCase().includes('401') || error.message.toLowerCase().includes('unauthorized')) {
         window.location.href = '/auth.html';
       }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }
 
@@ -542,6 +587,12 @@ export function CustomerDashboard() {
     document.body.className = 'customer-dashboard-page';
     document.body.dataset.page = 'customer-active-booking';
     loadDashboard();
+
+    const refreshTimer = window.setInterval(() => {
+      loadDashboard({ silent: true });
+    }, 5000);
+
+    return () => window.clearInterval(refreshTimer);
   }, []);
 
   useEffect(() => {
@@ -737,7 +788,7 @@ export function CustomerDashboard() {
           <section className="active-booking-recent">
             <div className="active-booking-section-head">
               <h2>Recent Booking</h2>
-              <span>{recentBookings.length} latest</span>
+              <span>{recentBookings.length} completed</span>
             </div>
 
             {recentBookings.length ? (
@@ -772,7 +823,7 @@ export function CustomerDashboard() {
                 })}
               </div>
             ) : (
-              <div className="active-booking-recent-empty">No recent bookings yet.</div>
+              <div className="active-booking-recent-empty">No completed bookings yet.</div>
             )}
           </section>
         </section>

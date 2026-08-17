@@ -1,4 +1,10 @@
-import { apiRequest, getParkingLotDetail, jsonBody, searchParkingLots } from '../../services/api.js';
+import {
+  apiRequest,
+  getParkingLotDetail,
+  getParkingLotServices,
+  jsonBody,
+  searchParkingLots,
+} from '../../services/api.js';
 
 const previewLot = {
   id: 'sample-financial-plaza',
@@ -21,6 +27,7 @@ const elements = {
   promotionCode: document.querySelector('#promotionCode'),
   selectedPaymentLabel: document.querySelector('#selectedPaymentLabel'),
   availableCapacity: document.querySelector('#availableCapacity'),
+  additionalServicesGrid: document.querySelector('#additionalServicesGrid'),
   deliveryChoices: document.querySelectorAll('input[name="deliveryMethodChoice"]'),
   paymentChoices: document.querySelectorAll('input[name="paymentMethodChoice"]'),
   parkingFee: document.querySelector('#parkingFee'),
@@ -41,10 +48,47 @@ function getParkingLotId() {
   return params.get('parkingLotId') || params.get('id');
 }
 
+function getQueryDate(name) {
+  const value = new URLSearchParams(window.location.search).get(name);
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function setText(element, value) {
   if (element) {
     element.textContent = value;
   }
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function normalizeServiceName(value) {
+  return String(value || '').trim().toLowerCase().replace(/[\s/_-]+/g, ' ');
+}
+
+function formatServiceName(value) {
+  const name = String(value || '').trim();
+  if (!name) {
+    return 'Additional service';
+  }
+
+  if (normalizeServiceName(name).includes('wash')) {
+    return 'Car Wash';
+  }
+
+  return name.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function setButtonState(label, disabled = false) {
@@ -62,6 +106,40 @@ function formatMoney(money) {
     currency: money.currency || 'VND',
     maximumFractionDigits: 2,
   }).format(Number(money.amount));
+}
+
+function formatOptionalMoney(money) {
+  const amount = Number(money?.amount);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return '-';
+  }
+
+  return formatMoney(money);
+}
+
+function formatServicePrice(value) {
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return 'Free';
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function formatVndAmount(value) {
+  const amount = Number(value);
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(amount) ? amount : 0);
 }
 
 function formatDateTimeForInput(date) {
@@ -86,8 +164,13 @@ function seedTimes() {
   const end = new Date(start);
   end.setHours(end.getHours() + 4);
 
-  elements.startTime.value = formatDateTimeForInput(start);
-  elements.endTime.value = formatDateTimeForInput(end);
+  const queryStart = getQueryDate('startTime');
+  const queryEnd = getQueryDate('endTime');
+  const seededStart = queryStart || start;
+  const seededEnd = queryEnd && queryEnd > seededStart ? queryEnd : end;
+
+  elements.startTime.value = formatDateTimeForInput(seededStart);
+  elements.endTime.value = formatDateTimeForInput(seededEnd);
 }
 
 function renderLot(lot) {
@@ -95,9 +178,23 @@ function renderLot(lot) {
   setText(elements.lotName, lot.name || 'Unnamed parking lot');
   setText(elements.lotStatus, lot.status || '-');
   setText(elements.lotAddress, lot.address || 'Address not available');
+  updateReturnLink();
+}
 
-  if (lot.id && !String(lot.id).startsWith('sample-')) {
-    elements.returnLink.href = `/parking-detail.html?id=${encodeURIComponent(lot.id)}`;
+function updateReturnLink() {
+  if (currentLot?.id && !String(currentLot.id).startsWith('sample-')) {
+    const returnUrl = new URL('/parking-detail.html', window.location.origin);
+    returnUrl.searchParams.set('id', currentLot.id);
+
+    if (elements.startTime.value) {
+      returnUrl.searchParams.set('startTime', toIso(elements.startTime.value));
+    }
+
+    if (elements.endTime.value) {
+      returnUrl.searchParams.set('endTime', toIso(elements.endTime.value));
+    }
+
+    elements.returnLink.href = `${returnUrl.pathname}${returnUrl.search}`;
   }
 }
 
@@ -128,13 +225,33 @@ function renderAvailability(availableCapacity) {
 function renderPriceBreakdown(preview) {
   const priceBreakdown = preview?.priceBreakdown;
   setText(elements.parkingFee, formatMoney(priceBreakdown?.parkingFee));
-  setText(elements.serviceFee, formatMoney(priceBreakdown?.serviceFee));
-  setText(elements.pickupFee, formatMoney(priceBreakdown?.pickupFee));
-  setText(elements.discount, formatMoney(priceBreakdown?.discount));
-  setText(elements.platformFee, formatMoney(priceBreakdown?.platformFee));
-  setText(elements.tax, formatMoney(priceBreakdown?.tax));
+  if (priceBreakdown?.serviceFee && Number(priceBreakdown.serviceFee.amount) > 0) {
+    setText(elements.serviceFee, formatMoney(priceBreakdown.serviceFee));
+  } else {
+    renderSelectedServiceFee();
+  }
+  setText(elements.pickupFee, formatOptionalMoney(priceBreakdown?.pickupFee));
+  setText(elements.discount, formatOptionalMoney(priceBreakdown?.discount));
+  setText(elements.platformFee, formatOptionalMoney(priceBreakdown?.platformFee));
+  setText(elements.tax, formatOptionalMoney(priceBreakdown?.tax));
   setText(elements.totalPrice, formatMoney(priceBreakdown?.total));
   renderAvailability(preview?.availableCapacity);
+}
+
+function getSelectedServiceIds() {
+  return [...document.querySelectorAll('input[name="serviceIds"]:checked')]
+    .map((input) => input.value)
+    .filter(Boolean);
+}
+
+function getSelectedServiceFeeAmount() {
+  return [...document.querySelectorAll('input[name="serviceIds"]:checked')]
+    .reduce((sum, input) => sum + Number(input.dataset.price || 0), 0);
+}
+
+function renderSelectedServiceFee() {
+  const amount = getSelectedServiceFeeAmount();
+  setText(elements.serviceFee, amount > 0 ? formatVndAmount(amount) : '-');
 }
 
 function buildBookingRequest() {
@@ -144,7 +261,7 @@ function buildBookingRequest() {
     startTime: toIso(elements.startTime.value),
     endTime: toIso(elements.endTime.value),
     deliveryMethod: elements.deliveryMethod.value,
-    serviceIds: [],
+    serviceIds: getSelectedServiceIds(),
     promotionCode: elements.promotionCode.value.trim() || null,
     paymentMethod: elements.paymentMethod?.value || 'QR',
   };
@@ -169,6 +286,7 @@ async function loadLot() {
 
   if (parkingLotId && !parkingLotId.startsWith('sample-')) {
     renderLot(await getParkingLotDetail(parkingLotId));
+    await loadAdditionalServices();
     return;
   }
 
@@ -177,6 +295,7 @@ async function loadLot() {
       const page = await searchParkingLots({ size: 1 });
       if (page.items[0]) {
         renderLot(page.items[0]);
+        await loadAdditionalServices();
         return;
       }
     } catch (error) {
@@ -185,6 +304,58 @@ async function loadLot() {
   }
 
   renderLot(previewLot);
+  await loadAdditionalServices();
+}
+
+function renderAdditionalServices(services = []) {
+  if (!elements.additionalServicesGrid) {
+    return;
+  }
+
+  const additionalServices = services
+    .filter((service) => service.active !== false && Number(service.price) > 0);
+
+  if (!additionalServices.length) {
+    elements.additionalServicesGrid.innerHTML = '<div class="checkout-empty-services">No additional services from this parking lot.</div>';
+    renderSelectedServiceFee();
+    return;
+  }
+
+  elements.additionalServicesGrid.innerHTML = additionalServices.map((service) => `
+    <label class="checkout-extra-option">
+      <input type="checkbox" name="serviceIds" value="${escapeHtml(service.id)}" data-price="${escapeHtml(service.price || 0)}" />
+      <span>
+        <strong>${escapeHtml(formatServiceName(service.name))}</strong>
+        <small>Provided by this parking lot</small>
+      </span>
+      <b>${escapeHtml(formatServicePrice(service.price))}</b>
+    </label>
+  `).join('');
+
+  elements.additionalServicesGrid.querySelectorAll('input[name="serviceIds"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      input.closest('.checkout-extra-option')?.classList.toggle('active', input.checked);
+      renderSelectedServiceFee();
+      schedulePreview();
+    });
+  });
+
+  renderSelectedServiceFee();
+}
+
+async function loadAdditionalServices() {
+  if (!currentLot?.id || String(currentLot.id).startsWith('sample-')) {
+    renderAdditionalServices([]);
+    return;
+  }
+
+  try {
+    renderAdditionalServices(await getParkingLotServices(currentLot.id));
+  } catch (error) {
+    if (elements.additionalServicesGrid) {
+      elements.additionalServicesGrid.innerHTML = '<div class="checkout-empty-services">Unable to load additional services.</div>';
+    }
+  }
 }
 
 async function loadVehicles() {
@@ -269,6 +440,8 @@ function bindEvents() {
     elements.paymentMethod,
     elements.promotionCode,
   ].forEach((element) => element.addEventListener('change', schedulePreview));
+
+  [elements.startTime, elements.endTime].forEach((element) => element.addEventListener('change', updateReturnLink));
 
   elements.promotionCode.addEventListener('input', schedulePreview);
   elements.paymentMethod?.addEventListener('change', () => {

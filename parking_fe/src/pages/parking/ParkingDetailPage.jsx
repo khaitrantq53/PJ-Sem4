@@ -30,9 +30,7 @@ const parkingDetailPage = {
           <div class="detail-info-column">
             <header class="detail-heading-block detail-hero-copy">
               <div class="detail-meta-row">
-                <span class="detail-zone" id="detailZone">Downtown Core</span>
                 <span class="detail-status-pill" id="galleryBadge">Loading</span>
-                <span class="detail-id-pill">ID: <span id="lotId">-</span></span>
               </div>
 
               <h1 id="lotName">Loading parking lot</h1>
@@ -53,10 +51,6 @@ const parkingDetailPage = {
 
               <p id="lotDescription">Loading details...</p>
 
-              <div class="detail-system-meta">
-                <span>Version: <strong id="lotVersion">-</strong></span>
-                <span>Updated: <strong id="lotUpdated">-</strong></span>
-              </div>
             </header>
 
             <section class="detail-gallery" aria-label="Parking gallery">
@@ -86,18 +80,10 @@ const parkingDetailPage = {
                   <h3>Hourly Rates by Vehicle</h3>
                   <div class="detail-table-wrap">
                     <table class="detail-table detail-rate-table">
-                      <tbody>
+                      <tbody id="pricingRulesBody">
                         <tr>
-                          <td>Car</td>
-                          <td id="pricingCarRate">Loading</td>
-                        </tr>
-                        <tr>
-                          <td>Electric car</td>
-                          <td id="pricingElectricRate">Loading</td>
-                        </tr>
-                        <tr>
-                          <td>Motorbike</td>
-                          <td id="pricingMotorbikeRate">Loading</td>
+                          <td>Loading pricing rules</td>
+                          <td>-</td>
                         </tr>
                       </tbody>
                     </table>
@@ -105,75 +91,11 @@ const parkingDetailPage = {
                 </div>
 
                 <div>
-                  <h3>Capacity Status</h3>
-                  <div class="capacity-panel">
-                    <div class="capacity-topline">
-                      <span>Total Capacity</span>
-                      <strong>Backend availability pending</strong>
-                    </div>
-                    <div class="capacity-bar" aria-hidden="true"><span></span></div>
-                    <div class="capacity-mini-grid">
-                      <div><strong>Car</strong><span>Use availability API</span></div>
-                      <div><strong>EV</strong><span>Use availability API</span></div>
-                      <div><strong>Bike</strong><span>Use availability API</span></div>
-                    </div>
+                  <h3>Amenities & Services</h3>
+                  <div class="amenity-grid" id="amenityGrid">
+                    <div class="amenity-item">Loading amenities</div>
                   </div>
                 </div>
-              </div>
-            </section>
-
-            <section class="detail-section">
-              <div class="detail-two-column">
-                <div>
-                  <h2>Amenities & Services</h2>
-                  <div class="amenity-grid">
-                    <div class="amenity-item">
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h10v9h2l-4 11H5l2-20Zm2 2L7.5 20h6l2.9-8H15V4H9Zm2 2h2v3h-2V6Z" /></svg>
-                      EV Charging
-                    </div>
-                    <div class="amenity-item">
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z" /></svg>
-                      24/7 Security
-                    </div>
-                    <div class="amenity-item">
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm-1 2h2v5h4l4 7-1.7 1-3.4-6H13v3h-2V7Z" /></svg>
-                      Handicap Access
-                    </div>
-                    <div class="amenity-item">
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h10a2 2 0 0 1 2 2v18H5V4a2 2 0 0 1 2-2Zm2 9 3-4 3 4h-2v5h-2v-5H9Z" /></svg>
-                      Elevator
-                    </div>
-                    <div class="amenity-item">
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12H6a3 3 0 0 1-3-3V6Z" /></svg>
-                      Touchless Pay
-                    </div>
-                    <div class="amenity-item">
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18.5 8.5 15a5 5 0 0 1 7 0L12 18.5Zm0-5a8 8 0 0 0-5.7 2.4l-1.4-1.4a10 10 0 0 1 14.2 0l-1.4 1.4A8 8 0 0 0 12 13.5Z" /></svg>
-                      Free WiFi
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h2>Operating Hours</h2>
-                  <div class="hours-list">
-                    <div><span>Monday - Friday</span><strong>24 Hours</strong></div>
-                    <div><span>Saturday</span><strong>24 Hours</strong></div>
-                    <div><span>Sunday</span><strong class="closed">Closed</strong></div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section class="detail-section">
-              <h2>Policies & Instructions</h2>
-              <div class="detail-policy-box">
-                <ul>
-                  <li>License plate recognition is used for smoother entry.</li>
-                  <li>Please keep your booking code available when checking in.</li>
-                  <li>Overtime and extension rules are calculated by backend booking APIs.</li>
-                  <li>Cancellation/refund rules should follow the active parking policy.</li>
-                </ul>
               </div>
             </section>
 
@@ -204,10 +126,8 @@ const parkingDetailPage = {
               <div class="booking-topline">
                 <div>
                   <span class="booking-price" id="baseHourlyRate">Loading</span>
-                  <span class="booking-unit">Base rate / hour</span>
                 </div>
                 <div class="booking-availability">
-                  <span id="detailStatus">Loading</span>
                   <small id="detailSpotHint">24 standard spots left</small>
                 </div>
               </div>
