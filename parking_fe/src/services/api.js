@@ -56,6 +56,45 @@ function getErrorMessage(payload, fallback) {
   return fallback;
 }
 
+function getErrorCode(payload) {
+  if (!payload) {
+    return '';
+  }
+
+  if (typeof payload.code === 'string') {
+    return payload.code;
+  }
+
+  if (typeof payload.error === 'string') {
+    return payload.error;
+  }
+
+  if (payload.error?.code) {
+    return payload.error.code;
+  }
+
+  return '';
+}
+
+function handleSessionAuthFailure(payload, path, options = {}) {
+  const code = getErrorCode(payload);
+  const shouldEndSession = [
+    'AUTH_ACCOUNT_LOCKED',
+    'AUTH_ACCOUNT_NOT_ACTIVE',
+    'AUTH_REFRESH_TOKEN_INVALID',
+    'AUTH_TOKEN_EXPIRED',
+  ].includes(code);
+
+  if (!shouldEndSession || !getToken() || !shouldAttachToken(path, options)) {
+    return;
+  }
+
+  clearSession();
+  if (!window.location.pathname.endsWith('/auth.html')) {
+    window.location.href = '/auth.html';
+  }
+}
+
 function getToken() {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -112,6 +151,24 @@ export function clearSession() {
   localStorage.removeItem(ACCOUNT_KEY);
 }
 
+export function startSessionGuard(intervalMs = 7000) {
+  if (!getToken()) {
+    return;
+  }
+
+  window.setInterval(async () => {
+    if (!getToken()) {
+      return;
+    }
+
+    try {
+      await apiRequest('/auth/me');
+    } catch (error) {
+      // apiRequest handles auth failures by clearing the session and redirecting.
+    }
+  }, intervalMs);
+}
+
 export async function apiRequest(path, options = {}) {
   const headers = new Headers(options.headers || {});
   const token = getToken();
@@ -133,6 +190,7 @@ export async function apiRequest(path, options = {}) {
   const payload = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
+    handleSessionAuthFailure(payload, path, options);
     throw new Error(getErrorMessage(payload, `Request failed with ${response.status}`));
   }
 
@@ -156,6 +214,7 @@ export async function apiPage(path, params = {}) {
   const payload = await response.json();
 
   if (!response.ok) {
+    handleSessionAuthFailure(payload, path);
     throw new Error(getErrorMessage(payload, `Request failed with ${response.status}`));
   }
 
@@ -203,4 +262,27 @@ export async function getParkingLotDetail(parkingLotId) {
   }
 
   return payload.data;
+}
+
+async function getParkingLotPublicCollection(parkingLotId, resource, fallbackMessage) {
+  const response = await fetch(`${API_BASE}/public/parking-lots/${parkingLotId}/${resource}`);
+  const payload = await response.json();
+
+  if (!response.ok || payload.success === false) {
+    throw new Error(getErrorMessage(payload, fallbackMessage));
+  }
+
+  return Array.isArray(payload.data) ? payload.data : [];
+}
+
+export function getParkingLotCapacities(parkingLotId) {
+  return getParkingLotPublicCollection(parkingLotId, 'capacities', 'Cannot load parking lot capacities');
+}
+
+export function getParkingLotPricingRules(parkingLotId) {
+  return getParkingLotPublicCollection(parkingLotId, 'pricing-rules', 'Cannot load parking lot pricing rules');
+}
+
+export function getParkingLotServices(parkingLotId) {
+  return getParkingLotPublicCollection(parkingLotId, 'services', 'Cannot load parking lot services');
 }

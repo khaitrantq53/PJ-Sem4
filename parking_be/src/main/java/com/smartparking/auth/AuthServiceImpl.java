@@ -76,12 +76,11 @@ public class AuthServiceImpl implements AuthService {
         if (request.phone() != null && accountRepository.existsByPhone(request.phone())) {
             throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Số điện thoại đã được sử dụng");
         }
-        assertRegistrationOtpVerified(request);
         Account account = new Account();
         account.setEmail(blankToNull(request.email()));
         account.setPhone(blankToNull(request.phone()));
         account.setRole(Role.CUSTOMER);
-        account.setStatus(AccountStatus.ACTIVE);
+        account.setStatus(AccountStatus.PENDING_APPROVAL);
         account = accountRepository.save(account);
 
         AccountCredential credential = new AccountCredential();

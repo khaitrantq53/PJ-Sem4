@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -60,6 +61,21 @@ public class PublicParkingController {
     @GetMapping("/{parkingLotId}")
     ApiResponse<ParkingDtos.ParkingLotResponse> detail(@PathVariable UUID parkingLotId) {
         return ApiResponse.ok(parkingLotService.publicDetail(parkingLotId), RequestContext.requestId());
+    }
+
+    @GetMapping("/{parkingLotId}/capacities")
+    ApiResponse<List<ParkingDtos.CapacityResponse>> capacities(@PathVariable UUID parkingLotId) {
+        return ApiResponse.ok(parkingLotService.publicCapacities(parkingLotId), RequestContext.requestId());
+    }
+
+    @GetMapping("/{parkingLotId}/pricing-rules")
+    ApiResponse<List<ParkingDtos.PricingRuleResponse>> pricingRules(@PathVariable UUID parkingLotId) {
+        return ApiResponse.ok(parkingLotService.publicPricingRules(parkingLotId), RequestContext.requestId());
+    }
+
+    @GetMapping("/{parkingLotId}/services")
+    ApiResponse<List<ParkingDtos.ParkingServiceResponse>> services(@PathVariable UUID parkingLotId) {
+        return ApiResponse.ok(parkingLotService.publicServices(parkingLotId), RequestContext.requestId());
     }
 
     @GetMapping("/{parkingLotId}/availability")

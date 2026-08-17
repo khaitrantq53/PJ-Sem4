@@ -64,7 +64,7 @@ public class StaffDashboardServiceImpl implements StaffDashboardService {
             long occupiedForCapacity = bookingRepository.countActiveReservations(lotId, capacity.getVehicleType(),
                     List.of(BookingStatus.CHECKED_IN, BookingStatus.OVERDUE), now, instantEnd);
             long reservedForCapacity = bookingRepository.countActiveReservations(lotId, capacity.getVehicleType(),
-                    List.of(BookingStatus.PENDING_APPROVAL, BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED), now, instantEnd);
+                    List.of(BookingStatus.PENDING_APPROVAL, BookingStatus.CONFIRMED), now, instantEnd);
             long blockedForCapacity = blockRepository.countBlocked(lotId, capacity.getVehicleType(), now, instantEnd);
             occupied += occupiedForCapacity;
             reserved += reservedForCapacity;

@@ -4,6 +4,7 @@ import {
   clearSession,
   getStoredAccount,
   jsonBody,
+  startSessionGuard,
 } from '../../services/api.js';
 
 const page = document.body.dataset.page;
@@ -183,7 +184,7 @@ async function loadStaffDashboard() {
     setText('#staffTodayBookings', summary.todayBookings);
     setText('#staffRevenue', money(summary.revenue, summary.currency || 'VND'));
     setText('#staffOfflineDevices', summary.offlineDevices);
-    setText('#staffManagedLots', `${lots.items.length} ${lots.items.length === 1 ? 'lot' : 'lots'}`);
+    setText('#staffManagedLots', lots.items.length ? 'Assigned lot' : 'No lot yet');
     setText('#staffOpenBookings', `${bookings.items.length} ${bookings.items.length === 1 ? 'record' : 'records'}`);
 
     renderList('#staffLotList', lots.items, (lot) => `
@@ -227,6 +228,9 @@ async function loadStaffDashboard() {
 
 let parkingLotsCache = [];
 let selectedLotId = null;
+let selectedLotCapacities = [];
+let selectedLotPricingRules = [];
+let selectedLotServices = [];
 let bookingsCache = [];
 let changeRequestsCache = [];
 let extensionRequestsCache = [];
@@ -236,6 +240,12 @@ let activeBookingStatusGroup = '';
 let staffBookingDurationTimer = null;
 let checkoutDraft = null;
 const STAFF_ACTIVE_BOOKING_STATUSES = ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN', 'OVERDUE'];
+const staffLotIcons = {
+  amenity: (name) => `<span class="material-symbols-outlined" aria-hidden="true">${amenityIcon(name)}</span>`,
+  service: '<span class="material-symbols-outlined" aria-hidden="true">local_car_wash</span>',
+};
+const STAFF_AMENITY_NAMES = ['EV Charging', 'Camera/Security', 'Covered Parking', 'Valet', 'Car Wash', '24/7 Access'];
+const STAFF_SERVICE_FORM_ROWS = 4;
 
 function parkingLotCounts(lots) {
   return lots.reduce((counts, lot) => {
@@ -258,11 +268,197 @@ function selectedParkingLot() {
   return parkingLotsCache.find((lot) => lot.id === selectedLotId) || parkingLotsCache[0] || null;
 }
 
+function setFormValue(form, name, value) {
+  const field = form?.elements.namedItem(name);
+  if (field) {
+    field.value = value ?? '';
+  }
+}
+
+function setFormChecked(form, name, checked) {
+  const field = form?.elements.namedItem(name);
+  if (field) {
+    field.checked = Boolean(checked);
+  }
+}
+
+function vehicleTypeLabel(value) {
+  return String(value || 'Parking').replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function findPricingRule(vehicleType, startTime, endTime) {
+  return selectedLotPricingRules.find((rule) => (
+    rule.vehicleType === vehicleType
+    && String(rule.startTime || '').startsWith(startTime.slice(0, 5))
+    && String(rule.endTime || '').startsWith(endTime.slice(0, 5))
+  ));
+}
+
+function upsertById(items, item) {
+  if (!item?.id) {
+    return items;
+  }
+  const index = items.findIndex((existing) => existing.id === item.id);
+  if (index === -1) {
+    return [...items, item];
+  }
+  const next = [...items];
+  next[index] = item;
+  return next;
+}
+
+function upsertCapacity(item) {
+  if (!item?.parkingLotId || !item?.vehicleType) {
+    return;
+  }
+  const index = selectedLotCapacities.findIndex((capacity) => (
+    capacity.parkingLotId === item.parkingLotId && capacity.vehicleType === item.vehicleType
+  ));
+  if (index === -1) {
+    selectedLotCapacities = [...selectedLotCapacities, item];
+    return;
+  }
+  selectedLotCapacities = selectedLotCapacities.map((capacity, capacityIndex) => (
+    capacityIndex === index ? item : capacity
+  ));
+}
+
+function upsertPricingRule(item) {
+  selectedLotPricingRules = upsertById(selectedLotPricingRules, item);
+}
+
+function upsertService(item) {
+  selectedLotServices = upsertById(selectedLotServices, item);
+}
+
+function upsertParkingLot(item) {
+  if (!item?.id) {
+    return;
+  }
+  parkingLotsCache = upsertById(parkingLotsCache, item);
+  selectedLotId = item.id;
+}
+
+function pricingRuleMeta(rule) {
+  const start = String(rule.startTime || '').slice(0, 5);
+  const end = String(rule.endTime || '').slice(0, 5);
+  if (start === '07:00' && end === '17:00') {
+    return { icon: 'light_mode', className: 'day', label: 'Day Shift' };
+  }
+  if (start === '17:00' && end === '22:00') {
+    return { icon: 'wb_twilight', className: 'evening', label: 'Evening Shift' };
+  }
+  if (start === '22:00' && end === '07:00') {
+    return { icon: 'dark_mode', className: 'night', label: 'Night Shift' };
+  }
+  return { icon: 'payments', className: 'default', label: vehicleTypeLabel(rule.vehicleType) };
+}
+
+function amenityIcon(name) {
+  const normalized = normalizeFilterValue(name);
+  if (normalized.includes('ev')) return 'ev_station';
+  if (normalized.includes('camera') || normalized.includes('security')) return 'videocam';
+  if (normalized.includes('valet')) return 'directions_car';
+  if (normalized.includes('wash')) return 'local_car_wash';
+  if (normalized.includes('24') || normalized.includes('access')) return 'schedule';
+  if (normalized.includes('covered')) return 'garage';
+  return 'local_parking';
+}
+
+function isAmenityService(serviceOrName) {
+  const name = typeof serviceOrName === 'string' ? serviceOrName : serviceOrName?.name;
+  const normalizedName = normalizeFilterValue(name);
+  return STAFF_AMENITY_NAMES.some((amenity) => normalizeFilterValue(amenity) === normalizedName);
+}
+
+function findServiceByName(name) {
+  const normalizedName = normalizeFilterValue(name);
+  return selectedLotServices.find((service) => normalizeFilterValue(service.name) === normalizedName);
+}
+
+function renderStaffLotCapacity(capacities = []) {
+  const totals = capacities.reduce((summary, item) => {
+    summary.total += Number(item.totalCapacity || 0);
+    summary.reserved += Number(item.reserved || 0);
+    summary.blocked += Number(item.blocked || 0);
+    summary.checkedIn += Number(item.checkedIn || 0);
+    summary.available += Number(item.available || 0);
+    return summary;
+  }, {
+    available: 0,
+    blocked: 0,
+    checkedIn: 0,
+    reserved: 0,
+    total: 0,
+  });
+  const reservedPercent = totals.total ? Math.min(100, Math.round((totals.reserved / totals.total) * 100)) : 0;
+  const blockedPercent = totals.total ? Math.min(100, Math.round((totals.blocked / totals.total) * 100)) : 0;
+
+  setText('#staffCapacityTotal', totals.total.toLocaleString('en-US'));
+  setText('#staffCapacityReserved', totals.reserved.toLocaleString('en-US'));
+  setText('#staffCapacityBlocked', totals.blocked.toLocaleString('en-US'));
+  setText('#staffCapacityReservedPercent', `(${reservedPercent}%)`);
+  setText('#staffCapacityBlockedPercent', `(${blockedPercent}%)`);
+
+  const reservedBar = $('#staffCapacityBar .reserved');
+  const blockedBar = $('#staffCapacityBar .blocked');
+  if (reservedBar) {
+    reservedBar.style.width = `${reservedPercent}%`;
+  }
+  if (blockedBar) {
+    blockedBar.style.width = `${blockedPercent}%`;
+  }
+}
+
+function renderStaffLotPricing(rules = []) {
+  const element = $('#staffHourlyRates');
+  if (!element) {
+    return;
+  }
+  const activeRules = rules.filter((rule) => rule.active !== false);
+  element.innerHTML = activeRules.length ? activeRules.map((rule) => `
+    <div class="staff-rate-row">
+      <div>
+        ${(() => {
+          const meta = pricingRuleMeta(rule);
+          return `<span class="material-symbols-outlined staff-rate-icon ${meta.className}" aria-hidden="true">${meta.icon}</span>`;
+        })()}
+        <div>
+          <strong>${escapeHtml(pricingRuleMeta(rule).label)}</strong>
+          <small>${escapeHtml(rule.startTime && rule.endTime ? `${String(rule.startTime).slice(0, 5)} - ${String(rule.endTime).slice(0, 5)}` : 'Active hourly pricing')}</small>
+        </div>
+      </div>
+      <p>${escapeHtml(money(rule.hourlyRate, 'VND'))}<span>/hr</span></p>
+    </div>
+  `).join('') : '<div class="empty-state">No pricing rules yet.</div>';
+}
+
+function renderStaffLotServices(services = []) {
+  const list = $('#staffAdditionalServices');
+  if (list) {
+    const activeServices = services.filter((service) => service.active !== false && !isAmenityService(service));
+    list.innerHTML = activeServices.length ? activeServices.map((service) => `
+      <div class="staff-service-row">
+        <div>${staffLotIcons.service}<span>${escapeHtml(service.name)}</span></div>
+        <strong>${escapeHtml(money(service.price, 'VND'))}</strong>
+      </div>
+    `).join('') : '<div class="empty-state">No services loaded.</div>';
+  }
+
+  const amenities = $('#staffAmenities');
+  if (amenities) {
+    const activeAmenities = services.filter((service) => service.active !== false && isAmenityService(service));
+    amenities.innerHTML = activeAmenities.length ? activeAmenities.map((service) => `
+      <span>${staffLotIcons.amenity(service.name)}${escapeHtml(service.name)}</span>
+    `).join('') : `<span>${staffLotIcons.amenity('parking')} No amenities yet</span>`;
+  }
+}
+
 function renderParkingLotDetail(lot) {
   setText('#staffLotSelectedStatus', lot?.status || '-');
   setText('#staffLotSelectedId', lot?.id ? `ID: ${lot.id}` : 'ID: -');
-  setText('#staffLotSelectedName', lot?.name || 'Parking Lots');
-  setText('#staffLotSelectedDescription', lot?.description || 'Manage your assigned parking facilities, rates, policies, and location details.');
+  setText('#staffLotSelectedName', lot?.name ? `${lot.name} - Facility Overview` : 'My Parking Lot');
+  setText('#staffLotSelectedDescription', lot?.description || 'Overview of facility details, pricing tiers, slot capacity, and available amenities for this parking location.');
   setText('#staffLotHourlyRate', lot?.hourlyRate != null ? `${money(lot.hourlyRate, 'VND')}/hr` : '-');
   setText('#staffLotUpdatedAt', formatDate(lot?.updatedAt));
   setText('#staffLotVersion', lot?.version != null ? `v${lot.version}` : '-');
@@ -270,19 +466,75 @@ function renderParkingLotDetail(lot) {
   setText('#staffLotCoordinates', lot?.latitude && lot?.longitude ? `${lot.latitude}, ${lot.longitude}` : '-');
   setText('#staffLotStatusChip', lot?.status || '-');
   setText('#staffLotSystemVersion', lot?.version != null ? `v${lot.version}` : '-');
+  setText('#staffBasicName', lot?.name || '-');
+  setText('#staffBasicAddress', lot?.address || '-');
+  setText('#staffBasicLatitude', lot?.latitude != null ? `${lot.latitude}` : '-');
+  setText('#staffBasicLongitude', lot?.longitude != null ? `${lot.longitude}` : '-');
+  setText('#staffBasicDescription', lot?.description || '-');
+  renderStaffLotCapacity(lot ? selectedLotCapacities : []);
+  renderStaffLotPricing(lot ? selectedLotPricingRules : []);
+  renderStaffLotServices(lot ? selectedLotServices : []);
+}
+
+function syncStaffParkingLotForm(lot) {
+  const form = $('#staffParkingLotForm');
+  if (!form) {
+    return;
+  }
+
+  setFormValue(form, 'name', lot?.name || '');
+  setFormValue(form, 'address', lot?.address || '');
+  setFormValue(form, 'latitude', lot?.latitude ?? '');
+  setFormValue(form, 'longitude', lot?.longitude ?? '');
+  setFormValue(form, 'description', lot?.description || '');
+
+  const capacitySummary = selectedLotCapacities.reduce((summary, item) => {
+    summary.total += Number(item.totalCapacity || 0);
+    return summary;
+  }, { total: 0 });
+  setFormValue(form, 'capacity_total', capacitySummary.total || '');
+
+  setFormValue(form, 'price_day', findPricingRule('CAR', '07:00:00', '17:00:00')?.hourlyRate ?? '');
+  setFormValue(form, 'price_evening', findPricingRule('CAR', '17:00:00', '22:00:00')?.hourlyRate ?? '');
+  setFormValue(form, 'price_night', findPricingRule('CAR', '22:00:00', '07:00:00')?.hourlyRate ?? '');
+
+  const additionalServices = selectedLotServices.filter((service) => !isAmenityService(service));
+  Array.from({ length: STAFF_SERVICE_FORM_ROWS }, (_, index) => index + 1).forEach((row) => {
+    const service = additionalServices[row - 1];
+    setFormValue(form, `service_${row}_name`, service?.name || '');
+    setFormValue(form, `service_${row}_price`, service?.price ?? '');
+    setFormChecked(form, `service_${row}_active`, service ? service.active !== false : true);
+  });
+
+  STAFF_AMENITY_NAMES.forEach((amenity) => {
+    const checked = selectedLotServices.some((service) => normalizeFilterValue(service.name) === normalizeFilterValue(amenity) && service.active !== false);
+    setFormChecked(form, `amenity_${amenity}`, checked);
+  });
 }
 
 function renderStaffParkingLots() {
   const counts = parkingLotCounts(parkingLotsCache);
   const filteredLots = parkingLotsCache.filter(parkingLotMatchesFilters);
+  const hasAssignedLot = parkingLotsCache.length > 0;
+  const selectedLot = selectedParkingLot();
+  const canEditBasicInfo = !hasAssignedLot || Boolean(selectedLot);
 
   setText('#staffLotsTotal', counts.total);
   setText('#staffLotsActive', counts.ACTIVE || 0);
   setText('#staffLotsPending', (counts.PENDING_APPROVAL || 0) + (counts.DRAFT || 0));
   setText('#staffLotsPaused', counts.PAUSED || 0);
-  setText('#staffLotsCountLabel', `${filteredLots.length} ${filteredLots.length === 1 ? 'lot' : 'lots'}`);
+  setText('#staffLotsCountLabel', hasAssignedLot ? 'Assigned lot' : 'No lot yet');
+  setText('#staffParkingLotSubmitLabel', hasAssignedLot ? 'Save Details' : 'Create My Parking Lot');
 
-  renderParkingLotDetail(selectedParkingLot());
+  ['name', 'address', 'latitude', 'longitude', 'description'].forEach((name) => {
+    const field = $('#staffParkingLotForm')?.elements.namedItem(name);
+    if (field) {
+      field.disabled = !canEditBasicInfo;
+    }
+  });
+
+  renderParkingLotDetail(selectedLot);
+  syncStaffParkingLotForm(selectedLot);
   renderList('#staffParkingLotList', filteredLots, (lot) => {
     const active = lot.id === selectedLotId ? ' active' : '';
     const rate = lot.hourlyRate != null ? `${money(lot.hourlyRate, 'VND')}/hr` : 'No rate';
@@ -300,7 +552,7 @@ function renderStaffParkingLots() {
         </button>
       </article>
     `;
-  }, 'No parking lots match your filters.');
+  }, hasAssignedLot ? 'No parking lot matches your filters.' : 'No parking lot yet. Create your first draft from the form on the right.');
 
   $all('[data-staff-lot-id]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -309,6 +561,7 @@ function renderStaffParkingLots() {
       url.searchParams.set('lot', selectedLotId);
       window.history.replaceState(null, '', url);
       renderStaffParkingLots();
+      loadStaffParkingLotConfig(selectedParkingLot());
     });
   });
 }
@@ -327,32 +580,211 @@ async function loadStaffParkingLots() {
       ? requestedLotId
       : parkingLotsCache[0]?.id || null;
     renderStaffParkingLots();
+    await loadStaffParkingLotConfig(selectedParkingLot());
   } catch (error) {
     setStatus('#staffLotsStatus', error.message, true);
   }
+}
+
+async function loadStaffParkingLotConfig(lot) {
+  selectedLotCapacities = [];
+  selectedLotPricingRules = [];
+  selectedLotServices = [];
+  renderParkingLotDetail(lot);
+  syncStaffParkingLotForm(lot);
+
+  if (!lot?.id) {
+    return;
+  }
+
+  try {
+    const [detail, capacities, pricingRules, services] = await Promise.all([
+      apiRequest(`/staff/parking-lots/${lot.id}`).catch(() => lot),
+      apiRequest(`/staff/parking-lots/${lot.id}/capacities`).catch(() => []),
+      apiRequest(`/staff/parking-lots/${lot.id}/pricing-rules`).catch(() => []),
+      apiRequest(`/staff/parking-lots/${lot.id}/services`).catch(() => []),
+    ]);
+    if (selectedParkingLot()?.id !== lot.id) {
+      return;
+    }
+    upsertParkingLot(detail || lot);
+    selectedLotCapacities = capacities || [];
+    selectedLotPricingRules = pricingRules || [];
+    selectedLotServices = services || [];
+    renderParkingLotDetail(selectedParkingLot());
+    syncStaffParkingLotForm(selectedParkingLot());
+  } catch (error) {
+    setStatus('#staffLotsStatus', error.message, true);
+  }
+}
+
+function openStaffLotModal() {
+  const modal = $('#staffLotEditModal');
+  if (!modal) {
+    return;
+  }
+  syncStaffParkingLotForm(selectedParkingLot());
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+  window.setTimeout(() => $('#staffParkingLotForm')?.elements.namedItem('name')?.focus(), 30);
+}
+
+function closeStaffLotModal() {
+  const modal = $('#staffLotEditModal');
+  if (!modal) {
+    return;
+  }
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+async function saveStaffLotCapacity(parkingLotId, data) {
+  if (data.capacity_total === undefined) {
+    return;
+  }
+  const capacity = await apiRequest(`/staff/parking-lots/${parkingLotId}/capacities/CAR`, {
+    method: 'PUT',
+    body: jsonBody({
+      totalCapacity: Number(data.capacity_total),
+    }),
+  });
+  upsertCapacity(capacity);
+}
+
+async function saveStaffLotPricing(parkingLotId, data) {
+  const rateFields = [
+    ['price_day', 'CAR', '07:00:00', '17:00:00'],
+    ['price_evening', 'CAR', '17:00:00', '22:00:00'],
+    ['price_night', 'CAR', '22:00:00', '07:00:00'],
+  ];
+  const rules = await Promise.all(rateFields.map(([fieldName, vehicleType, startTime, endTime]) => {
+    const value = data[fieldName];
+    if (value === undefined) {
+      return null;
+    }
+    return apiRequest(`/staff/parking-lots/${parkingLotId}/pricing-rules`, {
+      method: 'PUT',
+      body: jsonBody({
+        active: true,
+        endTime,
+        hourlyRate: Number(value),
+        startTime,
+        vehicleType,
+      }),
+    });
+  }).filter(Boolean));
+  rules.forEach(upsertPricingRule);
+}
+
+async function saveStaffLotServices(parkingLotId, data) {
+  const additionalServices = selectedLotServices.filter((service) => !isAmenityService(service));
+  const serviceRequests = Array.from({ length: STAFF_SERVICE_FORM_ROWS }, (_, index) => index + 1).map((row) => {
+    const name = data[`service_${row}_name`];
+    if (!name) {
+      return null;
+    }
+    const existing = additionalServices[row - 1];
+    const path = existing?.id
+      ? `/staff/parking-lots/${parkingLotId}/services/${existing.id}`
+      : `/staff/parking-lots/${parkingLotId}/services`;
+    return apiRequest(path, {
+      method: existing?.id ? 'PUT' : 'POST',
+      body: jsonBody({
+        active: data[`service_${row}_active`] === 'on',
+        name,
+        price: Number(data[`service_${row}_price`] || 0),
+      }),
+    });
+  }).filter(Boolean);
+
+  const amenityRequests = STAFF_AMENITY_NAMES.map((amenity) => {
+    const existing = findServiceByName(amenity);
+    const active = data[`amenity_${amenity}`] === 'on';
+    if (!active && !existing?.id) {
+      return null;
+    }
+    const path = existing?.id
+      ? `/staff/parking-lots/${parkingLotId}/services/${existing.id}`
+      : `/staff/parking-lots/${parkingLotId}/services`;
+    return apiRequest(path, {
+      method: existing?.id ? 'PUT' : 'POST',
+      body: jsonBody({
+        active,
+        name: amenity,
+        price: 0,
+      }),
+    });
+  }).filter(Boolean);
+
+  const services = await Promise.all([...serviceRequests, ...amenityRequests]);
+  services.forEach(upsertService);
+}
+
+async function saveStaffParkingLotDetails(form) {
+  let selectedLot = selectedParkingLot();
+  const data = formData(form);
+
+  if (parkingLotsCache.length > 0 && !selectedLot) {
+    throw new Error('Cannot find assigned parking lot.');
+  }
+
+  if (!selectedLot) {
+    selectedLot = await apiRequest('/staff/parking-lots', {
+      method: 'POST',
+      body: jsonBody({
+        address: data.address,
+        description: data.description || null,
+        latitude: data.latitude ? Number(data.latitude) : null,
+        longitude: data.longitude ? Number(data.longitude) : null,
+        name: data.name,
+      }),
+    });
+    selectedLotId = selectedLot.id;
+    upsertParkingLot(selectedLot);
+  } else {
+    selectedLot = await apiRequest(`/staff/parking-lots/${selectedLot.id}`, {
+      method: 'PUT',
+      body: jsonBody({
+        address: data.address,
+        description: data.description || null,
+        latitude: data.latitude ? Number(data.latitude) : null,
+        longitude: data.longitude ? Number(data.longitude) : null,
+        name: data.name,
+      }),
+    });
+    upsertParkingLot(selectedLot);
+  }
+
+  await saveStaffLotCapacity(selectedLot.id, data);
+  await saveStaffLotPricing(selectedLot.id, data);
+  await saveStaffLotServices(selectedLot.id, data);
 }
 
 function bindStaffParkingLotsPage() {
   $('#staffLotSearch')?.addEventListener('input', renderStaffParkingLots);
   $('#staffLotStatusFilter')?.addEventListener('change', renderStaffParkingLots);
 
+  $all('[data-action="open-staff-lot-modal"]').forEach((button) => {
+    button.addEventListener('click', openStaffLotModal);
+  });
+
+  $all('[data-action="close-staff-lot-modal"]').forEach((button) => {
+    button.addEventListener('click', closeStaffLotModal);
+  });
+
+  $('#staffLotEditModal')?.addEventListener('click', (event) => {
+    if (event.target === event.currentTarget) {
+      closeStaffLotModal();
+    }
+  });
+
   $('#staffParkingLotForm')?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const data = formData(event.currentTarget);
-    setStatus('#staffLotsStatus', 'Creating parking lot...');
+    setStatus('#staffLotsStatus', 'Saving parking lot details...');
     try {
-      await apiRequest('/staff/parking-lots', {
-        method: 'POST',
-        body: jsonBody({
-          name: data.name,
-          address: data.address,
-          latitude: data.latitude ? Number(data.latitude) : null,
-          longitude: data.longitude ? Number(data.longitude) : null,
-          description: data.description || null,
-        }),
-      });
-      event.currentTarget.reset();
-      setStatus('#staffLotsStatus', 'Parking lot created as draft.');
+      await saveStaffParkingLotDetails(event.currentTarget);
+      closeStaffLotModal();
+      setStatus('#staffLotsStatus', 'Parking lot details saved.');
       await loadStaffParkingLots();
     } catch (error) {
       setStatus('#staffLotsStatus', error.message, true);
@@ -1479,6 +1911,7 @@ function bindStaffBookingsPage() {
 }
 
 bindLogout();
+startSessionGuard();
 
 if (page === 'staff') {
   loadStaffDashboard();

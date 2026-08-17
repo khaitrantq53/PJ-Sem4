@@ -4,10 +4,12 @@ import com.smartparking.account.Account;
 import com.smartparking.account.AccountCredential;
 import com.smartparking.account.AccountCredentialRepository;
 import com.smartparking.account.AccountRepository;
+import com.smartparking.account.CustomerProfileRepository;
 import com.smartparking.account.StaffProfile;
 import com.smartparking.account.StaffProfileRepository;
 import com.smartparking.administration.dto.AdminDtos;
 import com.smartparking.audit.AuditService;
+import com.smartparking.auth.RefreshTokenRepository;
 import com.smartparking.booking.Booking;
 import com.smartparking.booking.BookingCapacityReservationRepository;
 import com.smartparking.booking.BookingMapper;
@@ -47,7 +49,9 @@ import java.time.ZoneId;
 public class AdminServiceImpl implements AdminService {
     private final AccountRepository accountRepository;
     private final AccountCredentialRepository credentialRepository;
+    private final CustomerProfileRepository customerProfileRepository;
     private final StaffProfileRepository staffProfileRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final ParkingLotRepository parkingLotRepository;
     private final ParkingStatusHistoryRepository parkingStatusHistoryRepository;
     private final ParkingLotMapper parkingLotMapper;
@@ -64,7 +68,9 @@ public class AdminServiceImpl implements AdminService {
 
     public AdminServiceImpl(AccountRepository accountRepository,
                             AccountCredentialRepository credentialRepository,
+                            CustomerProfileRepository customerProfileRepository,
                             StaffProfileRepository staffProfileRepository,
+                            RefreshTokenRepository refreshTokenRepository,
                             ParkingLotRepository parkingLotRepository,
                             ParkingStatusHistoryRepository parkingStatusHistoryRepository,
                             ParkingLotMapper parkingLotMapper,
@@ -80,7 +86,9 @@ public class AdminServiceImpl implements AdminService {
                             SmartParkingProperties properties) {
         this.accountRepository = accountRepository;
         this.credentialRepository = credentialRepository;
+        this.customerProfileRepository = customerProfileRepository;
         this.staffProfileRepository = staffProfileRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
         this.parkingLotRepository = parkingLotRepository;
         this.parkingStatusHistoryRepository = parkingStatusHistoryRepository;
         this.parkingLotMapper = parkingLotMapper;
@@ -160,14 +168,41 @@ public class AdminServiceImpl implements AdminService {
         Account account = account(userId);
         assertVersion(account.getVersion(), request.expectedVersion());
         AccountStatus previous = account.getStatus();
-        if (request.status() != AccountStatus.SUSPENDED) {
-            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Admin chỉ được suspend account qua command này");
+        AccountStatus target = request.status();
+        if (previous == target) {
+            return userResponse(account);
         }
-        if (previous != AccountStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Account chỉ được suspend từ ACTIVE");
+
+        String action;
+        switch (target) {
+            case ACTIVE -> {
+                if (previous != AccountStatus.PENDING_APPROVAL
+                        && previous != AccountStatus.SUSPENDED
+                        && previous != AccountStatus.LOCKED) {
+                    throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Account chỉ được activate từ PENDING_APPROVAL, SUSPENDED hoặc LOCKED");
+                }
+                action = previous == AccountStatus.PENDING_APPROVAL ? "APPROVE_ACCOUNT" : "ACTIVATE_ACCOUNT";
+            }
+            case SUSPENDED -> {
+                if (previous != AccountStatus.ACTIVE) {
+                    throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Account chỉ được suspend từ ACTIVE");
+                }
+                action = "SUSPEND_ACCOUNT";
+            }
+            case LOCKED -> {
+                if (previous == AccountStatus.REJECTED) {
+                    throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Account REJECTED không thể lock");
+                }
+                action = "LOCK_ACCOUNT";
+            }
+            default -> throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Trạng thái account không được hỗ trợ bởi command này");
         }
-        account.setStatus(AccountStatus.SUSPENDED);
-        auditService.record(currentUser.id(), currentUser.role(), "SUSPEND_ACCOUNT", "ACCOUNT", account.getId().toString(), previous.name(), account.getStatus().name(), request.reason());
+
+        account.setStatus(target);
+        if (target != AccountStatus.ACTIVE) {
+            refreshTokenRepository.revokeActiveTokensByAccountId(account.getId(), OffsetDateTime.now());
+        }
+        auditService.record(currentUser.id(), currentUser.role(), action, "ACCOUNT", account.getId().toString(), previous.name(), account.getStatus().name(), request.reason());
         return userResponse(account);
     }
 
@@ -275,6 +310,17 @@ public class AdminServiceImpl implements AdminService {
         return bookingRepository.searchForAdmin(filter.parkingLotId(), filter.status(), filter.startFrom(), filter.endTo(),
                 filter.vehicleType(), blankToNull(filter.bookingCode()), blankToNull(filter.plateNumber()), pageable)
                 .map(bookingMapper::toListResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<BookingDtos.BookingListResponse> customerBookings(UUID customerId, Pageable pageable) {
+        Account customer = accountRepository.findById(customerId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Customer không tồn tại"));
+        if (customer.getRole() != Role.CUSTOMER) {
+            throw new BusinessException(ErrorCode.BOOKING_ACCESS_DENIED, "Account không phải customer");
+        }
+        return bookingRepository.findByCustomerId(customerId, pageable).map(bookingMapper::toListResponse);
     }
 
     @Override
@@ -434,8 +480,22 @@ public class AdminServiceImpl implements AdminService {
     }
 
     private AdminDtos.UserResponse userResponse(Account account) {
-        return new AdminDtos.UserResponse(account.getId(), account.getEmail(), account.getPhone(), account.getRole(), account.getStatus(),
+        return new AdminDtos.UserResponse(account.getId(), account.getEmail(), account.getPhone(), accountFullName(account), account.getRole(), account.getStatus(),
                 account.getVersion(), account.getCreatedAt(), account.getUpdatedAt());
+    }
+
+    private String accountFullName(Account account) {
+        if (account.getRole() == Role.CUSTOMER) {
+            return customerProfileRepository.findByAccountId(account.getId())
+                    .map(profile -> profile.getFullName())
+                    .orElse(null);
+        }
+        if (account.getRole() == Role.STAFF) {
+            return staffProfileRepository.findByAccountId(account.getId())
+                    .map(profile -> profile.getFullName())
+                    .orElse(null);
+        }
+        return null;
     }
 
     private AdminDtos.ParkingCommandResponse parkingCommand(ParkingLot parkingLot, ParkingLotStatus previous) {

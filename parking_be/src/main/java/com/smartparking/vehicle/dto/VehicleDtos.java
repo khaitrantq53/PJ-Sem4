@@ -29,6 +29,8 @@ public final class VehicleDtos {
             VehicleType vehicleType,
             String brand,
             String color,
+            UUID imageId,
+            String imageUrl,
             boolean defaultVehicle,
             VehicleStatus status,
             Long version,

@@ -33,6 +33,12 @@ public interface ParkingLotService {
 
     ParkingDtos.ParkingLotResponse publicDetail(UUID parkingLotId);
 
+    List<ParkingDtos.CapacityResponse> publicCapacities(UUID parkingLotId);
+
+    List<ParkingDtos.PricingRuleResponse> publicPricingRules(UUID parkingLotId);
+
+    List<ParkingDtos.ParkingServiceResponse> publicServices(UUID parkingLotId);
+
     ParkingDtos.CapacityResponse updateCapacity(CurrentUser currentUser, UUID parkingLotId, VehicleType vehicleType,
                                                 ParkingDtos.CapacityRequest request);
 
@@ -40,6 +46,8 @@ public interface ParkingLotService {
 
     ParkingDtos.CapacityBlockResponse createCapacityBlock(CurrentUser currentUser, UUID parkingLotId,
                                                           ParkingDtos.CapacityBlockRequest request);
+
+    List<ParkingDtos.CapacityBlockResponse> capacityBlocks(CurrentUser currentUser, UUID parkingLotId);
 
     void deleteCapacityBlock(CurrentUser currentUser, UUID parkingLotId, UUID blockId);
 

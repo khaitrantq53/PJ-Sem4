@@ -17,7 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -54,12 +56,15 @@ public class PricingServiceImpl implements PricingService {
     public PricingCalculation calculateSnapshot(UUID parkingLotId, VehicleType vehicleType, OffsetDateTime startTime,
                                                 OffsetDateTime endTime, DeliveryMethod deliveryMethod,
                                                 List<UUID> serviceIds, String promotionCode) {
-        ParkingPricingRule pricingRule = pricingRuleRepository.findFirstByParkingLotIdAndVehicleTypeAndActiveTrue(parkingLotId, vehicleType)
+        List<ParkingPricingRule> pricingRules = pricingRuleRepository
+                .findByParkingLotIdAndVehicleTypeAndActiveTrueOrderByStartTimeAsc(parkingLotId, vehicleType);
+        ParkingPricingRule pricingRule = pricingRules.stream()
+                .filter(rule -> appliesAt(rule, startTime.toLocalTime()))
+                .findFirst()
+                .or(() -> pricingRules.stream().min(Comparator.comparing(ParkingPricingRule::getStartTime)))
                 .orElse(null);
         BigDecimal hourlyRate = pricingRule == null ? properties.pricing().defaultHourlyRate() : pricingRule.getHourlyRate();
-        BigDecimal hours = BigDecimal.valueOf(Duration.between(startTime, endTime).toMinutes())
-                .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
-        BigDecimal parkingFee = hourlyRate.multiply(hours).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal parkingFee = parkingFee(pricingRules, startTime, endTime).setScale(2, RoundingMode.HALF_UP);
         List<UUID> ids = serviceIds == null ? List.of() : serviceIds;
         List<ParkingServiceEntity> services = ids.isEmpty()
                 ? List.of()
@@ -102,6 +107,63 @@ public class PricingServiceImpl implements PricingService {
             throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Promotion không áp dụng cho parking lot");
         }
         return promotion;
+    }
+
+    private BigDecimal parkingFee(List<ParkingPricingRule> rules, OffsetDateTime startTime, OffsetDateTime endTime) {
+        if (rules.isEmpty()) {
+            return feeForSegment(properties.pricing().defaultHourlyRate(), startTime, endTime);
+        }
+
+        BigDecimal fee = BigDecimal.ZERO;
+        OffsetDateTime cursor = startTime;
+        while (cursor.isBefore(endTime)) {
+            OffsetDateTime segmentStart = cursor;
+            ParkingPricingRule rule = rules.stream()
+                    .filter(candidate -> appliesAt(candidate, segmentStart.toLocalTime()))
+                    .findFirst()
+                    .orElse(null);
+            BigDecimal rate = rule == null ? properties.pricing().defaultHourlyRate() : rule.getHourlyRate();
+            OffsetDateTime nextBoundary = nextPricingBoundary(segmentStart, rules);
+            OffsetDateTime segmentEnd = nextBoundary.isBefore(endTime) ? nextBoundary : endTime;
+            if (!segmentEnd.isAfter(segmentStart)) {
+                segmentEnd = endTime;
+            }
+            fee = fee.add(feeForSegment(rate, segmentStart, segmentEnd));
+            cursor = segmentEnd;
+        }
+        return fee;
+    }
+
+    private BigDecimal feeForSegment(BigDecimal hourlyRate, OffsetDateTime startTime, OffsetDateTime endTime) {
+        BigDecimal hours = BigDecimal.valueOf(Duration.between(startTime, endTime).toMinutes())
+                .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
+        return hourlyRate.multiply(hours);
+    }
+
+    private OffsetDateTime nextPricingBoundary(OffsetDateTime cursor, List<ParkingPricingRule> rules) {
+        return rules.stream()
+                .flatMap(rule -> List.of(rule.getStartTime(), rule.getEndTime()).stream())
+                .map(boundary -> nextOccurrence(cursor, boundary))
+                .filter(candidate -> candidate.isAfter(cursor))
+                .min(OffsetDateTime::compareTo)
+                .orElse(cursor.plusDays(1));
+    }
+
+    private OffsetDateTime nextOccurrence(OffsetDateTime cursor, LocalTime boundary) {
+        OffsetDateTime candidate = cursor.toLocalDate().atTime(boundary).atOffset(cursor.getOffset());
+        return candidate.isAfter(cursor) ? candidate : candidate.plusDays(1);
+    }
+
+    private boolean appliesAt(ParkingPricingRule rule, LocalTime time) {
+        LocalTime start = rule.getStartTime();
+        LocalTime end = rule.getEndTime();
+        if (start.equals(end)) {
+            return false;
+        }
+        if (start.isBefore(end)) {
+            return !time.isBefore(start) && time.isBefore(end);
+        }
+        return !time.isBefore(start) || time.isBefore(end);
     }
 
     private BookingDtos.Money money(BigDecimal amount, String currency) {

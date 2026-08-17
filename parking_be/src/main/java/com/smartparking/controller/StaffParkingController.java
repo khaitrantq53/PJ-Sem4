@@ -94,6 +94,11 @@ public class StaffParkingController {
         return ApiResponse.ok(parkingLotService.createCapacityBlock(SecurityUtils.currentUser(), parkingLotId, request), RequestContext.requestId());
     }
 
+    @GetMapping("/{parkingLotId}/capacity-blocks")
+    ApiResponse<List<ParkingDtos.CapacityBlockResponse>> capacityBlocks(@PathVariable UUID parkingLotId) {
+        return ApiResponse.ok(parkingLotService.capacityBlocks(SecurityUtils.currentUser(), parkingLotId), RequestContext.requestId());
+    }
+
     @DeleteMapping("/{parkingLotId}/capacity-blocks/{blockId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void deleteCapacityBlock(@PathVariable UUID parkingLotId, @PathVariable UUID blockId) {

@@ -11,7 +11,6 @@ import com.smartparking.capacity.ParkingVehicleCapacityRepository;
 import com.smartparking.common.BookingStatus;
 import com.smartparking.common.ParkingLotStatus;
 import com.smartparking.common.VehicleType;
-import com.smartparking.common.config.SmartParkingProperties;
 import com.smartparking.common.exception.BusinessException;
 import com.smartparking.common.exception.ErrorCode;
 import com.smartparking.common.security.CurrentUser;
@@ -47,7 +46,6 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     private final BookingRepository bookingRepository;
     private final ParkingLotMapper mapper;
     private final AuditService auditService;
-    private final SmartParkingProperties properties;
 
     public ParkingLotServiceImpl(ParkingLotRepository parkingLotRepository,
                                  ParkingLotStaffRepository parkingLotStaffRepository,
@@ -61,8 +59,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
                                  ParkingPolicyRepository policyRepository,
                                  BookingRepository bookingRepository,
                                  ParkingLotMapper mapper,
-                                 AuditService auditService,
-                                 SmartParkingProperties properties) {
+                                 AuditService auditService) {
         this.parkingLotRepository = parkingLotRepository;
         this.parkingLotStaffRepository = parkingLotStaffRepository;
         this.accountRepository = accountRepository;
@@ -76,7 +73,6 @@ public class ParkingLotServiceImpl implements ParkingLotService {
         this.bookingRepository = bookingRepository;
         this.mapper = mapper;
         this.auditService = auditService;
-        this.properties = properties;
     }
 
     @Override
@@ -84,6 +80,9 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     public ParkingDtos.ParkingLotResponse create(CurrentUser currentUser, ParkingDtos.CreateParkingLotRequest request) {
         Account staff = accountRepository.findById(currentUser.id())
                 .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Account không tồn tại"));
+        if (parkingLotStaffRepository.existsByStaffId(staff.getId())) {
+            throw new BusinessException(ErrorCode.PARKING_CONFIGURATION_INVALID, "Mỗi tài khoản staff chỉ được tạo và quản lý 1 bãi đỗ");
+        }
         ParkingLot parkingLot = new ParkingLot();
         parkingLot.setName(request.name());
         parkingLot.setAddress(request.address());
@@ -118,9 +117,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     public ParkingDtos.ParkingLotResponse update(CurrentUser currentUser, UUID parkingLotId, ParkingDtos.ParkingLotRequest request) {
         ParkingLot parkingLot = getManaged(currentUser, parkingLotId);
         assertVersion(parkingLot.getVersion(), request.version());
-        if (parkingLot.getStatus() != ParkingLotStatus.DRAFT) {
-            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Parking lot chỉ được update thông tin ở trạng thái DRAFT");
-        }
+        assertConfigurable(parkingLot);
         parkingLot.setName(request.name());
         parkingLot.setAddress(request.address());
         parkingLot.setLatitude(request.latitude());
@@ -184,7 +181,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
                         criteria.maxPrice(),
                         criteria.serviceId(),
                         criteria.minRating(),
-                        activeStatuses().stream().map(BookingStatus::name).toList(),
+                        capacityHoldStatuses().stream().map(BookingStatus::name).toList(),
                         pageable)
                 .map(this::toPublicListResponse);
     }
@@ -198,6 +195,35 @@ public class ParkingLotServiceImpl implements ParkingLotService {
             throw new BusinessException(ErrorCode.PARKING_LOT_NOT_ACTIVE, "Parking lot chưa ACTIVE");
         }
         return mapper.toResponse(parkingLot, lowestActiveHourlyRate(parkingLot.getId()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ParkingDtos.CapacityResponse> publicCapacities(UUID parkingLotId) {
+        requirePublicActive(parkingLotId);
+        return capacityRepository.findByParkingLotId(parkingLotId).stream()
+                .map(capacity -> capacityResponse(capacity, OffsetDateTime.now(), OffsetDateTime.now().plusYears(100)))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ParkingDtos.PricingRuleResponse> publicPricingRules(UUID parkingLotId) {
+        requirePublicActive(parkingLotId);
+        return pricingRuleRepository.findByParkingLotId(parkingLotId).stream()
+                .filter(ParkingPricingRule::isActive)
+                .map(this::pricingRuleResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ParkingDtos.ParkingServiceResponse> publicServices(UUID parkingLotId) {
+        requirePublicActive(parkingLotId);
+        return serviceRepository.findByParkingLotId(parkingLotId).stream()
+                .filter(ParkingServiceEntity::isActive)
+                .map(this::serviceResponse)
+                .toList();
     }
 
     @Override
@@ -219,7 +245,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
         }
         OffsetDateTime from = OffsetDateTime.now().minusYears(100);
         OffsetDateTime to = OffsetDateTime.now().plusYears(100);
-        long reserved = bookingRepository.countActiveReservations(parkingLotId, vehicleType, activeStatuses(), from, to);
+        long reserved = bookingRepository.countActiveReservations(parkingLotId, vehicleType, capacityHoldStatuses(), from, to);
         long blocked = blockRepository.countBlocked(parkingLotId, vehicleType, from, to);
         if (request.totalCapacity() < reserved + blocked) {
             throw new BusinessException(ErrorCode.PARKING_CAPACITY_INVALID, "Không được giảm total dưới occupied/reserved/blocked hiện có");
@@ -251,7 +277,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
         }
         ParkingVehicleCapacity capacity = capacityRepository.findByParkingLotIdAndVehicleType(parkingLotId, request.vehicleType())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PARKING_LOT_UNSUPPORTED_VEHICLE_TYPE, "Parking lot không hỗ trợ loại xe"));
-        long reserved = bookingRepository.countActiveReservations(parkingLotId, request.vehicleType(), activeStatuses(), request.startTime(), request.endTime());
+        long reserved = bookingRepository.countActiveReservations(parkingLotId, request.vehicleType(), capacityHoldStatuses(), request.startTime(), request.endTime());
         long blocked = blockRepository.countBlocked(parkingLotId, request.vehicleType(), request.startTime(), request.endTime());
         if (capacity.getTotalCapacity() < reserved + blocked + request.quantity()) {
             throw new BusinessException(ErrorCode.PARKING_CAPACITY_INVALID, "Capacity block làm available âm");
@@ -267,6 +293,15 @@ public class ParkingLotServiceImpl implements ParkingLotService {
         auditService.record(currentUser.id(), currentUser.role(), "CREATE_CAPACITY_BLOCK", "PARKING_LOT",
                 parkingLotId.toString(), null, block.getId().toString(), request.reason());
         return capacityBlockResponse(block);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ParkingDtos.CapacityBlockResponse> capacityBlocks(CurrentUser currentUser, UUID parkingLotId) {
+        getManaged(currentUser, parkingLotId);
+        return blockRepository.findByParkingLotId(parkingLotId).stream()
+                .map(this::capacityBlockResponse)
+                .toList();
     }
 
     @Override
@@ -297,18 +332,23 @@ public class ParkingLotServiceImpl implements ParkingLotService {
                                                              ParkingDtos.PricingRuleRequest request) {
         ParkingLot parkingLot = getManaged(currentUser, parkingLotId);
         assertConfigurable(parkingLot);
+        if (request.startTime().equals(request.endTime())) {
+            throw new BusinessException(ErrorCode.PARKING_CONFIGURATION_INVALID, "startTime và endTime của pricing rule không được trùng nhau");
+        }
         ParkingPricingRule rule = pricingRuleRepository
-                .findByParkingLotIdAndVehicleTypeAndActiveTrue(parkingLotId, request.vehicleType())
+                .findByParkingLotIdAndVehicleTypeAndStartTimeAndEndTime(parkingLotId, request.vehicleType(), request.startTime(), request.endTime())
                 .orElseGet(() -> {
                     ParkingPricingRule created = new ParkingPricingRule();
                     created.setParkingLot(parkingLot);
                     created.setVehicleType(request.vehicleType());
                     return created;
                 });
-        if (rule.getVersion() != null) {
+        if (rule.getVersion() != null && request.version() != null) {
             assertVersion(rule.getVersion(), request.version());
         }
         rule.setHourlyRate(request.hourlyRate());
+        rule.setStartTime(request.startTime());
+        rule.setEndTime(request.endTime());
         rule.setActive(Boolean.TRUE.equals(request.active()));
         rule = pricingRuleRepository.save(rule);
         auditService.record(currentUser.id(), currentUser.role(), "UPSERT_PRICING_RULE", "PARKING_LOT",
@@ -486,16 +526,16 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     }
 
     private ParkingDtos.CapacityResponse capacityResponse(ParkingVehicleCapacity capacity, OffsetDateTime startTime, OffsetDateTime endTime) {
-        long reserved = bookingRepository.countActiveReservations(capacity.getParkingLot().getId(), capacity.getVehicleType(), activeStatuses(), startTime, endTime);
-        long checkedIn = bookingRepository.countActiveReservations(capacity.getParkingLot().getId(), capacity.getVehicleType(), List.of(BookingStatus.CHECKED_IN, BookingStatus.OVERDUE), startTime, endTime);
+        long reserved = bookingRepository.countActiveReservations(capacity.getParkingLot().getId(), capacity.getVehicleType(), reservedStatuses(), startTime, endTime);
+        long checkedIn = bookingRepository.countActiveReservations(capacity.getParkingLot().getId(), capacity.getVehicleType(), occupiedStatuses(), startTime, endTime);
         long blocked = blockRepository.countBlocked(capacity.getParkingLot().getId(), capacity.getVehicleType(), startTime, endTime);
-        long available = Math.max(0, capacity.getTotalCapacity() - reserved - blocked);
+        long available = Math.max(0, capacity.getTotalCapacity() - reserved - checkedIn - blocked);
         return new ParkingDtos.CapacityResponse(capacity.getParkingLot().getId(), capacity.getVehicleType(), capacity.getTotalCapacity(),
                 reserved, blocked, checkedIn, available, capacity.getVersion());
     }
 
     private long calculateAvailable(ParkingVehicleCapacity capacity, OffsetDateTime startTime, OffsetDateTime endTime) {
-        long reserved = bookingRepository.countActiveReservations(capacity.getParkingLot().getId(), capacity.getVehicleType(), activeStatuses(), startTime, endTime);
+        long reserved = bookingRepository.countActiveReservations(capacity.getParkingLot().getId(), capacity.getVehicleType(), capacityHoldStatuses(), startTime, endTime);
         long blocked = blockRepository.countBlocked(capacity.getParkingLot().getId(), capacity.getVehicleType(), startTime, endTime);
         return Math.max(0, capacity.getTotalCapacity() - reserved - blocked);
     }
@@ -508,7 +548,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
 
     private ParkingDtos.PricingRuleResponse pricingRuleResponse(ParkingPricingRule rule) {
         return new ParkingDtos.PricingRuleResponse(rule.getId(), rule.getParkingLot().getId(), rule.getVehicleType(),
-                rule.getHourlyRate(), rule.isActive(), rule.getVersion(), rule.getCreatedAt(), rule.getUpdatedAt());
+                rule.getHourlyRate(), rule.getStartTime(), rule.getEndTime(), rule.isActive(), rule.getVersion(), rule.getCreatedAt(), rule.getUpdatedAt());
     }
 
     private ParkingDtos.ParkingLotListResponse toPublicListResponse(ParkingLot parkingLot) {
@@ -556,14 +596,31 @@ public class ParkingLotServiceImpl implements ParkingLotService {
                 policy.getPolicyValue(), policy.getVersion(), policy.getCreatedAt(), policy.getUpdatedAt());
     }
 
+    private ParkingLot requirePublicActive(UUID parkingLotId) {
+        ParkingLot parkingLot = parkingLotRepository.findById(parkingLotId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PARKING_LOT_NOT_FOUND, "Parking lot không tồn tại"));
+        if (parkingLot.getStatus() != ParkingLotStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.PARKING_LOT_NOT_ACTIVE, "Parking lot chưa ACTIVE");
+        }
+        return parkingLot;
+    }
+
     private void assertConfigurable(ParkingLot parkingLot) {
         if (parkingLot.getStatus() == ParkingLotStatus.CLOSED) {
             throw new BusinessException(ErrorCode.PARKING_CONFIGURATION_INVALID, "Parking CLOSED không nhận update nghiệp vụ thông thường");
         }
     }
 
-    private List<BookingStatus> activeStatuses() {
-        return properties.booking().activeOverlapStatuses();
+    private List<BookingStatus> reservedStatuses() {
+        return List.of(BookingStatus.PENDING_APPROVAL, BookingStatus.CONFIRMED);
+    }
+
+    private List<BookingStatus> occupiedStatuses() {
+        return List.of(BookingStatus.CHECKED_IN, BookingStatus.OVERDUE);
+    }
+
+    private List<BookingStatus> capacityHoldStatuses() {
+        return List.of(BookingStatus.PENDING_APPROVAL, BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.OVERDUE);
     }
 
     private void assertVersion(Long currentVersion, Long expectedVersion) {

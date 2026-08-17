@@ -5,6 +5,7 @@ import {
   getStoredAccount,
   jsonBody,
   saveSession,
+  startSessionGuard,
 } from '../../services/api.js';
 
 const page = document.body.dataset.page;
@@ -82,6 +83,20 @@ function formatTime(value) {
   });
 }
 
+function formatDateTime(value) {
+  if (!value) {
+    return '-';
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (character) => ({
     '&': '&amp;',
@@ -108,7 +123,7 @@ function normalizeFilterValue(value) {
 }
 
 function userDisplayName(user) {
-  return user.email || user.phone || user.id || 'Unknown user';
+  return user.fullName || user.name || user.displayName || user.email || user.phone || user.id || 'Unknown user';
 }
 
 function userInitials(user) {
@@ -119,6 +134,58 @@ function userInitials(user) {
     : label.slice(0, 2);
 
   return initials.toUpperCase();
+}
+
+function shortAccountId(id, prefix = 'USR') {
+  const rawId = String(id || '').trim();
+  if (!rawId) {
+    return '-';
+  }
+
+  const compactId = rawId.replace(/-/g, '');
+  const suffix = compactId.length > 8 ? compactId.slice(-6) : compactId;
+  return `${prefix}-${suffix.toUpperCase()}`;
+}
+
+function vehicleTypeLabel(type) {
+  return String(type || 'CAR')
+    .toLowerCase()
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function parseDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function adminBookingTotal(booking) {
+  return booking?.priceBreakdown?.total || booking?.total || 0;
+}
+
+function adminParkingDuration(booking) {
+  const start = parseDate(booking?.actualCheckInTime) || parseDate(booking?.startTime);
+  const end = parseDate(booking?.actualCheckOutTime)
+    || (['CHECKED_IN', 'OVERDUE'].includes(booking?.status) ? new Date() : parseDate(booking?.endTime));
+
+  if (!start || !end || end <= start) {
+    return '-';
+  }
+
+  const totalMinutes = Math.max(1, Math.floor((end.getTime() - start.getTime()) / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (!hours) {
+    return `${minutes}m`;
+  }
+
+  return `${hours}h ${String(minutes).padStart(2, '0')}m`;
 }
 
 function statusClass(status) {
@@ -133,6 +200,17 @@ function statusClass(status) {
     return 'locked';
   }
   return normalized || 'active';
+}
+
+function accountStatusLabel(status) {
+  const normalized = String(status || 'ACTIVE').toUpperCase();
+  if (normalized === 'PENDING_APPROVAL') {
+    return 'Pending';
+  }
+  return normalized
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function refundStatusClass(status) {
@@ -239,9 +317,39 @@ function initPasswordToggle() {
   });
 }
 
+function openRegistrationPendingModal() {
+  const modal = $('#registrationPendingModal');
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeRegistrationPendingModal() {
+  const modal = $('#registrationPendingModal');
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
 async function initAuth() {
   initTabs();
   initPasswordToggle();
+
+  $all('[data-close-registration-pending]').forEach((button) => {
+    button.addEventListener('click', closeRegistrationPendingModal);
+  });
+
+  $('#registrationPendingModal')?.addEventListener('click', (event) => {
+    if (event.target === event.currentTarget) {
+      closeRegistrationPendingModal();
+    }
+  });
 
   $('[data-action="forgot-password"]')?.addEventListener('click', async () => {
     const username = $('#loginUsername')?.value.trim();
@@ -280,15 +388,19 @@ async function initAuth() {
 
   $('#registerForm')?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const form = event.currentTarget;
     setStatus('#registerStatus', 'Creating account...');
 
     try {
-      const auth = await apiRequest('/auth/customers/register', {
+      await apiRequest('/auth/customers/register', {
         method: 'POST',
-        body: jsonBody(formData(event.currentTarget)),
+        body: jsonBody(formData(form)),
       });
-      saveSession(auth);
-      window.location.href = pathForRole(auth.account?.role);
+      form?.reset?.();
+      showAuthPanel('login');
+      openRegistrationPendingModal();
+      setStatus('#authStatus', 'Your account is pending admin approval.');
+      setStatus('#registerStatus', '');
     } catch (error) {
       setStatus('#registerStatus', error.message, true);
     }
@@ -302,20 +414,22 @@ let adminStaffPagination = null;
 
 function filteredAdminUsers() {
   const search = normalizeFilterValue($('#adminUserSearch')?.value);
-  const role = $('#adminRoleFilter')?.value || '';
   const status = $('#adminStatusFilter')?.value || '';
 
   return adminUsersCache.filter((user) => {
     const haystack = normalizeFilterValue([
       user.id,
+      String(user.id || '').replace(/-/g, ''),
+      shortAccountId(user.id, 'CUS'),
+      user.fullName,
+      user.name,
+      user.displayName,
       user.email,
       user.phone,
-      user.role,
       user.status,
     ].join(' '));
 
     return (!search || haystack.includes(search))
-      && (!role || user.role === role)
       && (!status || user.status === status);
   });
 }
@@ -329,7 +443,7 @@ function renderAdminUsers(items = adminUsersCache, pagination = adminUsersPagina
   if (!items.length) {
     element.innerHTML = `
       <tr>
-        <td colspan="6">
+        <td colspan="5">
           <div class="empty-state">No users found.</div>
         </td>
       </tr>
@@ -343,29 +457,42 @@ function renderAdminUsers(items = adminUsersCache, pagination = adminUsersPagina
     const statusName = user.status || 'ACTIVE';
     const userStatusClass = statusClass(statusName);
     const mutedAvatar = userStatusClass === 'suspended' || userStatusClass === 'locked' ? ' muted' : '';
+    const displayId = shortAccountId(user.id, 'CUS');
+    const canActivate = userStatusClass === 'suspended' || userStatusClass === 'pending' || userStatusClass === 'locked';
+    const toggleStatus = canActivate ? 'ACTIVE' : 'SUSPENDED';
+    const toggleTitle = canActivate ? 'Approve / Activate account' : 'Suspend account';
+    const toggleClass = canActivate ? 'success' : 'danger';
+    const toggleIcon = canActivate
+      ? '<path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm-1.1 14.4-4.2-4.2 1.4-1.4 2.8 2.8 5.7-5.7 1.4 1.4-7.1 7.1Z" />'
+      : '<path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 2a7.9 7.9 0 0 1 4.9 1.7L5.7 16.9A8 8 0 0 1 12 4Zm0 16a7.9 7.9 0 0 1-4.9-1.7L18.3 7.1A8 8 0 0 1 12 20Z" />';
 
     return `
       <tr class="${escapeHtml(userStatusClass)}">
         <td>
           <div class="admin-user-cell">
-            <span class="admin-user-avatar${mutedAvatar}">${escapeHtml(userInitials(user))}</span>
+              <span class="admin-user-avatar${mutedAvatar}">${escapeHtml(userInitials(user))}</span>
             <div>
               <strong>${escapeHtml(label)}</strong>
-              <span>${escapeHtml(user.phone || user.email || 'No contact')}</span>
+              <span>${escapeHtml(user.email || 'No email')}</span>
             </div>
           </div>
         </td>
-        <td>${escapeHtml(user.id)}</td>
-        <td><span class="admin-role-badge ${escapeHtml(String(user.role || '').toLowerCase())}">${escapeHtml(user.role || 'USER')}</span></td>
-        <td><span class="admin-user-status ${escapeHtml(userStatusClass)}">${escapeHtml(statusName)}</span></td>
+        <td><span class="admin-short-id" title="${escapeHtml(user.id)}">${escapeHtml(displayId)}</span></td>
+        <td><span class="admin-user-status ${escapeHtml(userStatusClass)}">${escapeHtml(accountStatusLabel(statusName))}</span></td>
         <td>${escapeHtml(formatDate(user.updatedAt || user.createdAt))}</td>
         <td>
           <div class="admin-user-row-actions">
-            <button type="button" title="Edit status" data-admin-fill-user="${escapeHtml(user.id)}" data-admin-user-status="${escapeHtml(statusName)}" data-admin-user-version="${escapeHtml(user.version)}">
+            <button type="button" title="View detail" data-admin-view-user="${escapeHtml(user.id)}">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c5 0 9 5.5 9 7s-4 7-9 7-9-5.5-9-7 4-7 9-7Zm0 2c-3.7 0-6.8 3.8-7 5 .2 1.2 3.3 5 7 5s6.8-3.8 7-5c-.2-1.2-3.3-5-7-5Zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" /></svg>
             </button>
-            <button type="button" title="Copy user ID" data-admin-copy-user="${escapeHtml(user.id)}">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 1H4c-1.1 0-2 .9-2 2v12h2V3h12V1Zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2Zm0 16H8V7h11v14Z" /></svg>
+            <button type="button" class="${escapeHtml(toggleClass)}" title="${escapeHtml(toggleTitle)}" data-admin-update-user-status="${escapeHtml(user.id)}" data-admin-user-status="${escapeHtml(toggleStatus)}" data-admin-user-version="${escapeHtml(user.version)}">
+              <svg viewBox="0 0 24 24" aria-hidden="true">${toggleIcon}</svg>
+            </button>
+            <button type="button" title="View vehicles" data-admin-view-vehicles="${escapeHtml(user.id)}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11h14l-1.5-4.5A2 2 0 0 0 15.6 5H8.4a2 2 0 0 0-1.9 1.5L5 11Zm3.4-4h7.2l.7 2H7.7l.7-2ZM4 13v5h2v-2h12v2h2v-5H4Zm3 1.2a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6Zm10 0a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6Z" /></svg>
+            </button>
+            <button type="button" title="Booking history" data-admin-view-bookings="${escapeHtml(user.id)}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3a9 9 0 1 0 8.9 10H20a7 7 0 1 1-2.1-5L15 11h7V4l-2.7 2.7A8.9 8.9 0 0 0 13 3Zm-1 5h2v5l4 2-.9 1.8-5.1-2.6V8Z" /></svg>
             </button>
           </div>
         </td>
@@ -384,22 +511,321 @@ function refreshAdminUserTable() {
 
 function bindAdminUserControls() {
   $('#adminUserSearch')?.addEventListener('input', refreshAdminUserTable);
-  $('#adminRoleFilter')?.addEventListener('change', refreshAdminUserTable);
   $('#adminStatusFilter')?.addEventListener('change', refreshAdminUserTable);
+  $all('[data-admin-close-user-detail]').forEach((button) => {
+    button.addEventListener('click', closeAdminUserDetailModal);
+  });
+  $('#userDetailModal')?.addEventListener('click', (event) => {
+    if (event.target === event.currentTarget) {
+      closeAdminUserDetailModal();
+    }
+  });
+  $all('[data-admin-close-vehicles]').forEach((button) => {
+    button.addEventListener('click', closeAdminVehiclesModal);
+  });
+  $('#userVehiclesModal')?.addEventListener('click', (event) => {
+    if (event.target === event.currentTarget) {
+      closeAdminVehiclesModal();
+    }
+  });
+  $all('[data-admin-close-bookings]').forEach((button) => {
+    button.addEventListener('click', closeAdminBookingsModal);
+  });
+  $('#userBookingsModal')?.addEventListener('click', (event) => {
+    if (event.target === event.currentTarget) {
+      closeAdminBookingsModal();
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeAdminUserDetailModal();
+      closeAdminVehiclesModal();
+      closeAdminBookingsModal();
+    }
+  });
+}
+
+function openAdminUserDetailModal(userId) {
+  const modal = $('#userDetailModal');
+  if (!modal) {
+    return;
+  }
+
+  const user = adminUsersCache.find((item) => String(item.id) === String(userId));
+  if (!user) {
+    setStatus('#adminStatus', 'Customer detail not found.', true);
+    return;
+  }
+
+  setText('#userDetailAvatar', userInitials(user));
+  setText('#userDetailName', userDisplayName(user));
+  setText('#userDetailEmail', user.email || 'No email');
+  setText('#userDetailPhone', user.phone || 'No phone');
+
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeAdminUserDetailModal() {
+  const modal = $('#userDetailModal');
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function adminVehicleImage(vehicle) {
+  if (vehicle.imageUrl) {
+    return `<img src="${escapeHtml(vehicle.imageUrl)}" alt="${escapeHtml(vehicle.plateNumber || 'Vehicle image')}" loading="lazy">`;
+  }
+
+  return `
+    <div class="admin-vehicle-placeholder" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <path d="M5 11h14l-1.5-4.5A2 2 0 0 0 15.6 5H8.4a2 2 0 0 0-1.9 1.5L5 11Zm3.4-4h7.2l.7 2H7.7l.7-2ZM4 13v5h2v-2h12v2h2v-5H4Zm3 1.2a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6Zm10 0a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6Z" />
+      </svg>
+    </div>
+  `;
+}
+
+function renderAdminVehicles(vehicles) {
+  const list = $('#userVehiclesList');
+  if (!list) {
+    return;
+  }
+
+  if (!vehicles.length) {
+    list.innerHTML = '<div class="empty-state">This customer has not registered any active vehicles yet.</div>';
+    return;
+  }
+
+  list.innerHTML = vehicles.map((vehicle) => `
+    <article class="admin-vehicle-card">
+      <div class="admin-vehicle-photo">
+        ${adminVehicleImage(vehicle)}
+      </div>
+      <div class="admin-vehicle-content">
+        <div class="admin-vehicle-title-row">
+          <div>
+            <span>Plate Number</span>
+            <strong>${escapeHtml(vehicle.plateNumber || 'No plate')}</strong>
+          </div>
+          ${vehicle.defaultVehicle ? '<em>Default</em>' : ''}
+        </div>
+        <div class="admin-vehicle-fields">
+          <div>
+            <span>Make / Model</span>
+            <strong>${escapeHtml(vehicle.brand || 'Not provided')}</strong>
+          </div>
+          <div>
+            <span>Color</span>
+            <strong>${escapeHtml(vehicle.color || 'Not provided')}</strong>
+          </div>
+          <div>
+            <span>Vehicle Type</span>
+            <strong>${escapeHtml(vehicleTypeLabel(vehicle.vehicleType))}</strong>
+          </div>
+        </div>
+      </div>
+    </article>
+  `).join('');
+}
+
+async function openAdminVehiclesModal(userId) {
+  const modal = $('#userVehiclesModal');
+  if (!modal) {
+    return;
+  }
+
+  const user = adminUsersCache.find((item) => String(item.id) === String(userId));
+  setText('#userVehiclesSubtitle', user
+    ? `${userDisplayName(user)} · ${user.email || 'No email'}`
+    : 'Registered customer vehicles');
+
+  const list = $('#userVehiclesList');
+  if (list) {
+    list.innerHTML = '<div class="admin-vehicles-loading">Loading registered vehicles...</div>';
+  }
+
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+
+  try {
+    const vehicles = await apiRequest(`/admin/users/${userId}/vehicles`);
+    renderAdminVehicles(Array.isArray(vehicles) ? vehicles : []);
+  } catch (error) {
+    if (list) {
+      list.innerHTML = `<div class="empty-state">${escapeHtml(error.message || 'Unable to load vehicles.')}</div>`;
+    }
+  }
+}
+
+function closeAdminVehiclesModal() {
+  const modal = $('#userVehiclesModal');
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function renderAdminUserBookingHistory(bookings, totalElements = bookings.length) {
+  const list = $('#userBookingsList');
+  if (!list) {
+    return;
+  }
+
+  setText('#userBookingsCount', `${bookings.length} of ${totalElements} latest`);
+
+  if (!bookings.length) {
+    list.innerHTML = '<div class="empty-state">This customer has no booking history yet.</div>';
+    return;
+  }
+
+  list.innerHTML = bookings.map((booking) => {
+    const isPaid = String(booking.paymentStatus || '').toUpperCase() === 'PAID';
+    const amount = money(adminBookingTotal(booking));
+    const paidAmount = isPaid ? amount : `${amount} due`;
+    const parkingLot = booking.parkingLotName || booking.parkingLot?.name || booking.parkingLotId || 'Parking lot pending';
+
+    return `
+      <article class="admin-booking-history-card">
+        <div>
+          <span>Vehicle</span>
+          <strong>${escapeHtml(booking.plateNumber || booking.vehiclePlateNumber || 'Vehicle pending')}</strong>
+          <small>${escapeHtml(vehicleTypeLabel(booking.vehicleType))}</small>
+        </div>
+        <div>
+          <span>Parking Lot</span>
+          <strong>${escapeHtml(parkingLot)}</strong>
+          <small>${escapeHtml(formatDateTime(booking.startTime))}</small>
+        </div>
+        <div>
+          <span>Amount</span>
+          <strong>${escapeHtml(paidAmount)}</strong>
+          <small>${escapeHtml(String(booking.paymentStatus || 'UNPAID').replaceAll('_', ' '))}</small>
+        </div>
+        <div>
+          <span>Parked Time</span>
+          <strong>${escapeHtml(adminParkingDuration(booking))}</strong>
+          <small>${escapeHtml(String(booking.status || '-').replaceAll('_', ' '))}</small>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+async function openAdminBookingsModal(userId) {
+  const modal = $('#userBookingsModal');
+  if (!modal) {
+    return;
+  }
+
+  const user = adminUsersCache.find((item) => String(item.id) === String(userId));
+  setText('#userBookingsSubtitle', user
+    ? `${userDisplayName(user)} · ${user.email || 'No email'}`
+    : 'Customer booking history');
+  setText('#userBookingsCount', 'Loading');
+
+  const list = $('#userBookingsList');
+  if (list) {
+    list.innerHTML = '<div class="admin-vehicles-loading">Loading booking history...</div>';
+  }
+
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+
+  try {
+    const pageResult = await apiPage(`/admin/users/${userId}/bookings`, {
+      size: 20,
+      sort: 'updatedAt,desc',
+    });
+    renderAdminUserBookingHistory(pageResult.items || [], pageResult.pagination?.totalElements ?? pageResult.items?.length ?? 0);
+  } catch (error) {
+    setText('#userBookingsCount', 'Unable to load');
+    if (list) {
+      list.innerHTML = `<div class="empty-state">${escapeHtml(error.message || 'Unable to load booking history.')}</div>`;
+    }
+  }
+}
+
+function closeAdminBookingsModal() {
+  const modal = $('#userBookingsModal');
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function adminStatusReason(status) {
+  const normalized = String(status || '').toUpperCase();
+  if (normalized === 'ACTIVE') {
+    return 'Admin approved customer account';
+  }
+  if (normalized === 'SUSPENDED') {
+    return 'Admin suspended customer account';
+  }
+  if (normalized === 'LOCKED') {
+    return 'Admin locked customer account';
+  }
+  return 'Admin updated customer account status';
+}
+
+async function updateAdminUserStatus(userId, status, expectedVersion) {
+  const normalizedStatus = String(status || 'ACTIVE').toUpperCase();
+  setStatus('#adminStatus', `${accountStatusLabel(normalizedStatus)} customer account...`);
+
+  await apiRequest(`/admin/users/${userId}/status`, {
+    method: 'PATCH',
+    body: jsonBody({
+      status: normalizedStatus,
+      reason: adminStatusReason(normalizedStatus),
+      expectedVersion: expectedVersion ? Number(expectedVersion) : null,
+    }),
+  });
+
+  setStatus('#adminStatus', `Customer account is now ${accountStatusLabel(normalizedStatus)}.`);
+  await reloadAdminPage();
 }
 
 function bindAdminUserActions() {
-  $all('[data-admin-fill-user]').forEach((button) => {
+  $all('[data-admin-view-user]').forEach((button) => {
     button.addEventListener('click', () => {
-      const form = $('#userStatusForm');
-      if (!form) {
-        return;
-      }
+      openAdminUserDetailModal(button.dataset.adminViewUser);
+    });
+  });
 
-      form.querySelector('[name="userId"]').value = button.dataset.adminFillUser;
-      form.querySelector('[name="status"]').value = button.dataset.adminUserStatus || 'ACTIVE';
-      form.querySelector('[name="expectedVersion"]').value = button.dataset.adminUserVersion || '';
-      form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  $all('[data-admin-update-user-status]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        await updateAdminUserStatus(
+          button.dataset.adminUpdateUserStatus,
+          button.dataset.adminUserStatus,
+          button.dataset.adminUserVersion,
+        );
+      } catch (error) {
+        setStatus('#adminStatus', error.message, true);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  $all('[data-admin-view-vehicles]').forEach((button) => {
+    button.addEventListener('click', () => {
+      openAdminVehiclesModal(button.dataset.adminViewVehicles);
+    });
+  });
+
+  $all('[data-admin-view-bookings]').forEach((button) => {
+    button.addEventListener('click', () => {
+      openAdminBookingsModal(button.dataset.adminViewBookings);
     });
   });
 
@@ -413,6 +839,12 @@ function bindAdminUserActions() {
       }
     });
   });
+
+  $all('[data-admin-action-message]').forEach((button) => {
+    button.addEventListener('click', () => {
+      setStatus('#adminStatus', button.dataset.adminActionMessage);
+    });
+  });
 }
 
 function filteredAdminStaff() {
@@ -422,6 +854,8 @@ function filteredAdminStaff() {
   return adminStaffCache.filter((staff) => {
     const haystack = normalizeFilterValue([
       staff.id,
+      String(staff.id || '').replace(/-/g, ''),
+      shortAccountId(staff.id, 'STF'),
       staff.email,
       staff.phone,
       staff.status,
@@ -488,6 +922,7 @@ function renderAdminStaff(items = adminStaffCache, pagination = adminStaffPagina
     const statusName = staff.status || 'ACTIVE';
     const staffStatusClass = statusClass(statusName);
     const mutedAvatar = staffStatusClass === 'suspended' || staffStatusClass === 'locked' ? ' muted' : '';
+    const displayId = shortAccountId(staff.id, 'STF');
 
     return `
       <tr class="${escapeHtml(staffStatusClass)}">
@@ -500,9 +935,9 @@ function renderAdminStaff(items = adminStaffCache, pagination = adminStaffPagina
             </div>
           </div>
         </td>
-        <td>${escapeHtml(staff.id)}</td>
+        <td><span class="admin-short-id" title="${escapeHtml(staff.id)}">${escapeHtml(displayId)}</span></td>
         <td><span class="admin-staff-lot-chip">No assigned lots in admin API</span></td>
-        <td><span class="admin-staff-status ${escapeHtml(staffStatusClass)}">${escapeHtml(statusName)}</span></td>
+        <td><span class="admin-staff-status ${escapeHtml(staffStatusClass)}">${escapeHtml(accountStatusLabel(statusName))}</span></td>
         <td><div class="admin-staff-actions">${staffActions(staff)}</div></td>
       </tr>
     `;
@@ -512,6 +947,7 @@ function renderAdminStaff(items = adminStaffCache, pagination = adminStaffPagina
     cards.innerHTML = items.map((staff) => {
       const statusName = staff.status || 'ACTIVE';
       const staffStatusClass = statusClass(statusName);
+      const displayId = shortAccountId(staff.id, 'STF');
       return `
         <article class="admin-staff-card ${escapeHtml(staffStatusClass)}">
           <div class="admin-staff-card-head">
@@ -519,10 +955,10 @@ function renderAdminStaff(items = adminStaffCache, pagination = adminStaffPagina
               <span class="admin-staff-avatar">${escapeHtml(userInitials(staff))}</span>
               <div>
                 <strong>${escapeHtml(userDisplayName(staff))}</strong>
-                <span>${escapeHtml(staff.id)}</span>
+                <span class="admin-short-id" title="${escapeHtml(staff.id)}">${escapeHtml(displayId)}</span>
               </div>
             </div>
-            <span class="admin-staff-status ${escapeHtml(staffStatusClass)}">${escapeHtml(statusName)}</span>
+            <span class="admin-staff-status ${escapeHtml(staffStatusClass)}">${escapeHtml(accountStatusLabel(statusName))}</span>
           </div>
           <p>${escapeHtml(staff.phone || staff.email || 'No contact')}</p>
           <span class="admin-staff-lot-chip">No assigned lots in admin API</span>
@@ -964,18 +1400,14 @@ async function loadAdminUsers() {
   }
 
   try {
-    const [summary, users] = await Promise.all([
-      apiRequest('/admin/dashboard/summary'),
-      apiPage('/admin/users'),
-    ]);
+    const users = await apiPage('/admin/users', { size: 50 });
+    const customerUsers = (users.items || []).filter((user) => user.role === 'CUSTOMER');
 
-    setText('#adminUsers', summary.totalUsers);
-    setText('#adminLots', summary.activeParkingLots);
-    setText('#adminPending', summary.pendingApprovals);
-    setText('#adminRevenue', money(summary.revenue));
-
-    adminUsersCache = users.items || [];
-    adminUsersPagination = users.pagination || null;
+    adminUsersCache = customerUsers;
+    adminUsersPagination = {
+      ...(users.pagination || {}),
+      totalElements: customerUsers.length,
+    };
     refreshAdminUserTable();
   } catch (error) {
     setStatus('#adminStatus', error.message, true);
@@ -1232,26 +1664,6 @@ function bindAdminForms() {
     }
   });
 
-  $('#userStatusForm')?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const data = formData(event.currentTarget);
-    setStatus('#adminStatus', 'Updating user status...');
-    try {
-      await apiRequest(`/admin/users/${data.userId}/status`, {
-        method: 'PATCH',
-        body: jsonBody({
-          status: data.status,
-          reason: data.reason,
-          expectedVersion: data.expectedVersion ? Number(data.expectedVersion) : null,
-        }),
-      });
-      setStatus('#adminStatus', 'User status updated.');
-      await reloadAdminPage();
-    } catch (error) {
-      setStatus('#adminStatus', error.message, true);
-    }
-  });
-
   $('#parkingCommandForm')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = formData(event.currentTarget);
@@ -1295,6 +1707,10 @@ bindLogout();
 
 if (page === 'auth') {
   initAuth();
+}
+
+if (page !== 'auth') {
+  startSessionGuard();
 }
 
 if (page === 'admin') {

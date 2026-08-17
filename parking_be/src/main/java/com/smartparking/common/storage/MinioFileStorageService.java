@@ -37,9 +37,20 @@ public class MinioFileStorageService implements FileStorageService {
     @Override
     @Transactional
     public StoredFile storeCustomerAvatar(UUID customerId, MultipartFile file) {
-        validateAvatar(file);
-        String bucket = properties.minio().bucket();
         String objectKey = "customers/" + customerId + "/avatars/" + UUID.randomUUID() + extension(file.getOriginalFilename());
+        return storeImage(file, objectKey);
+    }
+
+    @Override
+    @Transactional
+    public StoredFile storeVehicleImage(UUID customerId, UUID vehicleId, MultipartFile file) {
+        String objectKey = "customers/" + customerId + "/vehicles/" + vehicleId + "/" + UUID.randomUUID() + extension(file.getOriginalFilename());
+        return storeImage(file, objectKey);
+    }
+
+    private StoredFile storeImage(MultipartFile file, String objectKey) {
+        validateImage(file);
+        String bucket = properties.minio().bucket();
         try {
             ensureBucket(bucket);
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -65,15 +76,15 @@ public class MinioFileStorageService implements FileStorageService {
         }
     }
 
-    private void validateAvatar(MultipartFile file) {
+    private void validateImage(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.UNSUPPORTED_FILE_TYPE, "File avatar không hợp lệ");
+            throw new BusinessException(ErrorCode.UNSUPPORTED_FILE_TYPE, "File ảnh không hợp lệ");
         }
         if (file.getSize() > properties.upload().maxAvatarBytes()) {
-            throw new BusinessException(ErrorCode.FILE_SIZE_EXCEEDED, "File avatar vượt quá dung lượng cho phép");
+            throw new BusinessException(ErrorCode.FILE_SIZE_EXCEEDED, "File ảnh vượt quá dung lượng cho phép");
         }
         if (!properties.upload().allowedAvatarContentTypes().contains(file.getContentType())) {
-            throw new BusinessException(ErrorCode.UNSUPPORTED_FILE_TYPE, "Định dạng avatar không được hỗ trợ");
+            throw new BusinessException(ErrorCode.UNSUPPORTED_FILE_TYPE, "Định dạng ảnh không được hỗ trợ");
         }
     }
 

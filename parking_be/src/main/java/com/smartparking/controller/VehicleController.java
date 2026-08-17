@@ -7,6 +7,7 @@ import com.smartparking.vehicle.VehicleService;
 import com.smartparking.vehicle.dto.VehicleDtos;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,8 +15,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -49,6 +52,12 @@ public class VehicleController {
     ApiResponse<VehicleDtos.VehicleResponse> update(@PathVariable UUID vehicleId,
                                                     @Valid @RequestBody VehicleDtos.VehicleRequest request) {
         return ApiResponse.ok(vehicleService.update(SecurityUtils.currentUser(), vehicleId, request), RequestContext.requestId());
+    }
+
+    @PostMapping(value = "/{vehicleId}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    ApiResponse<VehicleDtos.VehicleResponse> uploadImage(@PathVariable UUID vehicleId,
+                                                         @RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok(vehicleService.uploadImage(SecurityUtils.currentUser(), vehicleId, file), RequestContext.requestId());
     }
 
     @PatchMapping("/{vehicleId}/default")

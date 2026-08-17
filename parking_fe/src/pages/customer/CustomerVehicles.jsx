@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   apiRequest,
   jsonBody,
@@ -73,6 +73,8 @@ export function CustomerVehicles() {
   const [editingId, setEditingId] = useState('');
   const [status, setStatus] = useState('Loading');
   const [saving, setSaving] = useState(false);
+  const [vehicleImageFile, setVehicleImageFile] = useState(null);
+  const vehicleImageInputRef = useRef(null);
 
   const name = profileName(profile, account);
   const initials = initialsFor(name);
@@ -119,6 +121,10 @@ export function CustomerVehicles() {
   function resetForm() {
     setForm(emptyVehicleForm);
     setEditingId('');
+    setVehicleImageFile(null);
+    if (vehicleImageInputRef.current) {
+      vehicleImageInputRef.current.value = '';
+    }
   }
 
   function editVehicle(vehicle) {
@@ -130,7 +136,24 @@ export function CustomerVehicles() {
       vehicleType: vehicle.vehicleType || 'CAR',
       defaultVehicle: Boolean(vehicle.defaultVehicle),
     });
+    setVehicleImageFile(null);
+    if (vehicleImageInputRef.current) {
+      vehicleImageInputRef.current.value = '';
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function uploadVehicleImage(vehicleId) {
+    if (!vehicleImageFile) {
+      return;
+    }
+
+    const imageData = new FormData();
+    imageData.append('file', vehicleImageFile);
+    await apiRequest(`/customer/vehicles/${vehicleId}/image`, {
+      method: 'POST',
+      body: imageData,
+    });
   }
 
   async function submitVehicle(event) {
@@ -147,10 +170,11 @@ export function CustomerVehicles() {
     };
 
     try {
-      await apiRequest(editingId ? `/customer/vehicles/${editingId}` : '/customer/vehicles', {
+      const savedVehicle = await apiRequest(editingId ? `/customer/vehicles/${editingId}` : '/customer/vehicles', {
         method: editingId ? 'PUT' : 'POST',
         body: jsonBody(payload),
       });
+      await uploadVehicleImage(savedVehicle.id);
       resetForm();
       await loadVehicles();
       setStatus(editingId ? 'Vehicle updated.' : 'Vehicle saved.');
@@ -262,10 +286,17 @@ export function CustomerVehicles() {
                   </select>
                 </label>
 
-                <button className="vehicle-upload-drop" type="button">
+                <button className="vehicle-upload-drop" type="button" onClick={() => vehicleImageInputRef.current?.click()}>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3 7.2 5H4a2 2 0 0 0-2 2v12h20V7a2 2 0 0 0-2-2h-3.2L15 3H9Zm3 5a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z" /></svg>
-                  <span>Upload Vehicle Photo (Optional)</span>
+                  <span>{vehicleImageFile ? vehicleImageFile.name : 'Upload Vehicle Photo (Optional)'}</span>
                 </button>
+                <input
+                  accept="image/jpeg,image/png,image/webp"
+                  className="vehicle-photo-input"
+                  onChange={(event) => setVehicleImageFile(event.target.files?.[0] || null)}
+                  ref={vehicleImageInputRef}
+                  type="file"
+                />
 
                 <label className="vehicle-default-toggle">
                   <span>
@@ -303,7 +334,13 @@ export function CustomerVehicles() {
                     </div>
                   )}
 
-                  <VehicleArt type={vehicle.vehicleType} />
+                  {vehicle.imageUrl ? (
+                    <div className="vehicle-photo-preview">
+                      <img src={vehicle.imageUrl} alt={`${vehicle.plateNumber} vehicle`} />
+                    </div>
+                  ) : (
+                    <VehicleArt type={vehicle.vehicleType} />
+                  )}
 
                   <div className="vehicle-card-body">
                     <div>

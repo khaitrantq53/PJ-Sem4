@@ -50,7 +50,7 @@ const dashboardContent = `
 
   <div class="staff-dashboard-grid lower">
     <section class="staff-panel" id="parking-lots">
-      <div class="staff-section-title"><h2>Managed Parking Lots</h2><span id="staffManagedLots">0 lots</span></div>
+      <div class="staff-section-title"><h2>My Parking Lot</h2><span id="staffManagedLots">No lot yet</span></div>
       <div class="staff-data-list" id="staffLotList"></div>
     </section>
 

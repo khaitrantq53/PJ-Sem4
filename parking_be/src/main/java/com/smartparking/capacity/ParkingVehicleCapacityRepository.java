@@ -13,6 +13,8 @@ import java.util.UUID;
 public interface ParkingVehicleCapacityRepository extends JpaRepository<ParkingVehicleCapacity, UUID> {
     Optional<ParkingVehicleCapacity> findByParkingLotIdAndVehicleType(UUID parkingLotId, VehicleType vehicleType);
 
+    List<ParkingVehicleCapacity> findByParkingLotId(UUID parkingLotId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from ParkingVehicleCapacity c where c.parkingLot.id = :parkingLotId and c.vehicleType = :vehicleType")
     Optional<ParkingVehicleCapacity> lockByParkingLotIdAndVehicleType(UUID parkingLotId, VehicleType vehicleType);

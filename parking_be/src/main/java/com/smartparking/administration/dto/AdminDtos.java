@@ -32,7 +32,7 @@ public final class AdminDtos {
     public record ReasonRequest(@NotBlank String reason, Long expectedVersion) {
     }
 
-    public record UserResponse(UUID id, String email, String phone, Role role, AccountStatus status,
+    public record UserResponse(UUID id, String email, String phone, String fullName, Role role, AccountStatus status,
                                Long version, OffsetDateTime createdAt, OffsetDateTime updatedAt) {
     }
 

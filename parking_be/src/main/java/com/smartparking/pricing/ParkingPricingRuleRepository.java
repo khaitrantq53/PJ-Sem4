@@ -6,16 +6,20 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface ParkingPricingRuleRepository extends JpaRepository<ParkingPricingRule, UUID> {
-    Optional<ParkingPricingRule> findFirstByParkingLotIdAndVehicleTypeAndActiveTrue(UUID parkingLotId, VehicleType vehicleType);
+    Optional<ParkingPricingRule> findFirstByParkingLotIdAndVehicleTypeAndActiveTrueOrderByStartTimeAsc(UUID parkingLotId, VehicleType vehicleType);
 
     List<ParkingPricingRule> findByParkingLotId(UUID parkingLotId);
 
-    Optional<ParkingPricingRule> findByParkingLotIdAndVehicleTypeAndActiveTrue(UUID parkingLotId, VehicleType vehicleType);
+    List<ParkingPricingRule> findByParkingLotIdAndVehicleTypeAndActiveTrueOrderByStartTimeAsc(UUID parkingLotId, VehicleType vehicleType);
+
+    Optional<ParkingPricingRule> findByParkingLotIdAndVehicleTypeAndStartTimeAndEndTime(UUID parkingLotId, VehicleType vehicleType,
+                                                                                       LocalTime startTime, LocalTime endTime);
 
     @Query("""
             select min(rule.hourlyRate)

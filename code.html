@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>North Deck - Facility Overview</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface": "#fdf8f8",
+                      "ink-muted": "#6a6a6a",
+                      "secondary-container": "#e7e2d8",
+                      "on-error": "#ffffff",
+                      "on-tertiary-fixed-variant": "#484645",
+                      "on-tertiary-container": "#868381",
+                      "on-error-container": "#93000a",
+                      "secondary-fixed": "#e7e2d8",
+                      "on-surface-variant": "#444748",
+                      "inverse-surface": "#313030",
+                      "secondary": "#615e57",
+                      "surface-container-low": "#f7f3f2",
+                      "surface-variant": "#e5e2e1",
+                      "primary": "#000000",
+                      "on-secondary-fixed": "#1d1c16",
+                      "error-container": "#ffdad6",
+                      "brand-teal": "#1a3a3a",
+                      "surface-bright": "#fdf8f8",
+                      "secondary-fixed-dim": "#cac6bd",
+                      "outline": "#747878",
+                      "tertiary-fixed": "#e6e1df",
+                      "surface-tint": "#5f5e5e",
+                      "on-tertiary-fixed": "#1d1b1a",
+                      "brand-cream-card": "#f5f0e0",
+                      "tertiary-container": "#1d1b1a",
+                      "surface-container": "#f1edec",
+                      "background": "#fdf8f8",
+                      "hairline": "#e5e5e5",
+                      "inverse-primary": "#c9c6c5",
+                      "tertiary": "#000000",
+                      "on-background": "#1c1b1b",
+                      "on-secondary-fixed-variant": "#494740",
+                      "brand-pink": "#ff4d8b",
+                      "brand-lavender": "#b8a4ed",
+                      "tertiary-fixed-dim": "#cac6c3",
+                      "primary-container": "#1c1b1b",
+                      "surface-dim": "#ddd9d8",
+                      "surface-container-lowest": "#ffffff",
+                      "on-secondary-container": "#67645d",
+                      "on-primary-fixed-variant": "#474646",
+                      "outline-variant": "#c4c7c7",
+                      "on-tertiary": "#ffffff",
+                      "surface-soft": "#faf5e8",
+                      "primary-fixed-dim": "#c9c6c5",
+                      "brand-ochre": "#e8b94a",
+                      "on-primary": "#ffffff",
+                      "error": "#ba1a1a",
+                      "inverse-on-surface": "#f4f0ef",
+                      "primary-fixed": "#e5e2e1",
+                      "on-primary-fixed": "#1c1b1b",
+                      "on-primary-container": "#858383",
+                      "surface-container-high": "#ebe7e6",
+                      "on-surface": "#1c1b1b",
+                      "surface-container-highest": "#e5e2e1",
+                      "brand-peach": "#ffb084",
+                      "on-secondary": "#ffffff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "section": "96px",
+                      "sm": "12px",
+                      "base": "4px",
+                      "xl": "32px",
+                      "lg": "24px",
+                      "xs": "8px",
+                      "max-width": "1280px",
+                      "md": "16px"
+              },
+              "fontFamily": {
+                      "button": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "display-xl": [
+                              "Be Vietnam Pro"
+                      ],
+                      "title-lg": [
+                              "Inter"
+                      ],
+                      "display-xl-mobile": [
+                              "Be Vietnam Pro"
+                      ],
+                      "display-md": [
+                              "Be Vietnam Pro"
+                      ],
+                      "label-upper": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Be Vietnam Pro"
+                      ]
+              },
+              "fontSize": {
+                      "button": [
+                              "14px",
+                              {
+                                      "lineHeight": "14px",
+                                      "letterSpacing": "0px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "letterSpacing": "0px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "display-xl": [
+                              "72px",
+                              {
+                                      "lineHeight": "72px",
+                                      "letterSpacing": "-2.5px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "title-lg": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "-0.3px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-xl-mobile": [
+                              "36px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-1.5px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "display-md": [
+                              "40px",
+                              {
+                                      "lineHeight": "44px",
+                                      "letterSpacing": "-1px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "label-upper": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "1.5px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-lg": [
+                              "56px",
+                              {
+                                      "lineHeight": "60px",
+                                      "letterSpacing": "-2px",
+                                      "fontWeight": "500"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        body { background-color: #fffaf0; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="font-body-md text-on-surface antialiased min-h-screen flex">
+<!-- Side Navigation Shell -->
+<nav class="bg-surface-container-low dark:bg-surface-container-lowest h-screen w-64 fixed left-0 top-0 border-r border-outline-variant dark:border-outline flex flex-col py-md hidden md:flex z-40">
+<div class="px-lg mb-8">
+<h1 class="font-title-lg text-title-lg text-primary dark:text-primary-fixed-dim tracking-tight">Main Terminal</h1>
+<p class="font-label-upper text-label-upper text-ink-muted mt-1 uppercase tracking-widest">Staff Portal</p>
+</div>
+<div class="flex-1 overflow-y-auto">
+<ul class="flex flex-col gap-2">
+<li class="">
+<a class="flex items-center gap-3 px-lg py-3 text-on-surface-variant mx-2 my-1 hover:bg-surface-container-highest transition-all duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-button text-button">Dashboard</span>
+</a>
+</li>
+<li class="">
+<a class="flex items-center gap-3 px-lg py-3 bg-secondary-container text-on-secondary-container rounded-lg mx-2 my-1 transition-all duration-200 font-button text-button" href="#">
+<span class="material-symbols-outlined" data-icon="local_parking">local_parking</span>
+<span class="">Parking Lots</span>
+</a>
+</li>
+<li class="">
+<a class="flex items-center gap-3 px-lg py-3 text-on-surface-variant mx-2 my-1 hover:bg-surface-container-highest transition-all duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="view_quilt">view_quilt</span>
+<span class="font-button text-button">Capacity</span>
+</a>
+</li>
+<li class="">
+<a class="flex items-center gap-3 px-lg py-3 text-on-surface-variant mx-2 my-1 hover:bg-surface-container-highest transition-all duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="confirmation_number">confirmation_number</span>
+<span class="font-button text-button">Bookings</span>
+</a>
+</li>
+<li class="">
+<a class="flex items-center gap-3 px-lg py-3 text-on-surface-variant mx-2 my-1 hover:bg-surface-container-highest transition-all duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-button text-button">Reports</span>
+</a>
+</li>
+</ul>
+</div>
+<div class="mt-auto px-lg pt-4 border-t border-outline-variant/30">
+<button class="w-full bg-primary text-white rounded-[12px] py-3 px-4 font-button text-button mb-4 flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                New Booking
+            </button>
+<ul class="flex flex-col gap-2">
+<li class="">
+<a class="flex items-center gap-3 py-2 text-on-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-button text-button">Settings</span>
+</a>
+</li>
+<li class="">
+<a class="flex items-center gap-3 py-2 text-on-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-button text-button">Sign Out</span>
+</a>
+</li>
+</ul>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="flex-1 ml-0 md:ml-64 p-md md:p-xl max-w-[1280px] mx-auto w-full">
+<!-- Header Section -->
+<header class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12 border-b border-outline-variant/30 pb-6"><div><div class="flex items-center gap-3 mb-2"><span class="bg-brand-lavender/20 text-brand-lavender font-label-upper text-label-upper px-3 py-1 rounded-full border border-brand-lavender/30">Active</span><span class="text-ink-muted font-label-upper text-label-upper tracking-widest">ID: ND-001</span></div><h2 class="font-display-md text-display-md text-primary -tracking-[1px] mb-2">North Deck - Facility Overview</h2><p class="font-body-md text-ink-muted max-w-2xl">Overview of facility details, pricing tiers, and available amenities for the North Terminal parking hub.</p></div><div class="flex gap-3"><button class="border border-outline-variant text-primary font-button text-button py-3 px-6 rounded-[12px] hover:bg-surface-container-highest transition-colors flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">edit</span> Edit Details</button></div></header>
+<!-- Minimal Layout -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-12"><div class="md:col-span-8 flex flex-col gap-12"><section><h3 class="font-label-upper text-label-upper text-ink-muted uppercase tracking-widest mb-6 border-b border-outline-variant/30 pb-2">Basic Information</h3><div class="grid grid-cols-1 sm:grid-cols-2 gap-y-8 gap-x-6"><div><p class="font-label-upper text-ink-muted uppercase text-[10px] mb-1">Parking Name</p><p class="font-body-md text-primary">North Deck</p></div><div><p class="font-label-upper text-ink-muted uppercase text-[10px] mb-1">Address</p><p class="font-body-md text-primary">4500 Airport Way, North Terminal, Seattle, WA 98158</p></div><div><p class="font-label-upper text-ink-muted uppercase text-[10px] mb-1">Latitude</p><p class="font-mono text-sm text-primary">47.4435° N</p></div><div><p class="font-label-upper text-ink-muted uppercase text-[10px] mb-1">Longitude</p><p class="font-mono text-sm text-primary">122.3016° W</p></div><div class="sm:col-span-2"><p class="font-label-upper text-ink-muted uppercase text-[10px] mb-2">Description</p><p class="font-body-md text-primary leading-relaxed">Serving the north terminal with full-service valet, premium detailing, and express security lanes.</p></div></div></section><section><h3 class="font-label-upper text-label-upper text-ink-muted uppercase tracking-widest mb-6 border-b border-outline-variant/30 pb-2">Hourly Rates</h3><div class="space-y-4"><div class="flex items-center justify-between py-3 border-b border-outline-variant/20 last:border-0"><div class="flex items-center gap-3"><span class="material-symbols-outlined text-brand-ochre">light_mode</span><div><p class="font-button text-button text-primary">Day Shift</p><p class="text-xs text-ink-muted">07:00 - 17:00</p></div></div><div class="font-title-lg text-primary">$8<span class="text-sm font-body-md text-ink-muted ml-1">/hr</span></div></div><div class="flex items-center justify-between py-3 border-b border-outline-variant/20 last:border-0"><div class="flex items-center gap-3"><span class="material-symbols-outlined text-brand-peach">wb_twilight</span><div><p class="font-button text-button text-primary">Evening Shift</p><p class="text-xs text-ink-muted">17:00 - 22:00</p></div></div><div class="font-title-lg text-primary">$12<span class="text-sm font-body-md text-ink-muted ml-1">/hr</span></div></div><div class="flex items-center justify-between py-3 border-b border-outline-variant/20 last:border-0"><div class="flex items-center gap-3"><span class="material-symbols-outlined text-brand-lavender">dark_mode</span><div><p class="font-button text-button text-primary">Night Shift</p><p class="text-xs text-ink-muted">22:00 - 07:00</p></div></div><div class="font-title-lg text-primary">$6<span class="text-sm font-body-md text-ink-muted ml-1">/hr</span></div></div></div></section><section><h3 class="font-label-upper text-label-upper text-ink-muted uppercase tracking-widest mb-6 border-b border-outline-variant/30 pb-2">Additional Services</h3><div class="space-y-3"><div class="flex items-center justify-between py-3 border-b border-outline-variant/20 last:border-0"><div class="flex items-center gap-3"><span class="material-symbols-outlined text-ink-muted">local_car_wash</span><span class="font-body-md text-primary">Full Detailing</span></div><span class="font-button text-primary">$45.00</span></div><div class="flex items-center justify-between py-3 border-b border-outline-variant/20 last:border-0"><div class="flex items-center gap-3"><span class="material-symbols-outlined text-ink-muted">water_drop</span><span class="font-body-md text-primary">Express Wash</span></div><span class="font-button text-primary">$15.00</span></div></div></section></div><aside class="md:col-span-4 flex flex-col gap-12"><section><div><h3 class="font-label-upper text-label-upper text-ink-muted uppercase tracking-widest mb-6 border-b border-outline-variant/30 pb-2">Slot Capacity</h3><div class="flex flex-col gap-6"><div class="text-center"><p class="font-label-upper text-ink-muted uppercase text-[10px] mb-2">Total Available Slots</p><p class="font-display-md text-display-md text-primary">1,250</p></div><div class="w-full h-3 bg-surface-container-highest rounded-full overflow-hidden flex"><div class="h-full bg-brand-teal" style="width: 60%" title="Reserved: 750"></div><div class="h-full bg-brand-ochre" style="width: 4%" title="Blocked: 50"></div></div><div class="grid grid-cols-2 gap-4 pt-2"><div><div class="flex items-center gap-2 mb-1"><div class="w-2 h-2 rounded-full bg-brand-teal"></div><p class="text-[10px] text-ink-muted uppercase">Reserved</p></div><p class="font-title-lg text-primary">750 <span class="text-sm font-body-md text-ink-muted font-normal">(60%)</span></p></div><div><div class="flex items-center gap-2 mb-1"><div class="w-2 h-2 rounded-full bg-brand-ochre"></div><p class="text-[10px] text-ink-muted uppercase">Blocked</p></div><p class="font-title-lg text-primary">50 <span class="text-sm font-body-md text-ink-muted font-normal">(4%)</span></p></div></div></div></div></section><section><div><h3 class="font-label-upper text-label-upper text-ink-muted uppercase tracking-widest mb-6 border-b border-outline-variant/30 pb-2">Amenities</h3><div class="flex flex-wrap gap-2"><span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-outline-variant/30 text-sm font-body-md text-primary"><span class="material-symbols-outlined text-[16px] text-ink-muted">ev_station</span> EV Charging</span><span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-outline-variant/30 text-sm font-body-md text-primary"><span class="material-symbols-outlined text-[16px] text-ink-muted">videocam</span> Camera/Security</span><span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-outline-variant/30 text-sm font-body-md text-primary"><span class="material-symbols-outlined text-[16px] text-ink-muted">directions_car</span> Valet</span><span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-outline-variant/30 text-sm font-body-md text-primary"><span class="material-symbols-outlined text-[16px] text-ink-muted">local_car_wash</span> Car Wash</span><span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-outline-variant/30 text-sm font-body-md text-primary"><span class="material-symbols-outlined text-[16px] text-ink-muted">schedule</span> 24/7 Access</span></div></div></section></aside></div>
+</main>
+</body></html>

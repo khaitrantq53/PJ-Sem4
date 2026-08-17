@@ -40,6 +40,8 @@ public interface AdminService {
 
     Page<BookingDtos.BookingListResponse> bookings(AdminDtos.AdminBookingFilter filter, Pageable pageable);
 
+    Page<BookingDtos.BookingListResponse> customerBookings(UUID customerId, Pageable pageable);
+
     BookingDtos.BookingResponse booking(UUID bookingId);
 
     AdminDtos.BookingExceptionCommandResponse resolveBookingException(CurrentUser currentUser, UUID bookingId,

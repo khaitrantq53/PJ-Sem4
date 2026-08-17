@@ -3,9 +3,14 @@ import 'leaflet/dist/leaflet.css';
 import {
   apiRequest,
   clearSession,
+  getParkingLotCapacities,
+  getParkingLotDetail,
+  getParkingLotPricingRules,
+  getParkingLotServices,
   getStoredAccount,
   saveSession,
   searchParkingLots,
+  startSessionGuard,
 } from '../../services/api.js';
 
 const SUGGESTED_LOT_LIMIT = 6;
@@ -135,6 +140,69 @@ function getImageForIndex(index) {
   return images[index % images.length];
 }
 
+function summarizeCapacity(capacities = []) {
+  if (!Array.isArray(capacities) || capacities.length === 0) {
+    return null;
+  }
+
+  return capacities.reduce((summary, capacity) => {
+    summary.total += Number(capacity.totalCapacity || 0);
+    summary.available += Number(capacity.available || 0);
+    return summary;
+  }, { available: 0, total: 0 });
+}
+
+function getServiceLabels(services = []) {
+  if (!Array.isArray(services)) {
+    return [];
+  }
+
+  const labels = services
+    .filter((service) => service.active !== false)
+    .map((service) => formatServiceLabel(service.name))
+    .filter(Boolean);
+
+  return [...new Set(labels)];
+}
+
+function formatServiceLabel(value) {
+  const name = String(value || '').trim();
+  const normalized = normalizeSearchText(name);
+
+  if (!name) {
+    return '';
+  }
+
+  if (normalized.includes('ev') || normalized.includes('electric')) {
+    return 'EV Charging';
+  }
+
+  if (normalized.includes('camera') || normalized.includes('security') || normalized.includes('cctv')) {
+    return 'Camera / Security';
+  }
+
+  if (normalized.includes('wash')) {
+    return 'Car Wash';
+  }
+
+  if (normalized.includes('valet')) {
+    return 'Valet';
+  }
+
+  if (normalized.includes('24') || normalized.includes('access')) {
+    return '24/7 Access';
+  }
+
+  if (normalized.includes('covered')) {
+    return 'Covered Parking';
+  }
+
+  return name
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function mapBackendLot(lot, index) {
   const backendLatitude = parseCoordinate(lot.latitude);
   const backendLongitude = parseCoordinate(lot.longitude);
@@ -144,11 +212,14 @@ function mapBackendLot(lot, index) {
   const longitude = hasVietnamCoordinate ? backendLongitude : fallbackCoordinate.lng;
   const price = normalizeMoneyValue(lot.hourlyRate ?? lot.price);
   const distanceKm = getLotDistanceKm(lot, latitude, longitude, index);
+  const amenities = getServiceLabels(lot.services);
+  const capacity = summarizeCapacity(lot.capacities);
 
   return {
     id: lot.id,
     name: lot.name || 'Unnamed parking lot',
     address: lot.address || 'Address not updated',
+    description: lot.description || '',
     status: lot.status || 'ACTIVE',
     price,
     distance: formatDistanceKm(distanceKm),
@@ -156,11 +227,12 @@ function mapBackendLot(lot, index) {
     rating: getLotRating(lot, index),
     reviews: getLotReviewCount(lot, index),
     priceBands: getPriceBands(lot, price, index),
+    amenities,
+    capacity,
     tags: [
-      lot.status === 'ACTIVE' ? 'Accepting vehicles' : lot.status,
-      'Reservable',
-      hasVietnamCoordinate ? 'Has coordinates' : 'Ha Noi area',
-    ],
+      lot.status || 'ACTIVE',
+      hasVietnamCoordinate ? 'Mapped location' : 'Ha Noi area',
+    ].filter(Boolean),
     image: getImageForIndex(index),
     latitude,
     longitude,
@@ -236,47 +308,60 @@ function formatArrivalMinutes(minutes) {
   return `${Math.round(number)} min`;
 }
 
-function getLotRating(lot, index) {
+function getLotRating(lot) {
   const rating = Number(lot.averageRating ?? lot.rating ?? lot.reviewAverage);
   if (Number.isFinite(rating) && rating > 0) {
     return Math.min(5, rating).toFixed(1);
   }
 
-  return (4.6 + (index % 4) * 0.1).toFixed(1);
+  return null;
 }
 
-function getLotReviewCount(lot, index) {
+function getLotReviewCount(lot) {
   const reviews = Number(lot.reviewCount ?? lot.reviews ?? lot.totalReviews);
   if (Number.isFinite(reviews) && reviews >= 0) {
     return Math.round(reviews);
   }
 
-  return 86 + index * 17;
+  return null;
 }
 
-function getPriceBands(lot, basePrice, index) {
-  const sourceBands = lot.priceBands || lot.pricingBands || lot.pricing?.bands;
+function formatPriceBandTime(value) {
+  const text = String(value || '').trim();
+  const match = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?/);
+
+  if (!match) {
+    return text || '--:--';
+  }
+
+  return `${match[1].padStart(2, '0')}:${match[2]}`;
+}
+
+function formatPriceBandLabel(band) {
+  const rawLabel = band.label || band.timeRange;
+
+  if (rawLabel) {
+    return String(rawLabel).replace(/\b(\d{1,2}:\d{2}):\d{2}\b/g, '$1');
+  }
+
+  return `${formatPriceBandTime(band.startTime)} - ${formatPriceBandTime(band.endTime)}`;
+}
+
+function getPriceBands(lot) {
+  const sourceBands = lot.pricingRules || lot.priceBands || lot.pricingBands || lot.pricing?.bands;
 
   if (Array.isArray(sourceBands) && sourceBands.length) {
     return sourceBands
+      .slice()
+      .sort((first, second) => String(first.startTime || '').localeCompare(String(second.startTime || '')))
       .map((band) => ({
-        label: band.label || band.timeRange || `${band.startTime || '--:--'} - ${band.endTime || '--:--'}`,
+        label: formatPriceBandLabel(band),
         price: normalizeMoneyValue(band.price ?? band.hourlyRate ?? band.rate),
       }))
       .filter((band) => band.price);
   }
 
-  if (!basePrice) {
-    return [];
-  }
-
-  const peakStep = 2000 + index * 500;
-
-  return [
-    { label: '06:00 - 10:00', price: basePrice },
-    { label: '10:00 - 17:00', price: basePrice + peakStep },
-    { label: '17:00 - 22:00', price: basePrice + peakStep * 2 },
-  ];
+  return [];
 }
 
 function calculateDistanceKm(fromLat, fromLng, toLat, toLng) {
@@ -438,7 +523,7 @@ function getAccountMenuItems(account) {
   if (account?.role === 'STAFF') {
     return [
       { href: '/staff.html', icon: accountMenuIcons.dashboard, label: 'Staff Dashboard' },
-      { href: '/staff-parking-lots.html', icon: accountMenuIcons.vehicles, label: 'Parking Lots' },
+      { href: '/staff-parking-lots.html', icon: accountMenuIcons.vehicles, label: 'My Parking Lot' },
       { href: '/staff-bookings.html', icon: accountMenuIcons.book, label: 'Bookings' },
     ];
   }
@@ -616,10 +701,25 @@ function getMapFocusLabel() {
   return 'Central area';
 }
 
+function getRouteSourceLabel() {
+  if (state.searchLocation) {
+    return 'From searched address';
+  }
+
+  if (state.userLocation) {
+    return 'From current location';
+  }
+
+  return 'From Hanoi center';
+}
+
 function createParkingCard(lot, index = 0, count = 1) {
   const card = document.createElement('article');
   const targetScale = Math.max(0.94, 1 - (count - index - 1) * 0.012);
   const priceBands = Array.isArray(lot.priceBands) ? lot.priceBands : [];
+  const hasRating = lot.rating !== null && lot.rating !== undefined && lot.rating !== '';
+  const amenities = Array.isArray(lot.amenities) ? lot.amenities.slice(0, 4) : [];
+  const capacity = lot.capacity;
   card.className = `parking-card parking-stack-tone-${index % 6}${lot.id === state.activeId ? ' active' : ''}`;
   card.tabIndex = 0;
   card.dataset.id = lot.id;
@@ -636,20 +736,32 @@ function createParkingCard(lot, index = 0, count = 1) {
         <h2>${escapeHtml(lot.name)}</h2>
         <div class="price">${lot.price ? formatCurrency(lot.price) : 'Contact'}<span>/hour</span></div>
       </div>
-      <div class="parking-meta-row">
+      ${hasRating || lot.eta || capacity ? `<div class="parking-meta-row">
+        ${hasRating ? `
         <span class="rating-badge" aria-label="Rating ${escapeHtml(lot.rating)} out of 5">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21 7 14.2 2 9.3l6.9-1L12 2Z" />
           </svg>
-          ${escapeHtml(lot.rating)} <small>(${escapeHtml(lot.reviews)} reviews)</small>
+          ${escapeHtml(lot.rating)}${lot.reviews !== null && lot.reviews !== undefined ? ` <small>(${escapeHtml(lot.reviews)} reviews)</small>` : ''}
         </span>
+        ` : ''}
+        ${lot.eta ? `
         <span class="eta-badge">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 5h-2v6l5 3 .9-1.6-3.9-2.3V7Z" />
           </svg>
           ${escapeHtml(lot.eta)} to arrive
         </span>
-      </div>
+        ` : ''}
+        ${capacity ? `
+        <span class="slots-badge" aria-label="Available slots ${escapeHtml(capacity.available)} out of ${escapeHtml(capacity.total)}">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Zm2 5v8h2v-2h2.4a3 3 0 0 0 0-6H9Zm2 2h2.4a1 1 0 1 1 0 2H11v-2Z" />
+          </svg>
+          ${escapeHtml(capacity.available)} / ${escapeHtml(capacity.total)} slots
+        </span>
+        ` : ''}
+      </div>` : ''}
       <div class="parking-address">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z" />
@@ -657,7 +769,7 @@ function createParkingCard(lot, index = 0, count = 1) {
         <span>${escapeHtml(lot.address)}</span>
       </div>
       <div class="route-summary">
-        <span>From current location</span>
+        <span>${escapeHtml(getRouteSourceLabel())}</span>
         <strong>${escapeHtml(lot.distance)} - ${escapeHtml(lot.eta)}</strong>
       </div>
       ${priceBands.length ? `
@@ -670,9 +782,9 @@ function createParkingCard(lot, index = 0, count = 1) {
           `).join('')}
         </div>
       ` : ''}
-      <div class="parking-tags">
-        ${lot.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join('')}
-      </div>
+      ${amenities.length ? `<div class="parking-tags" aria-label="Amenities">
+        ${amenities.map((amenity) => `<span>${escapeHtml(amenity)}</span>`).join('')}
+      </div>` : ''}
       <div class="card-actions">
         <button class="primary-button" type="button" data-action="select">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -863,6 +975,28 @@ function buildGeocodeQuery(address) {
   return alreadyHasLocationScope ? address : `${address}, Hà Nội, Việt Nam`;
 }
 
+async function hydrateParkingLotDetails(lots) {
+  return Promise.all(lots.map(async (lot) => {
+    try {
+      const [detail, capacities, pricingRules, services] = await Promise.all([
+        getParkingLotDetail(lot.id).catch(() => lot),
+        getParkingLotCapacities(lot.id).catch(() => []),
+        getParkingLotPricingRules(lot.id).catch(() => []),
+        getParkingLotServices(lot.id).catch(() => []),
+      ]);
+      return {
+        ...lot,
+        ...detail,
+        capacities,
+        pricingRules,
+        services,
+      };
+    } catch (error) {
+      return lot;
+    }
+  }));
+}
+
 async function loadLots(source = 'form') {
   if (source !== 'near-me') {
     const searchReady = await resolveAddressSearch();
@@ -880,10 +1014,13 @@ async function loadLots(source = 'form') {
       size: SUGGESTED_LOT_LIMIT,
     }));
     const suggestedLots = page.items.slice(0, SUGGESTED_LOT_LIMIT);
+    const detailedLots = suggestedLots.length
+      ? await hydrateParkingLotDetails(suggestedLots)
+      : [];
     state.loadError = null;
     state.usingDemo = suggestedLots.length === 0 && !hasActiveSearchScope();
     state.lots = suggestedLots.length
-      ? suggestedLots.map(mapBackendLot)
+      ? detailedLots.map(mapBackendLot)
       : state.usingDemo ? [demoLot] : [];
     state.activeId = state.lots[0]?.id || null;
     setStatus(suggestedLots.length ? 'Online' : 'Demo data', suggestedLots.length === 0);
@@ -1254,5 +1391,6 @@ function bindEvents() {
 bindEvents();
 syncAddressInputState();
 hydrateHomeAuth();
+startSessionGuard();
 initOpenStreetMap();
 loadLots('initial');

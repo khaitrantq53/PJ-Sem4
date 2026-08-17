@@ -6,4 +6,8 @@ import java.util.UUID;
 
 public interface ParkingLotStaffRepository extends JpaRepository<ParkingLotStaff, UUID> {
     boolean existsByParkingLotIdAndStaffId(UUID parkingLotId, UUID staffId);
+
+    boolean existsByParkingLotId(UUID parkingLotId);
+
+    boolean existsByStaffId(UUID staffId);
 }

@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -25,7 +26,7 @@ public final class ParkingDtos {
             @DecimalMin("-90.0") @DecimalMax("90.0") BigDecimal latitude,
             @DecimalMin("-180.0") @DecimalMax("180.0") BigDecimal longitude,
             String description,
-            @NotNull Long version
+            Long version
     ) {
     }
 
@@ -66,7 +67,7 @@ public final class ParkingDtos {
     ) {
     }
 
-    public record CapacityRequest(@Min(0) int totalCapacity, @NotNull Long version) {
+    public record CapacityRequest(@Min(0) int totalCapacity, Long version) {
     }
 
     public record CapacityResponse(UUID parkingLotId, VehicleType vehicleType, int totalCapacity, long reserved, long blocked,
@@ -128,6 +129,8 @@ public final class ParkingDtos {
     public record PricingRuleRequest(
             @NotNull VehicleType vehicleType,
             @NotNull @DecimalMin("0.00") BigDecimal hourlyRate,
+            @NotNull LocalTime startTime,
+            @NotNull LocalTime endTime,
             @NotNull Boolean active,
             Long version
     ) {
@@ -138,6 +141,8 @@ public final class ParkingDtos {
             UUID parkingLotId,
             VehicleType vehicleType,
             BigDecimal hourlyRate,
+            LocalTime startTime,
+            LocalTime endTime,
             boolean active,
             Long version,
             OffsetDateTime createdAt,

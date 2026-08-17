@@ -1,8 +1,8 @@
 import { PageShell } from '../../components/PageShell.jsx';
-import { createStaffPage, icons, staffButton } from './staffLayout.js';
+import { createStaffPage } from './staffLayout.js';
 
-const editIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2ZM19 9h-4V3H9v6H5l7 7 7-7Z" /></svg>';
-const moneyIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4V6Zm2 2v8h12V8H6Zm6 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" /></svg>';
+const editIcon = '<span class="material-symbols-outlined" aria-hidden="true">edit</span>';
+const serviceIcon = '<span class="material-symbols-outlined" aria-hidden="true">local_car_wash</span>';
 
 const parkingLotsContent = `
   <header class="staff-lots-header">
@@ -11,112 +11,153 @@ const parkingLotsContent = `
         <span class="staff-lot-state" id="staffLotSelectedStatus">Active</span>
         <span id="staffLotSelectedId">ID: -</span>
       </div>
-      <h1 id="staffLotSelectedName">Parking Lots</h1>
-      <p id="staffLotSelectedDescription">Manage your assigned parking facilities, rates, policies, and location details.</p>
+      <h1 id="staffLotSelectedName">My Parking Lot</h1>
+      <p id="staffLotSelectedDescription">Manage the parking facility assigned to this staff account.</p>
     </div>
+    <button class="staff-lots-edit-button" type="button" data-action="open-staff-lot-modal">${editIcon}<span>Edit Details</span></button>
   </header>
 
   <span class="status-line staff-status-line" id="staffLotsStatus"></span>
 
-  <div class="staff-lots-layout">
-    <div class="staff-lots-main">
-      <section class="staff-lots-section" id="capacity">
-        <h2>Facility Status</h2>
-        <div class="staff-lots-metrics">
-          <article><span>Total Lots</span><strong id="staffLotsTotal">0</strong></article>
-          <article><span>Active</span><strong class="tone-lavender" id="staffLotsActive">0</strong></article>
-          <article><span>Pending</span><strong id="staffLotsPending">0</strong></article>
-          <article><span>Paused</span><strong class="tone-pink" id="staffLotsPaused">0</strong></article>
-        </div>
-        <a class="staff-inline-link" href="#managed-lots">
-          Manage facilities
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6-1.4 1.4 4.6 4.6-4.6 4.6L9 18Z" /></svg>
-        </a>
-      </section>
-
-      <section class="staff-lots-section">
-        <h2>${moneyIcon} Rate Card</h2>
-        <div class="staff-rate-grid">
-          <article><span>Hourly Rate</span><strong id="staffLotHourlyRate">-</strong></article>
-          <article><span>Updated</span><strong id="staffLotUpdatedAt">-</strong></article>
-          <article><span>Version</span><strong id="staffLotVersion">-</strong></article>
+  <div class="staff-lot-overview-layout">
+    <div class="staff-lot-overview-main">
+      <section class="staff-lot-section">
+        <h2>Basic Information</h2>
+        <div class="staff-basic-info-grid">
+          <div><span>Parking Name</span><strong id="staffBasicName">-</strong></div>
+          <div><span>Address</span><strong id="staffBasicAddress">-</strong></div>
+          <div><span>Latitude</span><strong class="mono" id="staffBasicLatitude">-</strong></div>
+          <div><span>Longitude</span><strong class="mono" id="staffBasicLongitude">-</strong></div>
+          <div class="wide"><span>Description</span><p id="staffBasicDescription">-</p></div>
         </div>
       </section>
 
-      <section class="staff-lots-section staff-lots-split">
-        <article>
-          <h2><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4V5Zm2 2v2h12V7H6Zm0 4v6h12v-6H6Z" /></svg> Active Promotions</h2>
-          <div class="staff-promo-chip">PROMO CODE</div>
-          <strong>No active promo loaded</strong>
-          <p>Promotion data will appear here when staff promotion APIs are connected to this page.</p>
-        </article>
-        <article>
-          <h2><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h10v20H7V2Zm2 2v16h6V4H9Zm1 3h4v2h-4V7Zm0 4h4v2h-4v-2Z" /></svg> Key Policies</h2>
-          <ul>
-            <li><strong>Cancellation</strong><span>Policies are managed from backend policy rules.</span></li>
-            <li><strong>Operating Rules</strong><span>Show policy values after selecting a lot.</span></li>
-          </ul>
-        </article>
+      <section class="staff-lot-section">
+        <h2>Hourly Rates</h2>
+        <div class="staff-hourly-rates-list" id="staffHourlyRates">
+          <div class="empty-state">No pricing rules yet.</div>
+        </div>
       </section>
 
-      <section class="staff-panel staff-lots-list-panel" id="managed-lots">
-        <div class="staff-section-title"><h2>Managed Parking Lots</h2><span id="staffLotsCountLabel">0 lots</span></div>
-        <div class="staff-lots-toolbar">
-          <label>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 20.1-4.7-4.7a7.5 7.5 0 1 0-1.1 1.1l4.7 4.7 1.1-1.1ZM4.5 10.5a6 6 0 1 1 12 0 6 6 0 0 1-12 0Z" /></svg>
-            <input id="staffLotSearch" type="search" placeholder="Search lot name or address" />
-          </label>
-          <select id="staffLotStatusFilter" aria-label="Filter parking lots by status">
-            <option value="">All statuses</option>
-            <option value="ACTIVE">Active</option>
-            <option value="DRAFT">Draft</option>
-            <option value="PENDING_APPROVAL">Pending</option>
-            <option value="PAUSED">Paused</option>
-          </select>
+      <section class="staff-lot-section">
+        <h2>Additional Services</h2>
+        <div class="staff-services-list" id="staffAdditionalServices">
+          <div class="empty-state">No services loaded.</div>
         </div>
-        <div class="staff-lots-list" id="staffParkingLotList"></div>
       </section>
     </div>
 
-    <aside class="staff-lots-aside">
-      <section class="staff-lots-section">
-        <h2>Location</h2>
-        <dl class="staff-lot-details">
-          <div><dt>Address</dt><dd id="staffLotAddress">-</dd></div>
-          <div><dt>Coordinates</dt><dd id="staffLotCoordinates">-</dd></div>
-          <div><dt>Status</dt><dd><span class="staff-lot-mini-chip" id="staffLotStatusChip">-</span></dd></div>
-        </dl>
-      </section>
-
-      <section class="staff-lots-section">
-        <h2>Amenities</h2>
-        <ul class="staff-amenity-list">
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h8v8h2a3 3 0 0 1 3 3v7h-2v-7a1 1 0 0 0-1-1h-2v10H7V2Zm2 2v16h4V4H9Zm1 2h2v4h-2V6Z" /></svg>EV Charging</li>
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11h14l-1.5-4.5A2 2 0 0 0 15.6 5H8.4a2 2 0 0 0-1.9 1.5L5 11Zm-1 2v5h2v-2h12v2h2v-5H4Z" /></svg>Valet Drop</li>
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17h16v2H4v-2Zm2-4h12l-2-6H8l-2 6Zm2.5-8h7A2 2 0 0 1 17.4 6.4L20 15H4l2.6-8.6A2 2 0 0 1 8.5 5Z" /></svg>Detailing</li>
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z" /></svg>24/7 Security</li>
-        </ul>
-      </section>
-
-      <section class="staff-lots-section">
-        <h2>System</h2>
-        <dl class="staff-lot-details"><div><dt>Current Version</dt><dd id="staffLotSystemVersion">-</dd></div></dl>
-      </section>
-
-      <section class="staff-panel staff-create-lot-panel" id="create-lot">
-        <div class="staff-section-title"><h2>New Location</h2><span>Draft setup</span></div>
-        <form class="staff-create-lot-form" id="staffParkingLotForm">
-          <label class="input-group"><span>Name</span><input name="name" required /></label>
-          <label class="input-group"><span>Address</span><input name="address" required /></label>
-          <div class="staff-create-coordinates">
-            <label class="input-group"><span>Latitude</span><input name="latitude" type="number" step="0.000001" /></label>
-            <label class="input-group"><span>Longitude</span><input name="longitude" type="number" step="0.000001" /></label>
+    <aside class="staff-lot-overview-aside">
+      <section class="staff-lot-section staff-capacity-section">
+        <h2>Slot Capacity</h2>
+        <div class="staff-capacity-summary">
+          <span>Total Available Slots</span>
+          <strong id="staffCapacityTotal">0</strong>
+        </div>
+        <div class="staff-capacity-bar" id="staffCapacityBar">
+          <span class="reserved" style="width: 0%"></span>
+          <span class="blocked" style="width: 0%"></span>
+        </div>
+        <div class="staff-capacity-breakdown">
+          <div>
+            <span><i class="reserved"></i> Reserved</span>
+            <strong><em id="staffCapacityReserved">0</em> <small id="staffCapacityReservedPercent">(0%)</small></strong>
           </div>
-          <label class="input-group"><span>Description</span><input name="description" /></label>
-          <button class="staff-location-button" type="submit">${icons.add} Create Draft Lot</button>
-        </form>
+          <div>
+            <span><i class="blocked"></i> Blocked</span>
+            <strong><em id="staffCapacityBlocked">0</em> <small id="staffCapacityBlockedPercent">(0%)</small></strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="staff-lot-section staff-amenities-section">
+        <h2>Amenities</h2>
+        <div class="staff-amenities-chips" id="staffAmenities">
+          <span>${serviceIcon} No amenities yet</span>
+        </div>
       </section>
     </aside>
+  </div>
+
+  <div class="staff-lot-modal hidden" id="staffLotEditModal" aria-hidden="true">
+    <div class="staff-lot-modal-card" role="dialog" aria-modal="true" aria-labelledby="staffLotEditTitle">
+      <div class="staff-lot-modal-head">
+        <h2 id="staffLotEditTitle">Edit Parking Lot Details</h2>
+        <button type="button" data-action="close-staff-lot-modal" aria-label="Close edit parking lot modal">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z" /></svg>
+        </button>
+      </div>
+
+      <form class="staff-lot-edit-form" id="staffParkingLotForm">
+        <div class="staff-lot-modal-body">
+          <section class="staff-lot-form-section">
+            <h3>Basic Information</h3>
+            <div class="staff-lot-field-stack">
+              <label class="staff-popup-field"><span>Parking Name</span><input name="name" type="text" required /></label>
+              <label class="staff-popup-field"><span>Address</span><input name="address" type="text" required /></label>
+              <div class="staff-popup-two-grid">
+                <label class="staff-popup-field"><span>Latitude</span><input name="latitude" type="text" /></label>
+                <label class="staff-popup-field"><span>Longitude</span><input name="longitude" type="text" /></label>
+              </div>
+              <label class="staff-popup-field"><span>Description</span><textarea name="description" rows="3"></textarea></label>
+            </div>
+          </section>
+
+          <div class="staff-lot-form-side-stack">
+            <section class="staff-lot-form-section staff-popup-capacity-section">
+              <h3>Slot Capacity</h3>
+              <div class="staff-lot-capacity-fields">
+                <label class="staff-popup-field"><span>Total Available Slots</span><input name="capacity_total" type="number" min="0" step="1" /></label>
+              </div>
+            </section>
+
+            <section class="staff-lot-form-section staff-popup-amenities-section">
+              <h3>Amenities</h3>
+              <div class="staff-amenity-checklist">
+                <label><input name="amenity_EV Charging" type="checkbox" /><span>EV Charging</span></label>
+                <label><input name="amenity_Camera/Security" type="checkbox" /><span>Camera/Security</span></label>
+                <label><input name="amenity_Covered Parking" type="checkbox" /><span>Covered Parking</span></label>
+                <label><input name="amenity_Valet" type="checkbox" /><span>Valet</span></label>
+                <label><input name="amenity_Car Wash" type="checkbox" /><span>Car Wash</span></label>
+                <label><input name="amenity_24/7 Access" type="checkbox" /><span>24/7 Access</span></label>
+              </div>
+            </section>
+
+            <section class="staff-lot-form-section staff-popup-rates-section">
+              <h3>Hourly Rates</h3>
+              <div class="staff-lot-rate-edit-list">
+                <div class="staff-popup-rate-row">
+                  <label class="staff-popup-field"><span>Day (07:00-17:00)</span><div class="staff-money-input"><em>₫</em><input name="price_day" type="number" min="0" step="1000" /></div></label>
+                  <label class="staff-popup-field"><span>Evening (17:00-22:00)</span><div class="staff-money-input"><em>₫</em><input name="price_evening" type="number" min="0" step="1000" /></div></label>
+                </div>
+                <label class="staff-popup-field staff-night-rate"><span>Night (22:00-07:00)</span><div class="staff-money-input"><em>₫</em><input name="price_night" type="number" min="0" step="1000" /></div></label>
+              </div>
+            </section>
+          </div>
+
+          <section class="staff-lot-form-section wide">
+            <h3>Additional Services</h3>
+            <div class="staff-service-edit-list">
+              <div>
+                <label class="staff-popup-field"><span>Service Name</span><input name="service_1_name" type="text" /></label>
+                <label class="staff-popup-field"><span>Price</span><input name="service_1_price" type="text" /></label>
+                <label class="staff-service-active"><input name="service_1_active" type="checkbox" checked /><span>Active</span></label>
+              </div>
+              <div>
+                <label class="staff-popup-field"><span>Service Name</span><input name="service_2_name" type="text" /></label>
+                <label class="staff-popup-field"><span>Price</span><input name="service_2_price" type="text" /></label>
+                <label class="staff-service-active"><input name="service_2_active" type="checkbox" checked /><span>Active</span></label>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="staff-lot-modal-actions">
+          <button type="button" class="staff-lot-secondary-button" data-action="close-staff-lot-modal">Cancel</button>
+          <button class="staff-lot-save-button" id="staffParkingLotSubmitButton" type="submit"><span id="staffParkingLotSubmitLabel">Save Changes</span></button>
+        </div>
+      </form>
+    </div>
   </div>
 `;
 
@@ -126,8 +167,9 @@ const staffParkingLotsPage = createStaffPage({
   contentClass: 'staff-lots-content',
   pageClass: 'staff-lots-page',
   pageKey: 'staff-lots',
-  sideFooterAction: staffButton('Edit Information', editIcon),
-  sideFooterHref: '#create-lot',
+  sideFooterAction: `<button class="staff-export-button" type="button" data-action="open-staff-lot-modal">${editIcon}Edit Information</button>`,
+  sideFooterHref: '/staff-bookings.html',
+  sideFooterLabel: 'New Booking',
   title: 'ParkFinder Staff | Parking Lots',
 });
 

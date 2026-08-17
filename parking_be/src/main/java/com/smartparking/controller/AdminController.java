@@ -2,11 +2,14 @@ package com.smartparking.controller;
 
 import com.smartparking.administration.AdminService;
 import com.smartparking.administration.dto.AdminDtos;
+import com.smartparking.booking.dto.BookingDtos;
 import com.smartparking.common.dto.ApiResponse;
 import com.smartparking.common.dto.PageResponse;
 import com.smartparking.common.security.RequestContext;
 import com.smartparking.common.security.SecurityUtils;
 import com.smartparking.parking.dto.ParkingDtos;
+import com.smartparking.vehicle.VehicleService;
+import com.smartparking.vehicle.dto.VehicleDtos;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -20,14 +23,17 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/admin")
 public class AdminController {
     private final AdminService adminService;
+    private final VehicleService vehicleService;
 
-    public AdminController(AdminService adminService) {
+    public AdminController(AdminService adminService, VehicleService vehicleService) {
         this.adminService = adminService;
+        this.vehicleService = vehicleService;
     }
 
     @GetMapping("/users")
@@ -44,6 +50,16 @@ public class AdminController {
     ApiResponse<AdminDtos.UserResponse> status(@PathVariable UUID userId,
                                                @Valid @RequestBody AdminDtos.StatusRequest request) {
         return ApiResponse.ok(adminService.updateUserStatus(SecurityUtils.currentUser(), userId, request), RequestContext.requestId());
+    }
+
+    @GetMapping("/users/{userId}/vehicles")
+    ApiResponse<List<VehicleDtos.VehicleResponse>> userVehicles(@PathVariable UUID userId) {
+        return ApiResponse.ok(vehicleService.listByCustomerForAdmin(userId), RequestContext.requestId());
+    }
+
+    @GetMapping("/users/{userId}/bookings")
+    PageResponse<BookingDtos.BookingListResponse> userBookings(@PathVariable UUID userId, Pageable pageable) {
+        return PageResponse.of(adminService.customerBookings(userId, pageable), RequestContext.requestId());
     }
 
     @PostMapping("/staff")

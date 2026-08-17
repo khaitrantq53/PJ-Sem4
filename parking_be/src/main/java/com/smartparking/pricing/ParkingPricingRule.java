@@ -15,6 +15,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 
 @Getter
 @Setter
@@ -31,6 +32,12 @@ public class ParkingPricingRule extends BaseEntity {
 
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal hourlyRate;
+
+    @Column(nullable = false)
+    private LocalTime startTime;
+
+    @Column(nullable = false)
+    private LocalTime endTime;
 
     @Column(nullable = false)
     private boolean active;
