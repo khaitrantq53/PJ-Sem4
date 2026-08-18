@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   apiPage,
   apiRequest,
@@ -19,6 +19,8 @@ const finishedStatuses = ['COMPLETED', 'CHECKED_OUT'];
 const customerCancelableStatuses = ['PENDING_APPROVAL', 'CONFIRMED'];
 const CHECK_IN_WINDOW_MS = 20 * 60 * 1000;
 const HOUR_IN_MS = 60 * 60 * 1000;
+const VNPAY_MERCHANT_CODE = import.meta.env.VITE_VNPAY_MERCHANT_CODE || 'PARKFINDER';
+const VNPAY_ORDER_PREFIX = import.meta.env.VITE_VNPAY_ORDER_PREFIX || 'PF';
 
 function formatMoney(value, currency = 'VND') {
   const amount = Number(value?.amount ?? value ?? 0);
@@ -491,17 +493,27 @@ function timelineProgress(booking) {
 }
 
 function paymentQrPayload(booking, total) {
+  const bookingCode = booking?.bookingCode || booking?.id || 'BOOKING';
+  const amount = Math.max(0, Math.round(moneyAmount(total)));
+  const currency = moneyCurrency(total);
+
   return [
-    'PARKFINDER_PAYMENT',
-    booking?.bookingCode || booking?.id || 'BOOKING',
-    moneyAmount(total),
-    moneyCurrency(total),
+    'VNPAY_DEMO_PAYMENT',
+    `merchant=${VNPAY_MERCHANT_CODE}`,
+    `order=${VNPAY_ORDER_PREFIX}-${bookingCode}`,
+    `amount=${amount}`,
+    `currency=${currency}`,
+    `description=ParkFinder checkout ${bookingCode}`,
   ].join('|');
 }
 
-function qrCellFilled(payload, index) {
-  const value = payload.charCodeAt(index % payload.length) + index * 17;
-  return value % 5 === 0 || value % 7 === 0 || value % 11 === 0;
+function paymentQrImageUrl(payload) {
+  return `https://api.qrserver.com/v1/create-qr-code/?${new URLSearchParams({
+    data: payload,
+    ecc: 'M',
+    margin: '12',
+    size: '220x220',
+  }).toString()}`;
 }
 
 export function CustomerDashboard() {
@@ -510,6 +522,8 @@ export function CustomerDashboard() {
   const [vehicles, setVehicles] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [lots, setLots] = useState([]);
+  const [selectedBookingId, setSelectedBookingId] = useState('');
+  const selectedBookingIdRef = useRef('');
   const [activeBookingDetail, setActiveBookingDetail] = useState(null);
   const [checkoutPreview, setCheckoutPreview] = useState(null);
   const [qrCode, setQrCode] = useState('');
@@ -525,13 +539,18 @@ export function CustomerDashboard() {
   const [now, setNow] = useState(() => new Date());
 
   const activeBookings = useMemo(
-    () => bookings.filter(isActiveBooking),
+    () => bookings
+      .filter((booking) => isActiveBooking(booking) || isSettlementBooking(booking))
+      .slice()
+      .sort((left, right) => {
+        const priority = displayBookingPriority(left) - displayBookingPriority(right);
+        if (priority !== 0) {
+          return priority;
+        }
+        return bookingSortDate(right) - bookingSortDate(left);
+      }),
     [bookings],
   );
-
-  const currentBooking = useMemo(() => {
-    return selectHighlightedBooking(bookings);
-  }, [bookings]);
 
   const settlementBooking = useMemo(() => {
     return bookings
@@ -539,7 +558,11 @@ export function CustomerDashboard() {
       .sort((left, right) => bookingSortDate(right) - bookingSortDate(left))[0] || null;
   }, [bookings]);
 
-  const displayBooking = activeBookingDetail || currentBooking || settlementBooking;
+  const selectedBookingSummary = useMemo(() => {
+    return bookings.find((booking) => String(booking.id) === String(selectedBookingId)) || null;
+  }, [bookings, selectedBookingId]);
+
+  const displayBooking = activeBookingDetail || selectedBookingSummary || activeBookings[0] || settlementBooking;
 
   const currentVehicle = useMemo(() => {
     return vehicles.find((vehicle) => String(vehicle.id) === String(displayBooking?.vehicleId)) || null;
@@ -616,6 +639,8 @@ export function CustomerDashboard() {
     if (!silent) {
       setLoading(true);
       setStatus('Loading');
+      selectedBookingIdRef.current = '';
+      setSelectedBookingId('');
       setActiveBookingDetail(null);
       setCheckoutPreview(null);
       setQrCode('');
@@ -637,7 +662,10 @@ export function CustomerDashboard() {
         apiPage('/customer/reviews', { size: 100 }),
       ]);
 
-      const highlightedBooking = selectHighlightedBooking(bookingPage.items);
+      const currentSelectedBookingId = selectedBookingIdRef.current;
+      const highlightedBooking = currentSelectedBookingId
+        ? bookingPage.items.find((booking) => String(booking.id) === String(currentSelectedBookingId)) || selectHighlightedBooking(bookingPage.items)
+        : selectHighlightedBooking(bookingPage.items);
 
       let detail = null;
       let qr = '';
@@ -682,6 +710,8 @@ export function CustomerDashboard() {
       setBookings(bookingPage.items);
       setReviews(reviewPage.items);
       setLots(lotDetail ? [lotDetail, ...lotPage.items.filter((lot) => lot.id !== lotDetail.id)] : lotPage.items);
+      selectedBookingIdRef.current = highlightedBooking?.id || '';
+      setSelectedBookingId(highlightedBooking?.id || '');
       setActiveBookingDetail(detail);
       setCheckoutPreview(preview);
       setQrCode(qr);
@@ -697,6 +727,56 @@ export function CustomerDashboard() {
       if (!silent) {
         setLoading(false);
       }
+    }
+  }
+
+  async function showBookingDetail(booking) {
+    if (!booking?.id) {
+      return;
+    }
+
+    selectedBookingIdRef.current = booking.id;
+    setSelectedBookingId(booking.id);
+    setActiveBookingDetail({ ...booking });
+    setCheckoutPreview(null);
+    setQrCode(booking.bookingCode || '');
+    setStatus('Loading booking detail...');
+
+    try {
+      const canPreviewCheckout = booking.status === 'CHECKED_IN';
+      const [detailResult, qrResult, lotResult, pricingRulesResult, previewResult] = await Promise.allSettled([
+        apiRequest(`/customer/bookings/${booking.id}`),
+        apiRequest(`/customer/bookings/${booking.id}/qr-code`),
+        getParkingLotDetail(booking.parkingLotId),
+        getParkingLotPricingRules(booking.parkingLotId),
+        canPreviewCheckout
+          ? apiRequest(`/customer/bookings/${booking.id}/checkout-preview`, { method: 'POST' })
+          : Promise.resolve(null),
+      ]);
+
+      if (detailResult.status === 'fulfilled') {
+        setActiveBookingDetail(detailResult.value);
+      }
+
+      if (qrResult.status === 'fulfilled') {
+        setQrCode(qrResult.value?.bookingCode || booking.bookingCode || '');
+      }
+
+      if (lotResult.status === 'fulfilled') {
+        const lotDetail = {
+          ...lotResult.value,
+          pricingRules: pricingRulesResult.status === 'fulfilled' ? pricingRulesResult.value : lotResult.value.pricingRules,
+        };
+        setLots((items) => [lotDetail, ...items.filter((lot) => lot.id !== lotDetail.id)]);
+      }
+
+      if (previewResult.status === 'fulfilled') {
+        setCheckoutPreview(previewResult.value);
+      }
+
+      setStatus('Online');
+    } catch (error) {
+      setStatus(error.message || 'Unable to load booking detail');
     }
   }
 
@@ -838,6 +918,50 @@ export function CustomerDashboard() {
         </header>
 
         <section className="customer-content active-booking-content" id="active-booking">
+          {activeBookings.length > 1 ? (
+            <section className="active-booking-switcher">
+              <div className="active-booking-section-head">
+                <h2>Active Bookings</h2>
+                <span>{activeBookings.length} vehicles</span>
+              </div>
+              <div className="active-booking-switcher-list">
+                {activeBookings.map((booking) => {
+                  const vehicle = vehicles.find((item) => String(item.id) === String(booking.vehicleId));
+                  const lot = lots.find((item) => item.id === booking.parkingLotId);
+                  const isSelected = String(displayBooking?.id) === String(booking.id);
+                  const plate = vehicle?.plateNumber || booking.plateNumber || 'Vehicle pending';
+
+                  return (
+                    <article className={isSelected ? 'active-booking-switcher-card selected' : 'active-booking-switcher-card'} key={booking.id}>
+                      <div>
+                        <span>Vehicle</span>
+                        <strong>{plate}</strong>
+                        <small>{vehicleTypeText(vehicle?.vehicleType || booking.vehicleType)}</small>
+                      </div>
+                      <div>
+                        <span>Parking Lot</span>
+                        <strong>{lot?.name || booking.parkingLotName || booking.parkingLotId || 'Parking lot pending'}</strong>
+                        <small>{formatDateTime(booking.actualCheckInTime || booking.startTime)}</small>
+                      </div>
+                      <div>
+                        <span>Status</span>
+                        <strong>{statusText(booking.status)}</strong>
+                        <small>{formatMoney(bookingTotal(booking))}</small>
+                      </div>
+                      <button
+                        disabled={isSelected}
+                        onClick={() => showBookingDetail(booking)}
+                        type="button"
+                      >
+                        {isSelected ? 'Viewing' : 'Detail'}
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
           {displayBooking ? (
             <>
               <div className="active-booking-heading">
@@ -978,14 +1102,11 @@ export function CustomerDashboard() {
                     </div>
                     {showPaymentQr ? (
                       <div className="active-booking-payment-qr">
-                        <div className="active-payment-qr-code" aria-label="Payment QR">
-                          {Array.from({ length: 49 }).map((_, index) => (
-                            <i key={`${paymentQr}-${index}`} className={qrCellFilled(paymentQr, index) ? 'filled' : ''} />
-                          ))}
-                          <span>PAY</span>
+                        <div className="active-payment-qr-code" aria-label="VNPAY payment QR">
+                          <img alt="VNPAY payment QR" src={paymentQrImageUrl(paymentQr)} />
                         </div>
                         <div>
-                          <span>Payment QR</span>
+                          <span>VNPAY QR</span>
                           <strong>{formatMoney(displayTotal || total)}</strong>
                           <small>{displayBooking.bookingCode || displayBooking.id}</small>
                         </div>
