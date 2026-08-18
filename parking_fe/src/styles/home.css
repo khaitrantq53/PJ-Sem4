@@ -13549,6 +13549,85 @@ body,
   grid-template-columns: minmax(0, 8fr) minmax(320px, 4fr);
 }
 
+.active-booking-switcher {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+}
+
+.active-booking-switcher-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.active-booking-switcher-card {
+  align-items: center;
+  background: var(--surface-container-low);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(130px, 1fr) minmax(200px, 1.6fr) minmax(120px, 1fr) auto;
+  padding: 14px 16px;
+}
+
+.active-booking-switcher-card.selected {
+  border-color: var(--primary);
+}
+
+.active-booking-switcher-card div {
+  min-width: 0;
+}
+
+.active-booking-switcher-card span {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 850;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.active-booking-switcher-card strong {
+  color: var(--text);
+  display: block;
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.active-booking-switcher-card small {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-top: 3px;
+}
+
+.active-booking-switcher-card button {
+  background: var(--primary);
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  min-height: 36px;
+  padding: 0 16px;
+}
+
+.active-booking-switcher-card button:disabled {
+  background: var(--outline-variant);
+  color: var(--muted);
+  cursor: default;
+}
+
 .active-booking-left,
 .active-booking-right {
   display: flex;
@@ -13998,39 +14077,18 @@ body,
   border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
-  gap: 3px;
-  grid-template-columns: repeat(7, 1fr);
-  grid-template-rows: repeat(7, 1fr);
+  place-items: center;
   height: 112px;
-  padding: 10px;
-  position: relative;
+  overflow: hidden;
+  padding: 8px;
   width: 112px;
 }
 
-.active-booking-summary .active-payment-qr-code i {
-  background: #f1f1f1;
-  border-radius: 2px;
+.active-booking-summary .active-payment-qr-code img {
   display: block;
-  height: auto;
-  width: auto;
-}
-
-.active-booking-summary .active-payment-qr-code i.filled {
-  background: var(--primary);
-}
-
-.active-booking-summary .active-payment-qr-code span {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  color: var(--primary);
-  font-size: 11px;
-  font-weight: 950;
-  left: 50%;
-  padding: 4px 6px;
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
 }
 
 .active-booking-summary .active-booking-payment-qr > div:last-child {
@@ -14408,8 +14466,13 @@ body,
 
   .active-booking-info-grid,
   .active-booking-right,
+  .active-booking-switcher-card,
   .active-booking-recent-card {
     grid-template-columns: 1fr;
+  }
+
+  .active-booking-switcher-card {
+    align-items: stretch;
   }
 }
 
