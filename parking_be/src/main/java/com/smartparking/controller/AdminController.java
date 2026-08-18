@@ -79,6 +79,11 @@ public class AdminController {
         return ApiResponse.ok(adminService.rejectStaff(SecurityUtils.currentUser(), staffId, request), RequestContext.requestId());
     }
 
+    @GetMapping("/staff/{staffId}/parking-lots")
+    PageResponse<AdminDtos.StaffParkingLotDetailResponse> staffParkingLots(@PathVariable UUID staffId, Pageable pageable) {
+        return PageResponse.of(adminService.staffParkingLots(staffId, pageable), RequestContext.requestId());
+    }
+
     @GetMapping("/parking-lots/pending")
     PageResponse<ParkingDtos.ParkingLotListResponse> pendingParking(Pageable pageable) {
         return PageResponse.of(adminService.pendingParkingLots(pageable), RequestContext.requestId());

@@ -5,6 +5,7 @@ import com.smartparking.common.BookingStatus;
 import com.smartparking.common.ParkingLotStatus;
 import com.smartparking.common.Role;
 import com.smartparking.common.VehicleType;
+import com.smartparking.parking.dto.ParkingDtos;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -12,6 +13,7 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public final class AdminDtos {
@@ -34,6 +36,14 @@ public final class AdminDtos {
 
     public record UserResponse(UUID id, String email, String phone, String fullName, Role role, AccountStatus status,
                                Long version, OffsetDateTime createdAt, OffsetDateTime updatedAt) {
+    }
+
+    public record StaffParkingLotDetailResponse(
+            ParkingDtos.ParkingLotResponse parkingLot,
+            List<ParkingDtos.CapacityResponse> capacities,
+            List<ParkingDtos.PricingRuleResponse> pricingRules,
+            List<ParkingDtos.ParkingServiceResponse> services
+    ) {
     }
 
     public record ParkingCommandResponse(UUID id, ParkingLotStatus previousStatus, ParkingLotStatus currentStatus,
