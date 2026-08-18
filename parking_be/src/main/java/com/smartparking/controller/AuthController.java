@@ -34,6 +34,11 @@ public class AuthController {
         return ApiResponse.ok(authService.login(request), RequestContext.requestId());
     }
 
+    @PostMapping("/customers/confirm-registration")
+    ApiResponse<AuthDtos.AuthResponse> confirmCustomerRegistration(@Valid @RequestBody AuthDtos.ConfirmRegistrationRequest request) {
+        return ApiResponse.ok(authService.confirmCustomerRegistration(request), RequestContext.requestId());
+    }
+
     @PostMapping("/refresh")
     ApiResponse<AuthDtos.AuthResponse> refresh(@Valid @RequestBody AuthDtos.RefreshRequest request) {
         return ApiResponse.ok(authService.refresh(request), RequestContext.requestId());

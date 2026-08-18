@@ -42,6 +42,19 @@ spring:
       charset: UTF-8
       enabled: true
       force: true
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: coonmake094269@gmail.com
+    password: kcuz nfrj pzzw fbkg
+    protocol: smtp
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+    default-encoding: UTF-8
 
 server:
   port: ${SERVER_PORT:8080}

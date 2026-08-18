@@ -51,6 +51,12 @@ public final class AuthDtos {
     ) {
     }
 
+    public record ConfirmRegistrationRequest(
+            @NotBlank @Email @Size(max = 255) String email,
+            @NotBlank @Size(min = 4, max = 12) String otp
+    ) {
+    }
+
     public record OtpResponse(OffsetDateTime expiresAt) {
     }
 

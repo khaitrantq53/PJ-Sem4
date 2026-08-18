@@ -67,18 +67,20 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthDtos.AuthResponse registerCustomer(AuthDtos.CustomerRegisterRequest request) {
-        if ((request.email() == null || request.email().isBlank()) && (request.phone() == null || request.phone().isBlank())) {
-            throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Email hoặc số điện thoại là bắt buộc");
+        String email = normalizeDestination(request.email());
+        String phone = normalizeDestination(request.phone());
+        if (email == null || email.isBlank()) {
+            throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Email là bắt buộc để xác thực tài khoản");
         }
-        if (request.email() != null && accountRepository.existsByEmail(request.email())) {
+        if (accountRepository.existsByEmail(email)) {
             throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Email đã được sử dụng");
         }
-        if (request.phone() != null && accountRepository.existsByPhone(request.phone())) {
+        if (phone != null && accountRepository.existsByPhone(phone)) {
             throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Số điện thoại đã được sử dụng");
         }
         Account account = new Account();
-        account.setEmail(blankToNull(request.email()));
-        account.setPhone(blankToNull(request.phone()));
+        account.setEmail(email);
+        account.setPhone(phone);
         account.setRole(Role.CUSTOMER);
         account.setStatus(AccountStatus.PENDING_APPROVAL);
         account = accountRepository.save(account);
@@ -93,7 +95,8 @@ public class AuthServiceImpl implements AuthService {
         profile.setFullName(request.fullName());
         customerProfileRepository.save(profile);
 
-        return issueTokens(account);
+        sendOtp(normalizeDestination(account.getEmail()), OtpPurpose.CUSTOMER_REGISTRATION, account.getId());
+        return pendingResponse(account);
     }
 
     @Override
@@ -107,7 +110,35 @@ public class AuthServiceImpl implements AuthService {
         if (!passwordEncoder.matches(request.password(), credential.getPasswordHash())) {
             throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Thông tin đăng nhập không hợp lệ");
         }
+        if (account.getStatus() == AccountStatus.PENDING_APPROVAL && account.getRole() == Role.CUSTOMER) {
+            sendOtp(normalizeDestination(account.getEmail()), OtpPurpose.CUSTOMER_REGISTRATION, account.getId());
+            return pendingResponse(account);
+        }
         assertActive(account);
+        return issueTokens(account);
+    }
+
+    @Override
+    @Transactional
+    public AuthDtos.AuthResponse confirmCustomerRegistration(AuthDtos.ConfirmRegistrationRequest request) {
+        String email = normalizeDestination(request.email());
+        Account account = accountRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Account không tồn tại"));
+        if (account.getRole() != Role.CUSTOMER) {
+            throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Account không phải customer");
+        }
+        if (account.getStatus() == AccountStatus.LOCKED) {
+            throw new BusinessException(ErrorCode.AUTH_ACCOUNT_LOCKED, "Account đang bị khóa");
+        }
+        if (account.getStatus() == AccountStatus.ACTIVE) {
+            return issueTokens(account);
+        }
+        if (account.getStatus() != AccountStatus.PENDING_APPROVAL) {
+            throw new BusinessException(ErrorCode.AUTH_ACCOUNT_NOT_ACTIVE, "Account chưa ACTIVE");
+        }
+        verifyOtp(email, OtpPurpose.CUSTOMER_REGISTRATION, request.otp());
+        account.setStatus(AccountStatus.ACTIVE);
+        accountRepository.save(account);
         return issueTokens(account);
     }
 
@@ -192,6 +223,10 @@ public class AuthServiceImpl implements AuthService {
         refreshToken.setExpiresAt(OffsetDateTime.now().plusDays(properties.jwt().refreshTokenTtlDays()));
         refreshTokenRepository.save(refreshToken);
         return new AuthDtos.AuthResponse(accessToken, refreshTokenValue, summary(account));
+    }
+
+    private AuthDtos.AuthResponse pendingResponse(Account account) {
+        return new AuthDtos.AuthResponse(null, null, summary(account));
     }
 
     private AuthDtos.AccountSummary summary(Account account) {
@@ -305,10 +340,6 @@ public class AuthServiceImpl implements AuthService {
         if (account.getStatus() != AccountStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.AUTH_ACCOUNT_NOT_ACTIVE, "Account chưa ACTIVE");
         }
-    }
-
-    private String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value;
     }
 
     private String hash(String value) {

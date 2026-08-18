@@ -6,6 +6,7 @@ export const runtimeLoaders = {
   'parking-detail.html': () => import('../features/parking-detail/parkingDetail.runtime.js'),
   'confirm-booking.html': () => import('../features/confirm-booking/confirmBooking.runtime.js'),
   'auth.html': dashboardRuntime,
+  'confirm.html': dashboardRuntime,
   'staff.html': staffRuntime,
   'staff-parking-lots.html': staffRuntime,
   'staff-bookings.html': staffRuntime,

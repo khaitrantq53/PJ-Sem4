@@ -9,6 +9,7 @@ import {
 } from '../../services/api.js';
 
 const page = document.body.dataset.page;
+const PENDING_CONFIRM_EMAIL_KEY = 'parkingPendingConfirmEmail';
 
 function $(selector) {
   return document.querySelector(selector);
@@ -245,7 +246,24 @@ function pathForRole(role) {
     return '/staff.html';
   }
 
+  if (role === 'CUSTOMER') {
+    return '/customer.html';
+  }
+
   return '/';
+}
+
+function isPendingCustomer(auth) {
+  return auth?.account?.role === 'CUSTOMER'
+    && auth.account.status === 'PENDING_APPROVAL'
+    && !auth.accessToken;
+}
+
+function goToConfirmRegistration(email) {
+  if (email) {
+    sessionStorage.setItem(PENDING_CONFIRM_EMAIL_KEY, email);
+  }
+  window.location.href = '/confirm.html';
 }
 
 async function loadIdentity() {
@@ -379,6 +397,10 @@ async function initAuth() {
         method: 'POST',
         body: jsonBody(formData(event.currentTarget)),
       });
+      if (isPendingCustomer(auth)) {
+        goToConfirmRegistration(auth.account?.email || $('#loginUsername')?.value.trim());
+        return;
+      }
       saveSession(auth);
       window.location.href = pathForRole(auth.account?.role);
     } catch (error) {
@@ -392,17 +414,65 @@ async function initAuth() {
     setStatus('#registerStatus', 'Creating account...');
 
     try {
-      await apiRequest('/auth/customers/register', {
+      const auth = await apiRequest('/auth/customers/register', {
         method: 'POST',
         body: jsonBody(formData(form)),
       });
+      goToConfirmRegistration(auth.account?.email || formData(form).email);
       form?.reset?.();
-      showAuthPanel('login');
-      openRegistrationPendingModal();
-      setStatus('#authStatus', 'Your account is pending admin approval.');
       setStatus('#registerStatus', '');
     } catch (error) {
       setStatus('#registerStatus', error.message, true);
+    }
+  });
+}
+
+async function initConfirmRegistration() {
+  const emailInput = $('#confirmEmail');
+  const storedEmail = sessionStorage.getItem(PENDING_CONFIRM_EMAIL_KEY) || '';
+  if (emailInput && storedEmail) {
+    emailInput.value = storedEmail;
+  }
+
+  $('#confirmRegistrationForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    setStatus('#confirmStatus', 'Verifying code...');
+
+    try {
+      const auth = await apiRequest('/auth/customers/confirm-registration', {
+        method: 'POST',
+        body: jsonBody(data),
+      });
+      sessionStorage.removeItem(PENDING_CONFIRM_EMAIL_KEY);
+      saveSession(auth);
+      setStatus('#confirmStatus', 'Account confirmed.');
+      window.location.href = pathForRole(auth.account?.role);
+    } catch (error) {
+      setStatus('#confirmStatus', error.message, true);
+    }
+  });
+
+  $('[data-confirm-resend]')?.addEventListener('click', async () => {
+    const destination = $('#confirmEmail')?.value.trim();
+    if (!destination) {
+      setStatus('#confirmStatus', 'Enter your email first.', true);
+      return;
+    }
+
+    setStatus('#confirmStatus', 'Sending a new code...');
+    try {
+      await apiRequest('/auth/otp/send', {
+        method: 'POST',
+        body: jsonBody({
+          destination,
+          purpose: 'CUSTOMER_REGISTRATION',
+        }),
+      });
+      sessionStorage.setItem(PENDING_CONFIRM_EMAIL_KEY, destination);
+      setStatus('#confirmStatus', 'New code sent.');
+    } catch (error) {
+      setStatus('#confirmStatus', error.message, true);
     }
   });
 }
@@ -1709,7 +1779,11 @@ if (page === 'auth') {
   initAuth();
 }
 
-if (page !== 'auth') {
+if (page === 'confirm-registration') {
+  initConfirmRegistration();
+}
+
+if (page !== 'auth' && page !== 'confirm-registration') {
   startSessionGuard();
 }
 

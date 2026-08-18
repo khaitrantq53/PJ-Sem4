@@ -106,6 +106,7 @@ function shouldAttachToken(path, options = {}) {
 
   return ![
     '/auth/customers/register',
+    '/auth/customers/confirm-registration',
     '/auth/otp/send',
     '/auth/otp/verify',
     '/auth/login',

@@ -6,6 +6,7 @@ import { AdminRefunds } from '../pages/admin/AdminRefunds.jsx';
 import { AdminStaff } from '../pages/admin/AdminStaff.jsx';
 import { AdminUsers } from '../pages/admin/AdminUsers.jsx';
 import { AuthPage } from '../pages/auth/AuthPage.jsx';
+import { ConfirmRegistrationPage } from '../pages/auth/ConfirmRegistrationPage.jsx';
 import { ConfirmBookingPage } from '../pages/booking/ConfirmBookingPage.jsx';
 import { CustomerDashboard } from '../pages/customer/CustomerDashboard.jsx';
 import { CustomerPayments } from '../pages/customer/CustomerPayments.jsx';
@@ -32,6 +33,7 @@ const adminComponents = {
 const pageComponents = {
   'index.html': HomePage,
   'auth.html': AuthPage,
+  'confirm.html': ConfirmRegistrationPage,
   'staff.html': StaffPage,
   'staff-parking-lots.html': StaffParkingLotsPage,
   'staff-bookings.html': StaffBookingsPage,

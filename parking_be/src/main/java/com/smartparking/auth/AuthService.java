@@ -8,6 +8,8 @@ public interface AuthService {
 
     AuthDtos.AuthResponse login(AuthDtos.LoginRequest request);
 
+    AuthDtos.AuthResponse confirmCustomerRegistration(AuthDtos.ConfirmRegistrationRequest request);
+
     AuthDtos.AuthResponse refresh(AuthDtos.RefreshRequest request);
 
     void logout(AuthDtos.RefreshRequest request);
