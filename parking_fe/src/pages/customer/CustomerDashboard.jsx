@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   apiPage,
   apiRequest,
@@ -87,18 +87,6 @@ function displayBookingPriority(booking) {
   if (booking?.status === 'PENDING_APPROVAL') return 4;
   if (isSettlementBooking(booking)) return 6;
   return 9;
-}
-
-function selectHighlightedBooking(items) {
-  return items
-    .filter((booking) => isActiveBooking(booking) || isSettlementBooking(booking))
-    .sort((left, right) => {
-      const priority = displayBookingPriority(left) - displayBookingPriority(right);
-      if (priority !== 0) {
-        return priority;
-      }
-      return bookingSortDate(right) - bookingSortDate(left);
-    })[0] || null;
 }
 
 function statusText(value) {
@@ -522,14 +510,12 @@ export function CustomerDashboard() {
   const [vehicles, setVehicles] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [lots, setLots] = useState([]);
-  const [selectedBookingId, setSelectedBookingId] = useState('');
-  const selectedBookingIdRef = useRef('');
-  const [activeBookingDetail, setActiveBookingDetail] = useState(null);
-  const [checkoutPreview, setCheckoutPreview] = useState(null);
-  const [qrCode, setQrCode] = useState('');
+  const [bookingDetailsById, setBookingDetailsById] = useState({});
+  const [checkoutPreviewById, setCheckoutPreviewById] = useState({});
+  const [qrCodesById, setQrCodesById] = useState({});
   const [status, setStatus] = useState('Loading');
   const [loading, setLoading] = useState(true);
-  const [canceling, setCanceling] = useState(false);
+  const [cancelingBookingId, setCancelingBookingId] = useState('');
   const [reviews, setReviews] = useState([]);
   const [reviewDialog, setReviewDialog] = useState(null);
   const [reviewRating, setReviewRating] = useState(5);
@@ -538,8 +524,16 @@ export function CustomerDashboard() {
   const [reviewError, setReviewError] = useState('');
   const [now, setNow] = useState(() => new Date());
 
+  const bookingsWithDetails = useMemo(
+    () => bookings.map((booking) => ({
+      ...booking,
+      ...(bookingDetailsById[String(booking.id)] || {}),
+    })),
+    [bookingDetailsById, bookings],
+  );
+
   const activeBookings = useMemo(
-    () => bookings
+    () => bookingsWithDetails
       .filter((booking) => isActiveBooking(booking) || isSettlementBooking(booking))
       .slice()
       .sort((left, right) => {
@@ -549,40 +543,16 @@ export function CustomerDashboard() {
         }
         return bookingSortDate(right) - bookingSortDate(left);
       }),
-    [bookings],
+    [bookingsWithDetails],
   );
 
-  const settlementBooking = useMemo(() => {
-    return bookings
-      .filter(isSettlementBooking)
-      .sort((left, right) => bookingSortDate(right) - bookingSortDate(left))[0] || null;
-  }, [bookings]);
-
-  const selectedBookingSummary = useMemo(() => {
-    return bookings.find((booking) => String(booking.id) === String(selectedBookingId)) || null;
-  }, [bookings, selectedBookingId]);
-
-  const displayBooking = activeBookingDetail || selectedBookingSummary || activeBookings[0] || settlementBooking;
-
-  const currentVehicle = useMemo(() => {
-    return vehicles.find((vehicle) => String(vehicle.id) === String(displayBooking?.vehicleId)) || null;
-  }, [displayBooking, vehicles]);
-
-  const currentLot = useMemo(() => {
-    return lots.find((lot) => lot.id === displayBooking?.parkingLotId) || null;
-  }, [displayBooking, lots]);
-
   const recentBookings = useMemo(() => {
-    const mergedBookings = activeBookingDetail
-      ? bookings.map((booking) => (booking.id === activeBookingDetail.id ? { ...booking, ...activeBookingDetail } : booking))
-      : bookings;
-
-    return mergedBookings
+    return bookingsWithDetails
       .filter(isRecentCompletedBooking)
       .slice()
       .sort((left, right) => bookingSortDate(right) - bookingSortDate(left))
       .slice(0, 4);
-  }, [activeBookingDetail, bookings]);
+  }, [bookingsWithDetails]);
 
   const reviewByBookingId = useMemo(() => {
     return new Map(reviews.map((review) => [String(review.bookingId), review]));
@@ -590,47 +560,12 @@ export function CustomerDashboard() {
 
   const name = profileLabel(profile, account);
   const initials = initialsFor(name);
-  const bookingCode = qrCode || displayBooking?.bookingCode || displayBooking?.id || 'No active booking';
-  const total = bookingTotal(displayBooking);
-  const timerInfo = activeTimerState(displayBooking, now);
-  const livePricing = activeParkingPricing(displayBooking, currentLot, now);
-  const previewBreakdown = checkoutPreview && displayBooking && checkoutPreview.bookingId === displayBooking.id
-    ? checkoutPreview.priceBreakdown
-    : null;
-  const hasBillableParking = Boolean(displayBooking?.actualCheckInTime);
-  const isRunningBill = hasBillableParking
-    && displayBooking?.status === 'CHECKED_IN'
-    && !displayBooking?.actualCheckOutTime;
-  const syncedBreakdown = previewBreakdown || (isRunningBill ? null : displayBooking?.priceBreakdown);
-  const displayParkingFee = hasBillableParking ? syncedBreakdown?.parkingFee || null : null;
-  const displayServiceFee = syncedBreakdown?.serviceFee || null;
-  const displayTax = syncedBreakdown?.tax || null;
-  const displayTotal = hasBillableParking ? syncedBreakdown?.total || null : null;
-  const showPaymentQr = ['CHECKED_OUT', 'PENDING_PAYMENT'].includes(displayBooking?.status) && !isPaidBooking(displayBooking);
-  const showCancelBooking = canCustomerCancelBooking(displayBooking);
-  const paymentQr = paymentQrPayload(displayBooking, displayTotal || total);
-  const pageHeading = displayBooking?.status === 'CHECKED_OUT'
-    ? 'Final Bill'
-    : displayBooking?.status === 'PENDING_PAYMENT'
-      ? 'Payment Required'
-      : 'Active Booking';
-  const bookingVehicleBrand = currentVehicle?.brand || displayBooking?.vehicleBrand || displayBooking?.vehicleType;
-  const bookingVehiclePlate = currentVehicle?.plateNumber || displayBooking?.plateNumber;
-  const bookingVehicleColor = currentVehicle?.color || displayBooking?.vehicleColor;
-  const bookingVehicleType = currentVehicle?.vehicleType || displayBooking?.vehicleType;
-  const vehicleLabel = bookingVehiclePlate
-    ? `${bookingVehicleBrand ? vehicleTypeText(bookingVehicleBrand) : vehicleTypeText(bookingVehicleType)} ${bookingVehiclePlate}`
-    : 'Vehicle pending';
-  const vehicleMeta = [
-    bookingVehicleColor,
-    vehicleTypeText(bookingVehicleType),
-  ].filter(Boolean).join(' - ') || 'Vehicle details';
-  const mapsHref = parkingLotMapsHref(currentLot);
-  const shouldRefreshCheckoutPreview = Boolean(
-    displayBooking?.id
-    && displayBooking.status === 'CHECKED_IN'
-    && displayBooking.actualCheckInTime
-    && !displayBooking.actualCheckOutTime,
+  const checkoutPreviewBookingKey = useMemo(
+    () => activeBookings
+      .filter((booking) => booking.status === 'CHECKED_IN' && booking.actualCheckInTime && !booking.actualCheckOutTime)
+      .map((booking) => String(booking.id))
+      .join('|'),
+    [activeBookings],
   );
 
   async function loadDashboard(options = {}) {
@@ -639,11 +574,9 @@ export function CustomerDashboard() {
     if (!silent) {
       setLoading(true);
       setStatus('Loading');
-      selectedBookingIdRef.current = '';
-      setSelectedBookingId('');
-      setActiveBookingDetail(null);
-      setCheckoutPreview(null);
-      setQrCode('');
+      setBookingDetailsById({});
+      setCheckoutPreviewById({});
+      setQrCodesById({});
     }
 
     try {
@@ -662,59 +595,87 @@ export function CustomerDashboard() {
         apiPage('/customer/reviews', { size: 100 }),
       ]);
 
-      const currentSelectedBookingId = selectedBookingIdRef.current;
-      const highlightedBooking = currentSelectedBookingId
-        ? bookingPage.items.find((booking) => String(booking.id) === String(currentSelectedBookingId)) || selectHighlightedBooking(bookingPage.items)
-        : selectHighlightedBooking(bookingPage.items);
+      const activeSummaries = bookingPage.items
+        .filter((booking) => isActiveBooking(booking) || isSettlementBooking(booking))
+        .slice()
+        .sort((left, right) => {
+          const priority = displayBookingPriority(left) - displayBookingPriority(right);
+          if (priority !== 0) {
+            return priority;
+          }
+          return bookingSortDate(right) - bookingSortDate(left);
+        });
 
-      let detail = null;
-      let qr = '';
-      let lotDetail = null;
-      let preview = null;
-
-      if (highlightedBooking) {
-        const canPreviewCheckout = highlightedBooking.status === 'CHECKED_IN';
+      const detailResults = await Promise.allSettled(activeSummaries.map(async (booking) => {
+        const canPreviewCheckout = booking.status === 'CHECKED_IN';
         const [detailResult, qrResult, lotResult, pricingRulesResult, previewResult] = await Promise.allSettled([
-          apiRequest(`/customer/bookings/${highlightedBooking.id}`),
-          apiRequest(`/customer/bookings/${highlightedBooking.id}/qr-code`),
-          getParkingLotDetail(highlightedBooking.parkingLotId),
-          getParkingLotPricingRules(highlightedBooking.parkingLotId),
+          apiRequest(`/customer/bookings/${booking.id}`),
+          apiRequest(`/customer/bookings/${booking.id}/qr-code`),
+          booking.parkingLotId ? getParkingLotDetail(booking.parkingLotId) : Promise.resolve(null),
+          booking.parkingLotId ? getParkingLotPricingRules(booking.parkingLotId) : Promise.resolve([]),
           canPreviewCheckout
-            ? apiRequest(`/customer/bookings/${highlightedBooking.id}/checkout-preview`, { method: 'POST' })
+            ? apiRequest(`/customer/bookings/${booking.id}/checkout-preview`, { method: 'POST' })
             : Promise.resolve(null),
         ]);
 
-        if (detailResult.status === 'fulfilled') {
-          detail = detailResult.value;
-        }
-
-        if (qrResult.status === 'fulfilled') {
-          qr = qrResult.value?.bookingCode || '';
-        }
-
-        if (lotResult.status === 'fulfilled') {
-          lotDetail = {
+        const lotDetail = lotResult.status === 'fulfilled' && lotResult.value
+          ? {
             ...lotResult.value,
             pricingRules: pricingRulesResult.status === 'fulfilled' ? pricingRulesResult.value : lotResult.value.pricingRules,
-          };
+          }
+          : null;
+
+        return {
+          bookingId: booking.id,
+          detail: detailResult.status === 'fulfilled' ? detailResult.value : null,
+          lotDetail,
+          preview: previewResult.status === 'fulfilled' ? previewResult.value : null,
+          qrCode: qrResult.status === 'fulfilled' ? qrResult.value?.bookingCode || '' : '',
+        };
+      }));
+
+      const nextBookingDetails = {};
+      const nextCheckoutPreviews = {};
+      const nextQrCodes = {};
+      const nextLotDetails = new Map();
+
+      detailResults.forEach((result) => {
+        if (result.status !== 'fulfilled') {
+          return;
         }
 
-        if (previewResult.status === 'fulfilled') {
-          preview = previewResult.value;
+        const { bookingId, detail, lotDetail, preview, qrCode: nextQrCode } = result.value;
+        const key = String(bookingId);
+
+        if (detail) {
+          nextBookingDetails[key] = detail;
         }
-      }
+
+        if (preview) {
+          nextCheckoutPreviews[key] = preview;
+        }
+
+        if (nextQrCode) {
+          nextQrCodes[key] = nextQrCode;
+        }
+
+        if (lotDetail?.id) {
+          nextLotDetails.set(String(lotDetail.id), lotDetail);
+        }
+      });
 
       setAccount(currentAccount);
       setProfile(profileResponse);
       setVehicles(vehicleResponse);
       setBookings(bookingPage.items);
       setReviews(reviewPage.items);
-      setLots(lotDetail ? [lotDetail, ...lotPage.items.filter((lot) => lot.id !== lotDetail.id)] : lotPage.items);
-      selectedBookingIdRef.current = highlightedBooking?.id || '';
-      setSelectedBookingId(highlightedBooking?.id || '');
-      setActiveBookingDetail(detail);
-      setCheckoutPreview(preview);
-      setQrCode(qr);
+      setLots([
+        ...nextLotDetails.values(),
+        ...lotPage.items.filter((lot) => !nextLotDetails.has(String(lot.id))),
+      ]);
+      setBookingDetailsById(nextBookingDetails);
+      setCheckoutPreviewById(nextCheckoutPreviews);
+      setQrCodesById(nextQrCodes);
       setStatus('Online');
     } catch (error) {
       if (!silent) {
@@ -730,58 +691,8 @@ export function CustomerDashboard() {
     }
   }
 
-  async function showBookingDetail(booking) {
-    if (!booking?.id) {
-      return;
-    }
-
-    selectedBookingIdRef.current = booking.id;
-    setSelectedBookingId(booking.id);
-    setActiveBookingDetail({ ...booking });
-    setCheckoutPreview(null);
-    setQrCode(booking.bookingCode || '');
-    setStatus('Loading booking detail...');
-
-    try {
-      const canPreviewCheckout = booking.status === 'CHECKED_IN';
-      const [detailResult, qrResult, lotResult, pricingRulesResult, previewResult] = await Promise.allSettled([
-        apiRequest(`/customer/bookings/${booking.id}`),
-        apiRequest(`/customer/bookings/${booking.id}/qr-code`),
-        getParkingLotDetail(booking.parkingLotId),
-        getParkingLotPricingRules(booking.parkingLotId),
-        canPreviewCheckout
-          ? apiRequest(`/customer/bookings/${booking.id}/checkout-preview`, { method: 'POST' })
-          : Promise.resolve(null),
-      ]);
-
-      if (detailResult.status === 'fulfilled') {
-        setActiveBookingDetail(detailResult.value);
-      }
-
-      if (qrResult.status === 'fulfilled') {
-        setQrCode(qrResult.value?.bookingCode || booking.bookingCode || '');
-      }
-
-      if (lotResult.status === 'fulfilled') {
-        const lotDetail = {
-          ...lotResult.value,
-          pricingRules: pricingRulesResult.status === 'fulfilled' ? pricingRulesResult.value : lotResult.value.pricingRules,
-        };
-        setLots((items) => [lotDetail, ...items.filter((lot) => lot.id !== lotDetail.id)]);
-      }
-
-      if (previewResult.status === 'fulfilled') {
-        setCheckoutPreview(previewResult.value);
-      }
-
-      setStatus('Online');
-    } catch (error) {
-      setStatus(error.message || 'Unable to load booking detail');
-    }
-  }
-
-  async function handleCancelBooking() {
-    if (!displayBooking?.id || !showCancelBooking) {
+  async function handleCancelBooking(booking) {
+    if (!booking?.id || !canCustomerCancelBooking(booking)) {
       return;
     }
 
@@ -790,11 +701,11 @@ export function CustomerDashboard() {
       return;
     }
 
-    setCanceling(true);
+    setCancelingBookingId(String(booking.id));
     setStatus('Cancelling');
 
     try {
-      await apiRequest(`/customer/bookings/${displayBooking.id}/cancel`, {
+      await apiRequest(`/customer/bookings/${booking.id}/cancel`, {
         method: 'POST',
         body: jsonBody({ reason: 'Cancelled by customer before check-in' }),
       });
@@ -803,7 +714,7 @@ export function CustomerDashboard() {
     } catch (error) {
       setStatus(error.message || 'Unable to cancel booking');
     } finally {
-      setCanceling(false);
+      setCancelingBookingId('');
     }
   }
 
@@ -872,38 +783,268 @@ export function CustomerDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!shouldRefreshCheckoutPreview) {
+    const previewBookings = activeBookings.filter((booking) => (
+      booking.status === 'CHECKED_IN'
+      && booking.actualCheckInTime
+      && !booking.actualCheckOutTime
+    ));
+
+    if (!previewBookings.length) {
       return undefined;
     }
 
     let cancelled = false;
 
-    async function refreshCheckoutPreview() {
-      try {
-        const preview = await apiRequest(`/customer/bookings/${displayBooking.id}/checkout-preview`, {
+    async function refreshCheckoutPreviews() {
+      const results = await Promise.allSettled(previewBookings.map(async (booking) => {
+        const preview = await apiRequest(`/customer/bookings/${booking.id}/checkout-preview`, {
           method: 'POST',
         });
-        if (!cancelled) {
-          setCheckoutPreview(preview);
-        }
-      } catch (error) {
-        // The full dashboard refresh handles status changes and auth failures.
+        return [String(booking.id), preview];
+      }));
+
+      if (cancelled) {
+        return;
       }
+
+      setCheckoutPreviewById((items) => {
+        const nextItems = { ...items };
+        results.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            const [bookingId, preview] = result.value;
+            nextItems[bookingId] = preview;
+          }
+        });
+        return nextItems;
+      });
     }
 
-    refreshCheckoutPreview();
-    const timer = window.setInterval(refreshCheckoutPreview, 1000);
+    refreshCheckoutPreviews();
+    const timer = window.setInterval(refreshCheckoutPreviews, 1000);
 
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [displayBooking?.id, displayBooking?.status, displayBooking?.actualCheckInTime, displayBooking?.actualCheckOutTime, shouldRefreshCheckoutPreview]);
+  }, [checkoutPreviewBookingKey]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  function renderActiveBookingPanel(booking) {
+    const bookingId = String(booking.id);
+    const currentVehicle = vehicles.find((vehicle) => String(vehicle.id) === String(booking.vehicleId)) || null;
+    const currentLot = lots.find((lot) => String(lot.id) === String(booking.parkingLotId)) || null;
+    const bookingCode = qrCodesById[bookingId] || booking.bookingCode || booking.id || 'No active booking';
+    const qrSeed = String(bookingCode || 'PF');
+    const total = bookingTotal(booking);
+    const timerInfo = activeTimerState(booking, now);
+    const livePricing = activeParkingPricing(booking, currentLot, now);
+    const preview = checkoutPreviewById[bookingId];
+    const previewBreakdown = preview && String(preview.bookingId) === bookingId
+      ? preview.priceBreakdown
+      : null;
+    const hasBillableParking = Boolean(booking.actualCheckInTime);
+    const isRunningBill = hasBillableParking
+      && booking.status === 'CHECKED_IN'
+      && !booking.actualCheckOutTime;
+    const savedBreakdown = booking.priceBreakdown || null;
+    const syncedBreakdown = previewBreakdown || (isRunningBill ? livePricing : savedBreakdown);
+    const displayParkingFee = hasBillableParking ? syncedBreakdown?.parkingFee || null : null;
+    const displayServiceFee = previewBreakdown?.serviceFee || savedBreakdown?.serviceFee || null;
+    const displayTax = previewBreakdown?.tax || savedBreakdown?.tax || null;
+    const displayTotal = hasBillableParking ? syncedBreakdown?.total || null : null;
+    const showPaymentQr = ['CHECKED_OUT', 'PENDING_PAYMENT'].includes(booking.status) && !isPaidBooking(booking);
+    const showCancelBooking = canCustomerCancelBooking(booking);
+    const paymentQr = paymentQrPayload(booking, displayTotal || total);
+    const pageHeading = booking.status === 'CHECKED_OUT'
+      ? 'Final Bill'
+      : booking.status === 'PENDING_PAYMENT'
+        ? 'Payment Required'
+        : 'Active Booking';
+    const bookingVehicleBrand = currentVehicle?.brand || booking.vehicleBrand || booking.vehicleType;
+    const bookingVehiclePlate = currentVehicle?.plateNumber || booking.plateNumber;
+    const bookingVehicleColor = currentVehicle?.color || booking.vehicleColor;
+    const bookingVehicleType = currentVehicle?.vehicleType || booking.vehicleType;
+    const vehicleLabel = bookingVehiclePlate
+      ? `${bookingVehicleBrand ? vehicleTypeText(bookingVehicleBrand) : vehicleTypeText(bookingVehicleType)} ${bookingVehiclePlate}`
+      : 'Vehicle pending';
+    const vehicleMeta = [
+      bookingVehicleColor,
+      vehicleTypeText(bookingVehicleType),
+    ].filter(Boolean).join(' - ') || 'Vehicle details';
+    const mapsHref = parkingLotMapsHref(currentLot);
+    const isCanceling = cancelingBookingId === bookingId;
+
+    return (
+      <section className="active-booking-panel" key={bookingId}>
+        <div className="active-booking-heading">
+          <div>
+            <div className="active-booking-reference">
+              <span>Booking Reference</span>
+              <strong>#{booking.bookingCode || booking.id || 'Pending'}</strong>
+            </div>
+            <h1>{pageHeading}{bookingVehiclePlate ? ` - ${bookingVehiclePlate}` : ''}</h1>
+          </div>
+          <span className="active-booking-status confirmed">
+            {loading ? 'Loading' : statusText(booking.status || 'No Active Booking')}
+          </span>
+        </div>
+
+        <div className="active-booking-grid">
+          <div className="active-booking-left">
+            <section className="active-booking-card">
+              <div className="active-booking-primary">
+                <div className="active-booking-qr-wrap">
+                  <div className="active-booking-qr" aria-label="Booking QR placeholder">
+                    <span>{qrSeed.slice(0, 2).toUpperCase()}</span>
+                    {Array.from({ length: 36 }).map((_, index) => (
+                      <i key={`${bookingId}-${index}`} className={(qrSeed.charCodeAt(index % qrSeed.length) + index) % 3 === 0 ? 'filled' : ''} />
+                    ))}
+                  </div>
+                  <button
+                    className="active-booking-copy"
+                    type="button"
+                    onClick={() => navigator.clipboard?.writeText(String(bookingCode))}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M8 7h11v14H8V7Zm2 2v10h7V9h-7ZM5 3h10v2H7v10H5V3Z" />
+                    </svg>
+                    Copy Booking Code
+                  </button>
+                </div>
+
+                <div className="active-booking-details">
+                  <div>
+                    <h2>{currentLot?.name || booking.parkingLotName || booking.parkingLotId}</h2>
+                    <p>
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 2a7 7 0 0 0-7 7c0 5.3 7 13 7 13s7-7.7 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z" />
+                      </svg>
+                      {currentLot?.address || 'Parking lot details from booking'}
+                    </p>
+                  </div>
+
+                  <div className="active-booking-info-grid">
+                    <div>
+                      <span>Vehicle</span>
+                      <strong>{vehicleLabel}</strong>
+                      <small>{vehicleMeta}</small>
+                    </div>
+                    <div className="active-booking-map-cell">
+                      <a
+                        aria-label={`Open ${currentLot?.name || 'parking lot'} in Google Maps`}
+                        className="active-booking-map-link"
+                        href={mapsHref}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        <i aria-hidden="true">
+                          <svg viewBox="0 0 24 24">
+                            <path d="M12 2a7 7 0 0 0-7 7c0 5.3 7 13 7 13s7-7.7 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z" />
+                          </svg>
+                        </i>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="active-booking-timeline" style={{ '--timeline-progress': timelineProgress(booking) }}>
+                {[
+                  ['created', 'Created', formatDateTime(booking.createdAt)],
+                  ['approved', 'Approved', booking.status === 'PENDING_APPROVAL' ? 'Pending' : 'Ready'],
+                  ['checkedIn', 'Checked In', booking.actualCheckInTime ? formatDateTime(booking.actualCheckInTime) : 'Staff verification pending'],
+                  ['checkout', 'Check out', 'Payment pending'],
+                ].map(([key, label, meta]) => (
+                  <div className={`active-booking-step ${timelineState(booking, key)}`} key={key}>
+                    <span />
+                    <strong>{label}</strong>
+                    <small>{meta}</small>
+                  </div>
+                ))}
+              </div>
+            </section>
+            {showCancelBooking ? (
+              <button
+                className="active-booking-cancel-button"
+                disabled={isCanceling}
+                onClick={() => handleCancelBooking(booking)}
+                type="button"
+              >
+                {isCanceling ? 'Cancelling...' : 'Cancel Booking'}
+              </button>
+            ) : null}
+          </div>
+
+          <aside className="active-booking-right">
+            <section className={`active-booking-countdown ${timerInfo.className}`}>
+              <span>{timerInfo.label}</span>
+              <strong>{timerInfo.value}</strong>
+              <small>{timerInfo.sublabel}</small>
+              <div><i style={{ width: timerInfo.progress }} /></div>
+            </section>
+
+            <section className="active-booking-summary">
+              <h3>Price Summary</h3>
+              <div>
+                <span>Parking Fee</span>
+                <strong>{hasBillableParking ? formatMoney(displayParkingFee) : '-'}</strong>
+              </div>
+              {hasBillableParking && livePricing ? (
+                <small className="active-booking-summary-note">
+                  {livePricing.billedHours} billed hour{livePricing.billedHours === 1 ? '' : 's'}
+                  {livePricing.usesBands ? ' by time band' : ` x ${formatMoney(livePricing.hourlyRate)}/hour`}
+                </small>
+              ) : null}
+              <div>
+                <span>Service Fee</span>
+                <strong>{displayServiceFee ? formatMoney(displayServiceFee) : '-'}</strong>
+              </div>
+              <div>
+                <span>Tax</span>
+                <strong>{displayTax ? formatMoney(displayTax) : '-'}</strong>
+              </div>
+              <div className="active-booking-total">
+                <span>Total Amount</span>
+                <strong>{hasBillableParking ? formatMoney(displayTotal) : '-'}</strong>
+              </div>
+              <div>
+                <span>Payment</span>
+                <strong>{statusText(booking.paymentMethod)}</strong>
+              </div>
+              {showPaymentQr ? (
+                <div className="active-booking-payment-qr">
+                  <div className="active-payment-qr-code" aria-label="VNPAY payment QR">
+                    <img alt="VNPAY payment QR" src={paymentQrImageUrl(paymentQr)} />
+                  </div>
+                  <div>
+                    <span>VNPAY QR</span>
+                    <strong>{formatMoney(displayTotal || total)}</strong>
+                    <small>{booking.bookingCode || booking.id}</small>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+
+            <section className="active-booking-info-card">
+              <span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.2 11.8 11.8 0 0 0 3.6.6 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.4a1 1 0 0 1 1 1 11.8 11.8 0 0 0 .6 3.6 1 1 0 0 1-.2 1l-2.2 2.2Z" />
+                </svg>
+              </span>
+              <div>
+                <strong>Garage Hotline</strong>
+                <small>Contact support for parking lot phone</small>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <div className="customer-dashboard">
@@ -918,217 +1059,14 @@ export function CustomerDashboard() {
         </header>
 
         <section className="customer-content active-booking-content" id="active-booking">
-          {activeBookings.length > 1 ? (
-            <section className="active-booking-switcher">
+          {activeBookings.length ? (
+            <section className="active-booking-list">
               <div className="active-booking-section-head">
-                <h2>Active Bookings</h2>
-                <span>{activeBookings.length} vehicles</span>
+                <h2>Active Booking</h2>
+                <span>{activeBookings.length} vehicle{activeBookings.length === 1 ? '' : 's'}</span>
               </div>
-              <div className="active-booking-switcher-list">
-                {activeBookings.map((booking) => {
-                  const vehicle = vehicles.find((item) => String(item.id) === String(booking.vehicleId));
-                  const lot = lots.find((item) => item.id === booking.parkingLotId);
-                  const isSelected = String(displayBooking?.id) === String(booking.id);
-                  const plate = vehicle?.plateNumber || booking.plateNumber || 'Vehicle pending';
-
-                  return (
-                    <article className={isSelected ? 'active-booking-switcher-card selected' : 'active-booking-switcher-card'} key={booking.id}>
-                      <div>
-                        <span>Vehicle</span>
-                        <strong>{plate}</strong>
-                        <small>{vehicleTypeText(vehicle?.vehicleType || booking.vehicleType)}</small>
-                      </div>
-                      <div>
-                        <span>Parking Lot</span>
-                        <strong>{lot?.name || booking.parkingLotName || booking.parkingLotId || 'Parking lot pending'}</strong>
-                        <small>{formatDateTime(booking.actualCheckInTime || booking.startTime)}</small>
-                      </div>
-                      <div>
-                        <span>Status</span>
-                        <strong>{statusText(booking.status)}</strong>
-                        <small>{formatMoney(bookingTotal(booking))}</small>
-                      </div>
-                      <button
-                        disabled={isSelected}
-                        onClick={() => showBookingDetail(booking)}
-                        type="button"
-                      >
-                        {isSelected ? 'Viewing' : 'Detail'}
-                      </button>
-                    </article>
-                  );
-                })}
-              </div>
+              {activeBookings.map((booking) => renderActiveBookingPanel(booking))}
             </section>
-          ) : null}
-
-          {displayBooking ? (
-            <>
-              <div className="active-booking-heading">
-                <div>
-                  <div className="active-booking-reference">
-                    <span>Booking Reference</span>
-                    <strong>#{displayBooking.bookingCode || displayBooking.id || 'Pending'}</strong>
-                  </div>
-                  <h1>{pageHeading}{currentVehicle ? ` - ${currentVehicle.plateNumber}` : ''}</h1>
-                </div>
-                <span className="active-booking-status confirmed">
-                  {loading ? 'Loading' : statusText(displayBooking.status || 'No Active Booking')}
-                </span>
-              </div>
-
-              <div className="active-booking-grid">
-                <div className="active-booking-left">
-                  <section className="active-booking-card">
-                    <div className="active-booking-primary">
-                      <div className="active-booking-qr-wrap">
-                        <div className="active-booking-qr" aria-label="Booking QR placeholder">
-                          <span>{String(bookingCode).slice(0, 2).toUpperCase()}</span>
-                          {Array.from({ length: 36 }).map((_, index) => (
-                            <i key={`${bookingCode}-${index}`} className={(String(bookingCode).charCodeAt(index % String(bookingCode).length) + index) % 3 === 0 ? 'filled' : ''} />
-                          ))}
-                        </div>
-                        <button
-                          className="active-booking-copy"
-                          type="button"
-                          onClick={() => navigator.clipboard?.writeText(String(bookingCode))}
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M8 7h11v14H8V7Zm2 2v10h7V9h-7ZM5 3h10v2H7v10H5V3Z" />
-                          </svg>
-                          Copy Booking Code
-                        </button>
-                      </div>
-
-                      <div className="active-booking-details">
-                        <div>
-                          <h2>{currentLot?.name || displayBooking.parkingLotId}</h2>
-                          <p>
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M12 2a7 7 0 0 0-7 7c0 5.3 7 13 7 13s7-7.7 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z" />
-                            </svg>
-                            {currentLot?.address || 'Parking lot details from booking'}
-                          </p>
-                        </div>
-
-                        <div className="active-booking-info-grid">
-                          <div>
-                            <span>Vehicle</span>
-                            <strong>{vehicleLabel}</strong>
-                            <small>{vehicleMeta}</small>
-                          </div>
-                          <div className="active-booking-map-cell">
-                            <a
-                              aria-label={`Open ${currentLot?.name || 'parking lot'} in Google Maps`}
-                              className="active-booking-map-link"
-                              href={mapsHref}
-                              rel="noreferrer"
-                              target="_blank"
-                            >
-                              <i aria-hidden="true">
-                                <svg viewBox="0 0 24 24">
-                                  <path d="M12 2a7 7 0 0 0-7 7c0 5.3 7 13 7 13s7-7.7 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z" />
-                                </svg>
-                              </i>
-                            </a>
-                          </div>
-                        </div>
-
-                      </div>
-                    </div>
-
-                    <div className="active-booking-timeline" style={{ '--timeline-progress': timelineProgress(displayBooking) }}>
-                      {[
-                        ['created', 'Created', formatDateTime(displayBooking.createdAt)],
-                        ['approved', 'Approved', displayBooking.status === 'PENDING_APPROVAL' ? 'Pending' : 'Ready'],
-                        ['checkedIn', 'Checked In', displayBooking.actualCheckInTime ? formatDateTime(displayBooking.actualCheckInTime) : 'Staff verification pending'],
-                        ['checkout', 'Check out', 'Payment pending'],
-                      ].map(([key, label, meta]) => (
-                        <div className={`active-booking-step ${timelineState(displayBooking, key)}`} key={key}>
-                          <span />
-                          <strong>{label}</strong>
-                          <small>{meta}</small>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                  {showCancelBooking ? (
-                    <button
-                      className="active-booking-cancel-button"
-                      disabled={canceling}
-                      onClick={handleCancelBooking}
-                      type="button"
-                    >
-                      {canceling ? 'Cancelling...' : 'Cancel Booking'}
-                    </button>
-                  ) : null}
-                </div>
-
-                <aside className="active-booking-right">
-                  <section className={`active-booking-countdown ${timerInfo.className}`}>
-                    <span>{timerInfo.label}</span>
-                    <strong>{timerInfo.value}</strong>
-                    <small>{timerInfo.sublabel}</small>
-                    <div><i style={{ width: timerInfo.progress }} /></div>
-                  </section>
-
-                  <section className="active-booking-summary">
-                    <h3>Price Summary</h3>
-                    <div>
-                      <span>Parking Fee</span>
-                      <strong>{hasBillableParking ? formatMoney(displayParkingFee) : '-'}</strong>
-                    </div>
-                    {hasBillableParking && previewBreakdown && livePricing ? (
-                      <small className="active-booking-summary-note">
-                        {livePricing.billedHours} billed hour{livePricing.billedHours === 1 ? '' : 's'}
-                        {livePricing.usesBands ? ' by time band' : ` x ${formatMoney(livePricing.hourlyRate)}/hour`}
-                      </small>
-                    ) : null}
-                    <div>
-                      <span>Service Fee</span>
-                      <strong>{displayServiceFee ? formatMoney(displayServiceFee) : '-'}</strong>
-                    </div>
-                    <div>
-                      <span>Tax</span>
-                      <strong>{displayTax ? formatMoney(displayTax) : '-'}</strong>
-                    </div>
-                    <div className="active-booking-total">
-                      <span>Total Amount</span>
-                      <strong>{hasBillableParking ? formatMoney(displayTotal) : '-'}</strong>
-                    </div>
-                    <div>
-                      <span>Payment</span>
-                      <strong>{statusText(displayBooking.paymentMethod)}</strong>
-                    </div>
-                    {showPaymentQr ? (
-                      <div className="active-booking-payment-qr">
-                        <div className="active-payment-qr-code" aria-label="VNPAY payment QR">
-                          <img alt="VNPAY payment QR" src={paymentQrImageUrl(paymentQr)} />
-                        </div>
-                        <div>
-                          <span>VNPAY QR</span>
-                          <strong>{formatMoney(displayTotal || total)}</strong>
-                          <small>{displayBooking.bookingCode || displayBooking.id}</small>
-                        </div>
-                      </div>
-                    ) : null}
-                  </section>
-
-                  <section className="active-booking-info-card">
-                    <span>
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.2 11.8 11.8 0 0 0 3.6.6 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.4a1 1 0 0 1 1 1 11.8 11.8 0 0 0 .6 3.6 1 1 0 0 1-.2 1l-2.2 2.2Z" />
-                      </svg>
-                    </span>
-                    <div>
-                      <strong>Garage Hotline</strong>
-                      <small>Contact support for parking lot phone</small>
-                    </div>
-                  </section>
-
-                </aside>
-              </div>
-            </>
           ) : null}
 
           <section className="active-booking-recent">

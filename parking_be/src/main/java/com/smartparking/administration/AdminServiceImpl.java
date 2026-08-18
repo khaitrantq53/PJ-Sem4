@@ -17,6 +17,9 @@ import com.smartparking.booking.BookingRepository;
 import com.smartparking.booking.BookingStatusHistory;
 import com.smartparking.booking.BookingStatusHistoryRepository;
 import com.smartparking.booking.dto.BookingDtos;
+import com.smartparking.capacity.ParkingCapacityBlockRepository;
+import com.smartparking.capacity.ParkingVehicleCapacity;
+import com.smartparking.capacity.ParkingVehicleCapacityRepository;
 import com.smartparking.common.AccountStatus;
 import com.smartparking.common.BookingStatus;
 import com.smartparking.common.ParkingLotStatus;
@@ -29,11 +32,15 @@ import com.smartparking.device.OccupancyDiscrepancyAlertRepository;
 import com.smartparking.parking.ParkingLot;
 import com.smartparking.parking.ParkingLotMapper;
 import com.smartparking.parking.ParkingLotRepository;
+import com.smartparking.parking.ParkingServiceEntity;
+import com.smartparking.parking.ParkingServiceRepository;
 import com.smartparking.parking.ParkingStatusHistory;
 import com.smartparking.parking.ParkingStatusHistoryRepository;
 import com.smartparking.parking.dto.ParkingDtos;
 import com.smartparking.payment.PaymentRepository;
 import com.smartparking.payment.RefundRepository;
+import com.smartparking.pricing.ParkingPricingRule;
+import com.smartparking.pricing.ParkingPricingRuleRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -41,9 +48,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.UUID;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 public class AdminServiceImpl implements AdminService {
@@ -55,6 +63,10 @@ public class AdminServiceImpl implements AdminService {
     private final ParkingLotRepository parkingLotRepository;
     private final ParkingStatusHistoryRepository parkingStatusHistoryRepository;
     private final ParkingLotMapper parkingLotMapper;
+    private final ParkingVehicleCapacityRepository capacityRepository;
+    private final ParkingCapacityBlockRepository blockRepository;
+    private final ParkingPricingRuleRepository pricingRuleRepository;
+    private final ParkingServiceRepository serviceRepository;
     private final BookingRepository bookingRepository;
     private final BookingMapper bookingMapper;
     private final BookingStatusHistoryRepository bookingStatusHistoryRepository;
@@ -74,6 +86,10 @@ public class AdminServiceImpl implements AdminService {
                             ParkingLotRepository parkingLotRepository,
                             ParkingStatusHistoryRepository parkingStatusHistoryRepository,
                             ParkingLotMapper parkingLotMapper,
+                            ParkingVehicleCapacityRepository capacityRepository,
+                            ParkingCapacityBlockRepository blockRepository,
+                            ParkingPricingRuleRepository pricingRuleRepository,
+                            ParkingServiceRepository serviceRepository,
                             BookingRepository bookingRepository,
                             BookingMapper bookingMapper,
                             BookingStatusHistoryRepository bookingStatusHistoryRepository,
@@ -92,6 +108,10 @@ public class AdminServiceImpl implements AdminService {
         this.parkingLotRepository = parkingLotRepository;
         this.parkingStatusHistoryRepository = parkingStatusHistoryRepository;
         this.parkingLotMapper = parkingLotMapper;
+        this.capacityRepository = capacityRepository;
+        this.blockRepository = blockRepository;
+        this.pricingRuleRepository = pricingRuleRepository;
+        this.serviceRepository = serviceRepository;
         this.bookingRepository = bookingRepository;
         this.bookingMapper = bookingMapper;
         this.bookingStatusHistoryRepository = bookingStatusHistoryRepository;
@@ -160,6 +180,16 @@ public class AdminServiceImpl implements AdminService {
         account.setStatus(AccountStatus.REJECTED);
         auditService.record(currentUser.id(), currentUser.role(), "REJECT_STAFF", "ACCOUNT", account.getId().toString(), AccountStatus.PENDING_APPROVAL.name(), AccountStatus.REJECTED.name(), request.reason());
         return userResponse(account);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AdminDtos.StaffParkingLotDetailResponse> staffParkingLots(UUID staffId, Pageable pageable) {
+        Account account = account(staffId);
+        if (account.getRole() != Role.STAFF) {
+            throw new BusinessException(ErrorCode.BOOKING_ACCESS_DENIED, "Account không phải staff");
+        }
+        return parkingLotRepository.findManagedByStaff(staffId, pageable).map(this::staffParkingLotDetail);
     }
 
     @Override
@@ -492,6 +522,47 @@ public class AdminServiceImpl implements AdminService {
 
     private AdminDtos.ParkingCommandResponse parkingCommand(ParkingLot parkingLot, ParkingLotStatus previous) {
         return new AdminDtos.ParkingCommandResponse(parkingLot.getId(), previous, parkingLot.getStatus(), parkingLot.getVersion(), parkingLot.getUpdatedAt());
+    }
+
+    private AdminDtos.StaffParkingLotDetailResponse staffParkingLotDetail(ParkingLot parkingLot) {
+        UUID parkingLotId = parkingLot.getId();
+        return new AdminDtos.StaffParkingLotDetailResponse(
+                parkingLotMapper.toResponse(parkingLot, pricingRuleRepository.findLowestActiveHourlyRate(parkingLotId).orElse(null)),
+                capacityRepository.findByParkingLotId(parkingLotId).stream()
+                        .map(this::capacityResponse)
+                        .toList(),
+                pricingRuleRepository.findByParkingLotId(parkingLotId).stream()
+                        .map(this::pricingRuleResponse)
+                        .toList(),
+                serviceRepository.findByParkingLotId(parkingLotId).stream()
+                        .map(this::serviceResponse)
+                        .toList()
+        );
+    }
+
+    private ParkingDtos.CapacityResponse capacityResponse(ParkingVehicleCapacity capacity) {
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime distantFuture = now.plusYears(100);
+        UUID parkingLotId = capacity.getParkingLot().getId();
+        long reserved = bookingRepository.countActiveReservations(parkingLotId, capacity.getVehicleType(),
+                List.of(BookingStatus.PENDING_APPROVAL, BookingStatus.CONFIRMED), now, distantFuture);
+        long checkedIn = bookingRepository.countActiveReservations(parkingLotId, capacity.getVehicleType(),
+                List.of(BookingStatus.CHECKED_IN), now, distantFuture);
+        long blocked = blockRepository.countBlocked(parkingLotId, capacity.getVehicleType(), now, distantFuture);
+        long available = Math.max(0, capacity.getTotalCapacity() - reserved - checkedIn - blocked);
+        return new ParkingDtos.CapacityResponse(parkingLotId, capacity.getVehicleType(), capacity.getTotalCapacity(),
+                reserved, blocked, checkedIn, available, capacity.getVersion());
+    }
+
+    private ParkingDtos.PricingRuleResponse pricingRuleResponse(ParkingPricingRule rule) {
+        return new ParkingDtos.PricingRuleResponse(rule.getId(), rule.getParkingLot().getId(), rule.getVehicleType(),
+                rule.getHourlyRate(), rule.getStartTime(), rule.getEndTime(), rule.isActive(),
+                rule.getVersion(), rule.getCreatedAt(), rule.getUpdatedAt());
+    }
+
+    private ParkingDtos.ParkingServiceResponse serviceResponse(ParkingServiceEntity service) {
+        return new ParkingDtos.ParkingServiceResponse(service.getId(), service.getParkingLot().getId(), service.getName(),
+                service.getPrice(), service.isActive(), service.getVersion(), service.getCreatedAt(), service.getUpdatedAt());
     }
 
     private void assertVersion(Long currentVersion, Long expectedVersion) {

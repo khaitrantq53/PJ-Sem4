@@ -20,6 +20,8 @@ public interface AdminService {
 
     AdminDtos.UserResponse rejectStaff(CurrentUser currentUser, UUID staffId, AdminDtos.ReasonRequest request);
 
+    Page<AdminDtos.StaffParkingLotDetailResponse> staffParkingLots(UUID staffId, Pageable pageable);
+
     AdminDtos.UserResponse updateUserStatus(CurrentUser currentUser, UUID userId, AdminDtos.StatusRequest request);
 
     Page<ParkingDtos.ParkingLotListResponse> pendingParkingLots(Pageable pageable);

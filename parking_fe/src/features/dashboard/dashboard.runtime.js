@@ -926,6 +926,9 @@ function filteredAdminStaff() {
       staff.id,
       String(staff.id || '').replace(/-/g, ''),
       shortAccountId(staff.id, 'STF'),
+      staff.fullName,
+      staff.name,
+      staff.displayName,
       staff.email,
       staff.phone,
       staff.status,
@@ -938,22 +941,37 @@ function filteredAdminStaff() {
 
 function staffActions(staff) {
   const statusName = staff.status || 'ACTIVE';
-  const isPending = statusClass(statusName) === 'pending';
+  const staffStatusClass = statusClass(statusName);
+  const isPending = staffStatusClass === 'pending';
 
   if (isPending) {
     return `
-      <button class="admin-staff-approve" type="button" data-admin-staff-command="approve" data-staff-id="${escapeHtml(staff.id)}">
-        Approve
+      <button type="button" title="View detail" data-admin-view-staff="${escapeHtml(staff.id)}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c5 0 9 5.5 9 7s-4 7-9 7-9-5.5-9-7 4-7 9-7Zm0 2c-3.7 0-6.8 3.8-7 5 .2 1.2 3.3 5 7 5s6.8-3.8 7-5c-.2-1.2-3.3-5-7-5Zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" /></svg>
       </button>
-      <button class="admin-staff-reject" type="button" data-admin-staff-command="reject" data-staff-id="${escapeHtml(staff.id)}" data-staff-version="${escapeHtml(staff.version)}">
-        Reject
+      <button type="button" class="success" title="Approve staff" data-admin-staff-command="approve" data-staff-id="${escapeHtml(staff.id)}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm-1.1 14.4-4.2-4.2 1.4-1.4 2.8 2.8 5.7-5.7 1.4 1.4-7.1 7.1Z" /></svg>
+      </button>
+      <button type="button" class="danger" title="Reject staff" data-admin-staff-command="reject" data-staff-id="${escapeHtml(staff.id)}" data-staff-version="${escapeHtml(staff.version)}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm4.2 12.8-1.4 1.4L12 13.4l-2.8 2.8-1.4-1.4 2.8-2.8-2.8-2.8 1.4-1.4 2.8 2.8 2.8-2.8 1.4 1.4-2.8 2.8 2.8 2.8Z" /></svg>
       </button>
     `;
   }
 
+  const canActivate = staffStatusClass === 'suspended' || staffStatusClass === 'locked';
+  const toggleStatus = canActivate ? 'ACTIVE' : 'SUSPENDED';
+  const toggleTitle = canActivate ? 'Activate staff account' : 'Suspend staff account';
+  const toggleClass = canActivate ? 'success' : 'danger';
+  const toggleIcon = canActivate
+    ? '<path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm-1.1 14.4-4.2-4.2 1.4-1.4 2.8 2.8 5.7-5.7 1.4 1.4-7.1 7.1Z" />'
+    : '<path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 2a7.9 7.9 0 0 1 4.9 1.7L5.7 16.9A8 8 0 0 1 12 4Zm0 16a7.9 7.9 0 0 1-4.9-1.7L18.3 7.1A8 8 0 0 1 12 20Z" />';
+
   return `
-    <button type="button" title="Copy staff ID" data-admin-copy-staff="${escapeHtml(staff.id)}">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 1H4c-1.1 0-2 .9-2 2v12h2V3h12V1Zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2Zm0 16H8V7h11v14Z" /></svg>
+    <button type="button" title="View detail" data-admin-view-staff="${escapeHtml(staff.id)}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c5 0 9 5.5 9 7s-4 7-9 7-9-5.5-9-7 4-7 9-7Zm0 2c-3.7 0-6.8 3.8-7 5 .2 1.2 3.3 5 7 5s6.8-3.8 7-5c-.2-1.2-3.3-5-7-5Zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" /></svg>
+    </button>
+    <button type="button" class="${escapeHtml(toggleClass)}" title="${escapeHtml(toggleTitle)}" data-admin-update-staff-status="${escapeHtml(staff.id)}" data-admin-staff-status="${escapeHtml(toggleStatus)}" data-admin-staff-version="${escapeHtml(staff.version)}">
+      <svg viewBox="0 0 24 24" aria-hidden="true">${toggleIcon}</svg>
     </button>
   `;
 }
@@ -997,18 +1015,18 @@ function renderAdminStaff(items = adminStaffCache, pagination = adminStaffPagina
     return `
       <tr class="${escapeHtml(staffStatusClass)}">
         <td>
-          <div class="admin-staff-member">
-            <span class="admin-staff-avatar${mutedAvatar}">${escapeHtml(userInitials(staff))}</span>
+          <div class="admin-user-cell">
+            <span class="admin-user-avatar${mutedAvatar}">${escapeHtml(userInitials(staff))}</span>
             <div>
               <strong>${escapeHtml(label)}</strong>
-              <span>${escapeHtml(staff.phone || staff.email || 'No contact')}</span>
+              <span>${escapeHtml(staff.email || 'No email')}</span>
             </div>
           </div>
         </td>
         <td><span class="admin-short-id" title="${escapeHtml(staff.id)}">${escapeHtml(displayId)}</span></td>
-        <td><span class="admin-staff-lot-chip">No assigned lots in admin API</span></td>
-        <td><span class="admin-staff-status ${escapeHtml(staffStatusClass)}">${escapeHtml(accountStatusLabel(statusName))}</span></td>
-        <td><div class="admin-staff-actions">${staffActions(staff)}</div></td>
+        <td><span class="admin-user-status ${escapeHtml(staffStatusClass)}">${escapeHtml(accountStatusLabel(statusName))}</span></td>
+        <td>${escapeHtml(formatDate(staff.updatedAt || staff.createdAt))}</td>
+        <td><div class="admin-user-row-actions">${staffActions(staff)}</div></td>
       </tr>
     `;
   }).join('');
@@ -1044,12 +1062,30 @@ function refreshAdminStaffTable() {
   bindAdminStaffActions();
 }
 
+function updateStaffCreatePreview() {
+  const form = $('#staffCreateForm');
+  if (!form) {
+    return;
+  }
+
+  const fullName = form.elements.fullName?.value?.trim();
+  const email = form.elements.email?.value?.trim();
+  const phone = form.elements.phone?.value?.trim();
+  const previewUser = { fullName, email, phone };
+
+  setText('#staffCreatePreviewName', fullName || 'New staff account');
+  setText('#staffCreatePreviewEmail', email || 'staff@example.com');
+  setText('#staffCreatePreviewPhone', phone || 'Not provided');
+  setText('#staffCreatePreviewAvatar', userInitials(previewUser));
+}
+
 function openStaffModal() {
   const modal = $('#staffModal');
   if (!modal) {
     return;
   }
 
+  updateStaffCreatePreview();
   modal.classList.remove('hidden');
   modal.setAttribute('aria-hidden', 'false');
 }
@@ -1064,9 +1100,233 @@ function closeStaffModal() {
   modal.setAttribute('aria-hidden', 'true');
 }
 
+function formatRuleTime(value) {
+  if (!value) {
+    return '-';
+  }
+  return String(value).slice(0, 5);
+}
+
+function groupedActiveRatesByVehicle(pricingRules) {
+  return pricingRules
+    .filter((rule) => rule.active !== false)
+    .reduce((groups, rule) => {
+      const vehicleType = rule.vehicleType || 'CAR';
+      groups[vehicleType] = groups[vehicleType] || [];
+      groups[vehicleType].push(rule);
+      return groups;
+    }, {});
+}
+
+function lowestRateLabel(pricingRules, vehicleType) {
+  const rates = pricingRules
+    .filter((rule) => rule.active !== false && String(rule.vehicleType || '').toUpperCase() === vehicleType)
+    .map((rule) => Number(rule.hourlyRate))
+    .filter(Number.isFinite);
+
+  if (!rates.length) {
+    return '-';
+  }
+
+  return money(Math.min(...rates));
+}
+
+function renderAdminStaffLotDetail(detail) {
+  const content = $('#staffLotDetailContent');
+  if (!content) {
+    return;
+  }
+
+  const lot = detail?.parkingLot;
+  if (!lot) {
+    content.innerHTML = '<div class="empty-state">This staff account has no assigned parking lot yet.</div>';
+    return;
+  }
+
+  const capacities = Array.isArray(detail.capacities) ? detail.capacities : [];
+  const pricingRules = Array.isArray(detail.pricingRules) ? detail.pricingRules : [];
+  const services = Array.isArray(detail.services) ? detail.services : [];
+  const activeServices = services.filter((service) => service.active !== false);
+  const coordinate = lot.latitude && lot.longitude ? `${lot.latitude}, ${lot.longitude}` : '-';
+  const groupedRates = groupedActiveRatesByVehicle(pricingRules);
+  const vehicleOrder = ['CAR', 'MOTORBIKE'];
+  const rateGroups = [
+    ...vehicleOrder.filter((vehicleType) => groupedRates[vehicleType]?.length),
+    ...Object.keys(groupedRates).filter((vehicleType) => !vehicleOrder.includes(vehicleType)),
+  ];
+
+  content.innerHTML = `
+    <section class="admin-staff-lot-hero">
+      <div>
+        <span class="admin-staff-lot-kicker">Managed Parking Lot</span>
+        <h3>${escapeHtml(lot.name || 'Unnamed parking lot')}</h3>
+        <p>${escapeHtml(lot.address || 'No address')}</p>
+      </div>
+      <span class="admin-user-status ${escapeHtml(statusClass(lot.status))}">${escapeHtml(String(lot.status || 'DRAFT').replaceAll('_', ' '))}</span>
+    </section>
+
+    <section class="admin-staff-lot-meta">
+      <div class="admin-staff-lot-base-rates">
+        <span>Base Hourly Rate</span>
+        <div>
+          <strong><small>Car</small>${escapeHtml(lowestRateLabel(pricingRules, 'CAR'))}</strong>
+          <strong><small>Motorbike</small>${escapeHtml(lowestRateLabel(pricingRules, 'MOTORBIKE'))}</strong>
+        </div>
+      </div>
+      <div>
+        <span>Updated</span>
+        <strong>${escapeHtml(formatDate(lot.updatedAt || lot.createdAt))}</strong>
+      </div>
+      <div>
+        <span>Coordinates</span>
+        <strong>${escapeHtml(coordinate)}</strong>
+      </div>
+    </section>
+
+    <section class="admin-staff-lot-section compact">
+      <div class="admin-staff-lot-section-title">
+        <h4>Slot Capacity</h4>
+        <span>Live availability by vehicle type</span>
+      </div>
+      <div class="admin-staff-lot-capacity-list refined">
+        ${capacities.length ? capacities.map((capacity) => {
+          const total = Math.max(0, Number(capacity.totalCapacity ?? 0));
+          const available = Math.max(0, Number(capacity.available ?? 0));
+          const percentage = total ? Math.min(100, Math.max(0, (available / total) * 100)) : 0;
+          return `
+            <div class="admin-staff-lot-capacity-row">
+              <div>
+                <strong>${escapeHtml(vehicleTypeLabel(capacity.vehicleType))}</strong>
+                <span>${escapeHtml(available)} available of ${escapeHtml(total)} total</span>
+              </div>
+              <div class="admin-staff-lot-meter" aria-hidden="true">
+                <i style="width: ${percentage}%"></i>
+              </div>
+              <em>${escapeHtml(capacity.checkedIn ?? 0)} checked in</em>
+            </div>
+          `;
+        }).join('') : '<div class="empty-state">No capacity configured yet.</div>'}
+      </div>
+    </section>
+
+    <section class="admin-staff-lot-section compact">
+      <div class="admin-staff-lot-section-title">
+        <h4>Hourly Rates</h4>
+        <span>Pricing windows configured by staff</span>
+      </div>
+      <div class="admin-staff-lot-rate-list refined">
+        ${rateGroups.length ? rateGroups.map((vehicleType) => `
+          <div class="admin-staff-lot-rate-group">
+            <strong>${escapeHtml(vehicleTypeLabel(vehicleType))}</strong>
+            <div>
+              ${groupedRates[vehicleType].map((rule) => `
+                <span class="admin-staff-lot-rate-chip">
+                  <em>${escapeHtml(formatRuleTime(rule.startTime))} - ${escapeHtml(formatRuleTime(rule.endTime))}</em>
+                  ${escapeHtml(money(rule.hourlyRate))}
+                </span>
+              `).join('')}
+            </div>
+          </div>
+        `).join('') : '<div class="empty-state">No hourly rates configured yet.</div>'}
+      </div>
+    </section>
+
+    <section class="admin-staff-lot-section compact">
+      <div class="admin-staff-lot-section-title">
+        <h4>Amenities & Services</h4>
+        <span>Available options for this lot</span>
+      </div>
+      <div class="admin-staff-lot-service-list">
+        ${activeServices.length ? activeServices.map((service, index) => `
+          <span class="tone-${index % 4}">${escapeHtml(service.name || 'Service')} · ${escapeHtml(money(service.price))}</span>
+        `).join('') : '<div class="empty-state">No amenities or services configured yet.</div>'}
+      </div>
+    </section>
+
+    ${lot.description ? `
+      <section class="admin-staff-lot-section compact">
+        <div class="admin-staff-lot-section-title">
+          <h4>Description</h4>
+        </div>
+        <p class="admin-staff-lot-description">${escapeHtml(lot.description)}</p>
+      </section>
+    ` : ''}
+  `;
+}
+
+async function openAdminStaffDetailModal(staffId) {
+  const modal = $('#staffDetailModal');
+  if (!modal) {
+    return;
+  }
+
+  const staff = adminStaffCache.find((item) => String(item.id) === String(staffId));
+  if (!staff) {
+    setStatus('#adminStatus', 'Staff detail not found.', true);
+    return;
+  }
+
+  setText('#staffDetailSubtitle', `${userDisplayName(staff)} · ${staff.email || 'No email'}`);
+  const content = $('#staffLotDetailContent');
+  if (content) {
+    content.innerHTML = '<div class="admin-vehicles-loading">Loading managed parking lot...</div>';
+  }
+
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+
+  try {
+    const pageResult = await apiPage(`/admin/staff/${staffId}/parking-lots`, { size: 1 });
+    renderAdminStaffLotDetail(pageResult.items?.[0] || null);
+  } catch (error) {
+    if (content) {
+      content.innerHTML = `<div class="empty-state">${escapeHtml(error.message || 'Unable to load managed parking lot.')}</div>`;
+    }
+  }
+}
+
+function closeAdminStaffDetailModal() {
+  const modal = $('#staffDetailModal');
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function adminStaffStatusReason(status) {
+  const normalized = String(status || '').toUpperCase();
+  if (normalized === 'ACTIVE') {
+    return 'Admin activated staff account';
+  }
+  if (normalized === 'SUSPENDED') {
+    return 'Admin suspended staff account';
+  }
+  return 'Admin updated staff account status';
+}
+
+async function updateAdminStaffStatus(staffId, status, expectedVersion) {
+  const normalizedStatus = String(status || 'ACTIVE').toUpperCase();
+  setStatus('#adminStatus', `${accountStatusLabel(normalizedStatus)} staff account...`);
+
+  await apiRequest(`/admin/users/${staffId}/status`, {
+    method: 'PATCH',
+    body: jsonBody({
+      status: normalizedStatus,
+      reason: adminStaffStatusReason(normalizedStatus),
+      expectedVersion: expectedVersion ? Number(expectedVersion) : null,
+    }),
+  });
+
+  setStatus('#adminStatus', `Staff account is now ${accountStatusLabel(normalizedStatus)}.`);
+  await reloadAdminPage();
+}
+
 function bindAdminStaffControls() {
   $('#adminStaffSearch')?.addEventListener('input', refreshAdminStaffTable);
   $('#adminStaffStatusFilter')?.addEventListener('change', refreshAdminStaffTable);
+  $('#staffCreateForm')?.addEventListener('input', updateStaffCreatePreview);
 
   $all('[data-admin-open-staff-modal]').forEach((button) => {
     button.addEventListener('click', openStaffModal);
@@ -1081,9 +1341,49 @@ function bindAdminStaffControls() {
       closeStaffModal();
     }
   });
+
+  $all('[data-admin-close-staff-detail]').forEach((button) => {
+    button.addEventListener('click', closeAdminStaffDetailModal);
+  });
+
+  $('#staffDetailModal')?.addEventListener('click', (event) => {
+    if (event.target === event.currentTarget) {
+      closeAdminStaffDetailModal();
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeStaffModal();
+      closeAdminStaffDetailModal();
+    }
+  });
 }
 
 function bindAdminStaffActions() {
+  $all('[data-admin-view-staff]').forEach((button) => {
+    button.addEventListener('click', () => {
+      openAdminStaffDetailModal(button.dataset.adminViewStaff);
+    });
+  });
+
+  $all('[data-admin-update-staff-status]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        await updateAdminStaffStatus(
+          button.dataset.adminUpdateStaffStatus,
+          button.dataset.adminStaffStatus,
+          button.dataset.adminStaffVersion,
+        );
+      } catch (error) {
+        setStatus('#adminStatus', error.message, true);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
   $all('[data-admin-staff-command]').forEach((button) => {
     button.addEventListener('click', async () => {
       const staffId = button.dataset.staffId;
@@ -1719,18 +2019,35 @@ function bindAdminApprovalActions() {
 function bindAdminForms() {
   $('#staffCreateForm')?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const form = event.currentTarget;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    const submitButton = form.querySelector('[type="submit"]');
+    if (submitButton) {
+      submitButton.disabled = true;
+    }
+
+    closeStaffModal();
     setStatus('#adminStatus', 'Creating staff account...');
     try {
       await apiRequest('/admin/staff', {
         method: 'POST',
-        body: jsonBody(formData(event.currentTarget)),
+        body: jsonBody(formData(form)),
       });
-      event.currentTarget.reset();
-      closeStaffModal();
+      form.reset();
+      updateStaffCreatePreview();
       setStatus('#adminStatus', 'Staff account created.');
       await reloadAdminPage();
     } catch (error) {
       setStatus('#adminStatus', error.message, true);
+      openStaffModal();
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+      }
     }
   });
 

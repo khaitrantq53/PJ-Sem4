@@ -10141,6 +10141,284 @@ h1 {
   width: min(100%, 460px);
 }
 
+.admin-staff-lot-detail-card {
+  background: #fff;
+  border: 1px solid rgba(229, 229, 229, 0.9);
+  border-radius: 12px;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.28);
+  color: #0a0a0a;
+  max-height: min(88vh, 820px);
+  max-width: 820px;
+  overflow: hidden;
+  width: min(100%, 820px);
+}
+
+.admin-staff-lot-detail-body {
+  display: grid;
+  gap: 0;
+  max-height: calc(min(88vh, 820px) - 78px);
+  overflow: auto;
+  padding: 0 24px 24px;
+}
+
+.admin-staff-lot-hero {
+  align-items: flex-start;
+  background: #fff;
+  border-bottom: 1px solid #eeeeee;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin: 0 -24px;
+  padding: 24px;
+}
+
+.admin-staff-lot-kicker {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 900;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.admin-staff-lot-hero h3 {
+  color: #0a0a0a;
+  font-size: 28px;
+  line-height: 1.2;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-staff-lot-hero p {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  margin: 8px 0 0;
+}
+
+.admin-staff-lot-meta {
+  border-bottom: 1px solid #eeeeee;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(240px, 1.35fr) minmax(110px, 0.65fr) minmax(0, 1.3fr);
+  padding: 20px 0;
+}
+
+.admin-staff-lot-meta div {
+  min-width: 0;
+}
+
+.admin-staff-lot-meta span,
+.admin-staff-lot-section-title span {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 900;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.admin-staff-lot-meta strong {
+  color: #0a0a0a;
+  display: block;
+  font-size: 15px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.admin-staff-lot-base-rates > div {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.admin-staff-lot-base-rates strong {
+  align-items: baseline;
+  display: inline-flex;
+  gap: 7px;
+  font-size: 17px;
+}
+
+.admin-staff-lot-base-rates small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.admin-staff-lot-section {
+  display: grid;
+  gap: 14px;
+  padding: 20px 0;
+}
+
+.admin-staff-lot-section + .admin-staff-lot-section {
+  border-top: 1px solid #eeeeee;
+}
+
+.admin-staff-lot-section-title {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.admin-staff-lot-section h4 {
+  color: #0a0a0a;
+  font-size: 16px;
+  font-weight: 900;
+  margin: 0;
+}
+
+.admin-staff-lot-capacity-list,
+.admin-staff-lot-rate-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-staff-lot-capacity-row {
+  align-items: center;
+  border-top: 1px solid #eeeeee;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px 0;
+}
+
+.admin-staff-lot-capacity-row {
+  grid-template-columns: minmax(150px, 0.8fr) minmax(180px, 1fr) minmax(80px, auto);
+}
+
+.admin-staff-lot-capacity-row:first-child,
+.admin-staff-lot-rate-group:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.admin-staff-lot-capacity-row:last-child,
+.admin-staff-lot-rate-group:last-child {
+  padding-bottom: 0;
+}
+
+.admin-staff-lot-capacity-row strong,
+.admin-staff-lot-rate-group strong {
+  color: #0a0a0a;
+  display: block;
+  font-size: 15px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.admin-staff-lot-capacity-row span,
+.admin-staff-lot-capacity-row em,
+.admin-staff-lot-rate-chip,
+.admin-staff-lot-rate-chip em,
+.admin-staff-lot-description {
+  color: var(--muted);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 750;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.admin-staff-lot-rate-group {
+  align-items: flex-start;
+  border-top: 1px solid #eeeeee;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 110px minmax(0, 1fr);
+  padding: 14px 0;
+}
+
+.admin-staff-lot-rate-group > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-staff-lot-rate-chip {
+  align-items: center;
+  background: #fafafa;
+  border: 1px solid #e5e5e5;
+  border-radius: 999px;
+  color: #0a0a0a;
+  display: inline-flex;
+  font-weight: 900;
+  gap: 8px;
+  padding: 8px 11px;
+}
+
+.admin-staff-lot-rate-chip em {
+  background: #fff;
+  border: 1px solid #eeeeee;
+  border-radius: 999px;
+  color: var(--muted);
+  padding: 3px 7px;
+}
+
+.admin-staff-lot-meter {
+  background: #eeeeee;
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.admin-staff-lot-meter i {
+  background: #22C55E;
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+
+.admin-staff-lot-rate-group.muted {
+  opacity: 0.56;
+}
+
+.admin-staff-lot-service-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-staff-lot-service-list span {
+  background: #f7f7f7;
+  border: 1px solid #e5e5e5;
+  border-radius: 999px;
+  color: #0a0a0a;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 8px 11px;
+}
+
+.admin-staff-lot-service-list span.tone-0 {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+  color: #047857;
+}
+
+.admin-staff-lot-service-list span.tone-1 {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.admin-staff-lot-service-list span.tone-2 {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #b45309;
+}
+
+.admin-staff-lot-service-list span.tone-3 {
+  background: #fdf2f8;
+  border-color: #fbcfe8;
+  color: #be185d;
+}
+
 .admin-user-detail-head {
   align-items: center;
   background: #fff;
@@ -10885,11 +11163,12 @@ h1 {
 
 .admin-staff-modal {
   align-items: center;
-  background: rgba(28, 27, 30, 0.48);
+  background: rgba(10, 10, 10, 0.56);
+  backdrop-filter: blur(10px);
   display: flex;
   inset: 0;
   justify-content: center;
-  padding: 20px;
+  padding: 24px;
   position: fixed;
   z-index: 80;
 }
@@ -10899,17 +11178,25 @@ h1 {
 }
 
 .admin-staff-modal-card {
-  max-width: 560px;
-  padding: 24px;
-  width: min(100%, 560px);
+  background: #fff;
+  border: 1px solid rgba(229, 229, 229, 0.9);
+  border-radius: 16px;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.28);
+  max-height: min(90vh, 820px);
+  max-width: 860px;
+  overflow: hidden;
+  padding: 0;
+  width: min(100%, 860px);
 }
 
 .admin-staff-modal-head {
-  align-items: flex-start;
+  align-items: center;
+  border-bottom: 1px solid #eeeeee;
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
+  margin-bottom: 0;
+  padding: 22px 24px;
 }
 
 .admin-staff-modal-head h2 {
@@ -10926,8 +11213,8 @@ h1 {
 
 .admin-staff-modal-head button {
   align-items: center;
-  background: transparent;
-  border: 0;
+  background: #f7f7f7;
+  border: 1px solid #e5e5e5;
   border-radius: 999px;
   color: var(--muted);
   display: inline-flex;
@@ -10937,8 +11224,9 @@ h1 {
 }
 
 .admin-staff-modal-head button:hover {
-  background: var(--surface-muted);
-  color: #000;
+  background: #0a0a0a;
+  border-color: #0a0a0a;
+  color: #fff;
 }
 
 .admin-staff-modal-actions {
@@ -10947,6 +11235,192 @@ h1 {
   gap: 12px;
   grid-column: 1 / -1;
   justify-content: flex-end;
+}
+
+.staff-create-form {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  max-height: calc(min(90vh, 820px) - 86px);
+  overflow: auto;
+}
+
+.staff-create-preview {
+  background: #0a0a0a;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 440px;
+  padding: 26px 24px;
+}
+
+.staff-create-avatar {
+  align-items: center;
+  background: #fff;
+  border-radius: 999px;
+  color: #0a0a0a;
+  display: inline-flex;
+  font-size: 24px;
+  font-weight: 950;
+  height: 82px;
+  justify-content: center;
+  width: 82px;
+}
+
+.staff-create-preview strong {
+  display: block;
+  font-size: 22px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.staff-create-preview p {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 13px;
+  font-weight: 750;
+  margin: 7px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.staff-create-preview dl {
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  display: grid;
+  gap: 14px;
+  margin: auto 0 0;
+  padding-top: 18px;
+}
+
+.staff-create-preview dl div {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.staff-create-preview dt,
+.staff-create-preview dd {
+  margin: 0;
+}
+
+.staff-create-preview dt {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.staff-create-preview dd {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 850;
+  max-width: 150px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.staff-create-fields {
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+}
+
+.staff-create-fields section {
+  display: grid;
+  gap: 12px;
+}
+
+.staff-create-section-title {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.staff-create-section-title span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.staff-create-section-title strong {
+  color: #0a0a0a;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.staff-create-field {
+  background: #f7f7f7;
+  border: 1px solid #e5e5e5;
+  border-radius: 14px;
+  display: grid;
+  gap: 7px;
+  padding: 13px 14px;
+}
+
+.staff-create-field span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.staff-create-field input {
+  background: transparent;
+  border: 0;
+  color: #0a0a0a;
+  font-size: 15px;
+  font-weight: 750;
+  height: 30px;
+  outline: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.staff-create-field:focus-within {
+  background: #fff;
+  border-color: #0a0a0a;
+}
+
+.staff-create-field input::placeholder {
+  color: #a3a3a3;
+}
+
+.staff-create-form .admin-staff-modal-actions {
+  border-top: 1px solid #eeeeee;
+  padding-top: 18px;
+}
+
+.staff-create-form .admin-staff-modal-actions button {
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+  height: 44px;
+  min-width: 124px;
+  padding: 0 20px;
+}
+
+.staff-create-form .admin-staff-modal-actions .secondary-button {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  color: #525252;
+}
+
+.staff-create-form .admin-staff-modal-actions .secondary-button:hover {
+  background: #f7f7f7;
+  border-color: #d4d4d4;
+  color: #0a0a0a;
+}
+
+.staff-create-form .admin-staff-modal-actions .primary-button {
+  background: #0a0a0a;
+  border: 1px solid #0a0a0a;
+  color: #fff;
+}
+
+.staff-create-form .admin-staff-modal-actions .primary-button:hover {
+  background: #262626;
+  border-color: #262626;
 }
 
 .admin-refund-layout {
@@ -12511,6 +12985,21 @@ th {
     grid-template-columns: 1fr;
   }
 
+  .admin-staff-lot-meta,
+  .admin-staff-lot-capacity-row,
+  .admin-staff-lot-rate-group {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-staff-lot-hero {
+    display: grid;
+  }
+
+  .admin-staff-lot-section-title {
+    align-items: flex-start;
+    display: grid;
+  }
+
   .search-inline-actions .primary-button,
   .search-inline-actions .ghost-button {
     width: 100%;
@@ -12636,6 +13125,18 @@ th {
   .admin-staff-modal-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .staff-create-form {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-create-preview {
+    min-height: 0;
+  }
+
+  .staff-create-preview dl {
+    margin-top: 10px;
   }
 
   .admin-submitted {
@@ -13547,6 +14048,18 @@ body,
   display: grid;
   gap: 16px;
   grid-template-columns: minmax(0, 8fr) minmax(320px, 4fr);
+}
+
+.active-booking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.active-booking-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .active-booking-switcher {
