@@ -10,10 +10,13 @@ import com.smartparking.capacity.ParkingVehicleCapacity;
 import com.smartparking.capacity.ParkingVehicleCapacityRepository;
 import com.smartparking.common.BookingStatus;
 import com.smartparking.common.ParkingLotStatus;
+import com.smartparking.common.RequestStatus;
+import com.smartparking.common.StoredFile;
 import com.smartparking.common.VehicleType;
 import com.smartparking.common.exception.BusinessException;
 import com.smartparking.common.exception.ErrorCode;
 import com.smartparking.common.security.CurrentUser;
+import com.smartparking.common.storage.FileStorageService;
 import com.smartparking.feedback.ReviewRepository;
 import com.smartparking.parking.dto.ParkingDtos;
 import com.smartparking.pricing.ParkingPricingRule;
@@ -26,6 +29,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -41,6 +45,11 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     private final ParkingCapacityBlockRepository blockRepository;
     private final ParkingPricingRuleRepository pricingRuleRepository;
     private final ParkingServiceRepository serviceRepository;
+    private final ParkingLotUpdateRequestRepository updateRequestRepository;
+    private final ParkingLotUpdateCapacityRepository updateCapacityRepository;
+    private final ParkingLotUpdatePricingRuleRepository updatePricingRuleRepository;
+    private final ParkingLotUpdateServiceRepository updateServiceRepository;
+    private final ParkingLotUpdateImageRepository updateImageRepository;
     private final PromotionRepository promotionRepository;
     private final PromotionParkingLotRepository promotionParkingLotRepository;
     private final ParkingPolicyRepository policyRepository;
@@ -48,6 +57,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     private final ParkingLotMapper mapper;
     private final AuditService auditService;
     private final ReviewRepository reviewRepository;
+    private final FileStorageService fileStorageService;
 
     public ParkingLotServiceImpl(ParkingLotRepository parkingLotRepository,
                                  ParkingLotStaffRepository parkingLotStaffRepository,
@@ -56,13 +66,19 @@ public class ParkingLotServiceImpl implements ParkingLotService {
                                  ParkingCapacityBlockRepository blockRepository,
                                  ParkingPricingRuleRepository pricingRuleRepository,
                                  ParkingServiceRepository serviceRepository,
+                                 ParkingLotUpdateRequestRepository updateRequestRepository,
+                                 ParkingLotUpdateCapacityRepository updateCapacityRepository,
+                                 ParkingLotUpdatePricingRuleRepository updatePricingRuleRepository,
+                                 ParkingLotUpdateServiceRepository updateServiceRepository,
+                                 ParkingLotUpdateImageRepository updateImageRepository,
                                  PromotionRepository promotionRepository,
                                  PromotionParkingLotRepository promotionParkingLotRepository,
                                  ParkingPolicyRepository policyRepository,
                                  BookingRepository bookingRepository,
                                  ParkingLotMapper mapper,
                                  AuditService auditService,
-                                 ReviewRepository reviewRepository) {
+                                 ReviewRepository reviewRepository,
+                                 FileStorageService fileStorageService) {
         this.parkingLotRepository = parkingLotRepository;
         this.parkingLotStaffRepository = parkingLotStaffRepository;
         this.accountRepository = accountRepository;
@@ -70,6 +86,11 @@ public class ParkingLotServiceImpl implements ParkingLotService {
         this.blockRepository = blockRepository;
         this.pricingRuleRepository = pricingRuleRepository;
         this.serviceRepository = serviceRepository;
+        this.updateRequestRepository = updateRequestRepository;
+        this.updateCapacityRepository = updateCapacityRepository;
+        this.updatePricingRuleRepository = updatePricingRuleRepository;
+        this.updateServiceRepository = updateServiceRepository;
+        this.updateImageRepository = updateImageRepository;
         this.promotionRepository = promotionRepository;
         this.promotionParkingLotRepository = promotionParkingLotRepository;
         this.policyRepository = policyRepository;
@@ -77,6 +98,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
         this.mapper = mapper;
         this.auditService = auditService;
         this.reviewRepository = reviewRepository;
+        this.fileStorageService = fileStorageService;
     }
 
     @Override
@@ -120,16 +142,134 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     @Transactional
     public ParkingDtos.ParkingLotResponse update(CurrentUser currentUser, UUID parkingLotId, ParkingDtos.ParkingLotRequest request) {
         ParkingLot parkingLot = getManaged(currentUser, parkingLotId);
+        requestUpdate(currentUser, parkingLotId, new ParkingDtos.ParkingLotEditReviewRequest(
+                request.name(),
+                request.address(),
+                request.latitude(),
+                request.longitude(),
+                request.description(),
+                request.version(),
+                null,
+                null,
+                null
+        ));
+        return mapper.toResponse(parkingLot);
+    }
+
+    @Override
+    @Transactional
+    public ParkingDtos.ParkingLotUpdateRequestResponse requestUpdate(CurrentUser currentUser, UUID parkingLotId,
+                                                                     ParkingDtos.ParkingLotEditReviewRequest request) {
+        Account staff = accountRepository.findById(currentUser.id())
+                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Account không tồn tại"));
+        ParkingLot parkingLot = getManaged(currentUser, parkingLotId);
         assertVersion(parkingLot.getVersion(), request.version());
         assertConfigurable(parkingLot);
-        parkingLot.setName(request.name());
-        parkingLot.setAddress(request.address());
-        parkingLot.setLatitude(request.latitude());
-        parkingLot.setLongitude(request.longitude());
-        parkingLot.setDescription(request.description());
-        activateStaffManagedDraft(parkingLot, currentUser);
-        auditService.record(currentUser.id(), currentUser.role(), "UPDATE", "PARKING_LOT", parkingLot.getId().toString(), null, parkingLot.getStatus().name(), null);
-        return mapper.toResponse(parkingLot);
+        if (updateRequestRepository.existsByParkingLotIdAndStatus(parkingLotId, RequestStatus.PENDING)) {
+            throw new BusinessException(ErrorCode.PARKING_CONFIGURATION_INVALID, "Bãi đỗ này đang có bản chỉnh sửa chờ admin duyệt");
+        }
+
+        ParkingLotUpdateRequest updateRequest = new ParkingLotUpdateRequest();
+        updateRequest.setParkingLot(parkingLot);
+        updateRequest.setRequestedBy(staff);
+        updateRequest.setStatus(RequestStatus.PENDING);
+        updateRequest.setName(request.name());
+        updateRequest.setAddress(request.address());
+        updateRequest.setLatitude(request.latitude());
+        updateRequest.setLongitude(request.longitude());
+        updateRequest.setDescription(request.description());
+        updateRequest.setExpectedVersion(request.version());
+        updateRequest = updateRequestRepository.save(updateRequest);
+
+        if (request.capacities() != null) {
+            for (ParkingDtos.CapacityDraftRequest capacityRequest : request.capacities()) {
+                ParkingLotUpdateCapacity capacity = new ParkingLotUpdateCapacity();
+                capacity.setRequest(updateRequest);
+                capacity.setVehicleType(capacityRequest.vehicleType());
+                capacity.setTotalCapacity(capacityRequest.totalCapacity());
+                updateCapacityRepository.save(capacity);
+            }
+        }
+
+        if (request.pricingRules() != null) {
+            for (ParkingDtos.PricingRuleRequest pricingRequest : request.pricingRules()) {
+                if (pricingRequest.startTime().equals(pricingRequest.endTime())) {
+                    throw new BusinessException(ErrorCode.PARKING_CONFIGURATION_INVALID, "startTime và endTime của pricing rule không được trùng nhau");
+                }
+                ParkingLotUpdatePricingRule pricingRule = new ParkingLotUpdatePricingRule();
+                pricingRule.setRequest(updateRequest);
+                pricingRule.setVehicleType(pricingRequest.vehicleType());
+                pricingRule.setHourlyRate(pricingRequest.hourlyRate());
+                pricingRule.setStartTime(pricingRequest.startTime());
+                pricingRule.setEndTime(pricingRequest.endTime());
+                pricingRule.setActive(Boolean.TRUE.equals(pricingRequest.active()));
+                updatePricingRuleRepository.save(pricingRule);
+            }
+        }
+
+        if (request.services() != null) {
+            for (ParkingDtos.ParkingServiceRequest serviceRequest : request.services()) {
+                ParkingLotUpdateService service = new ParkingLotUpdateService();
+                service.setRequest(updateRequest);
+                service.setName(serviceRequest.name().trim());
+                service.setPrice(serviceRequest.price());
+                service.setActive(Boolean.TRUE.equals(serviceRequest.active()));
+                updateServiceRepository.save(service);
+            }
+        }
+
+        auditService.record(currentUser.id(), currentUser.role(), "REQUEST_PARKING_UPDATE", "PARKING_LOT",
+                parkingLotId.toString(), null, updateRequest.getId().toString(), null);
+        return updateRequestResponse(updateRequest);
+    }
+
+    @Override
+    @Transactional
+    public ParkingDtos.ParkingLotUpdateImageResponse uploadUpdateRequestImage(CurrentUser currentUser, UUID parkingLotId,
+                                                                              UUID requestId, MultipartFile file) {
+        return uploadUpdateRequestImages(currentUser, parkingLotId, requestId, List.of(file)).getFirst();
+    }
+
+    @Override
+    @Transactional
+    public List<ParkingDtos.ParkingLotUpdateImageResponse> uploadUpdateRequestImages(CurrentUser currentUser, UUID parkingLotId,
+                                                                                     UUID requestId, List<MultipartFile> files) {
+        ParkingLot parkingLot = getManaged(currentUser, parkingLotId);
+        ParkingLotUpdateRequest request = updateRequestRepository.findById(requestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PARKING_CONFIGURATION_INVALID, "Bản chỉnh sửa bãi đỗ không tồn tại"));
+        if (!request.getParkingLot().getId().equals(parkingLot.getId())
+                || !request.getRequestedBy().getId().equals(currentUser.id())) {
+            throw new BusinessException(ErrorCode.PARKING_LOT_ACCESS_DENIED, "Staff không được upload ảnh cho request này");
+        }
+        if (request.getStatus() != RequestStatus.PENDING) {
+            throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Chỉ upload ảnh cho request đang chờ duyệt");
+        }
+        List<MultipartFile> uploadFiles = files == null ? List.of() : files.stream()
+                .filter(candidate -> candidate != null && !candidate.isEmpty())
+                .toList();
+        if (uploadFiles.isEmpty()) {
+            throw new BusinessException(ErrorCode.UNSUPPORTED_FILE_TYPE, "File ảnh không hợp lệ");
+        }
+        if (uploadFiles.size() > 3 || updateImageRepository.findByRequestIdOrderByCreatedAtAsc(requestId).size() + uploadFiles.size() > 3) {
+            throw new BusinessException(ErrorCode.PARKING_CONFIGURATION_INVALID, "Tối đa 3 ảnh cho mỗi request");
+        }
+
+        return uploadFiles.stream()
+                .map(file -> {
+                    StoredFile storedFile = fileStorageService.storeParkingLotImage(currentUser.id(), parkingLotId, file);
+                    ParkingLotUpdateImage image = new ParkingLotUpdateImage();
+                    image.setRequest(request);
+                    image.setBucket(storedFile.getBucket());
+                    image.setObjectKey(storedFile.getObjectKey());
+                    image.setContentType(storedFile.getContentType());
+                    image.setFileSize(storedFile.getFileSize());
+                    image.setChecksum(storedFile.getChecksum());
+                    image = updateImageRepository.save(image);
+                    auditService.record(currentUser.id(), currentUser.role(), "UPLOAD_PARKING_UPDATE_IMAGE", "PARKING_LOT",
+                            parkingLotId.toString(), requestId.toString(), image.getId().toString(), null);
+                    return updateImageResponse(image);
+                })
+                .toList();
     }
 
     @Override
@@ -374,11 +514,15 @@ public class ParkingLotServiceImpl implements ParkingLotService {
                                                            ParkingDtos.ParkingServiceRequest request) {
         ParkingLot parkingLot = getManaged(currentUser, parkingLotId);
         assertConfigurable(parkingLot);
-        ParkingServiceEntity service = new ParkingServiceEntity();
-        service.setParkingLot(parkingLot);
+        ParkingServiceEntity service = serviceRepository.findByParkingLotIdAndNameIgnoreCase(parkingLotId, request.name().trim())
+                .orElseGet(() -> {
+                    ParkingServiceEntity newService = new ParkingServiceEntity();
+                    newService.setParkingLot(parkingLot);
+                    return newService;
+                });
         applyService(service, request);
         service = serviceRepository.save(service);
-        auditService.record(currentUser.id(), currentUser.role(), "CREATE_SERVICE", "PARKING_LOT",
+        auditService.record(currentUser.id(), currentUser.role(), "UPSERT_SERVICE", "PARKING_LOT",
                 parkingLotId.toString(), null, service.getId().toString(), null);
         return serviceResponse(service);
     }
@@ -585,7 +729,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     }
 
     private void applyService(ParkingServiceEntity service, ParkingDtos.ParkingServiceRequest request) {
-        service.setName(request.name());
+        service.setName(request.name().trim());
         service.setPrice(request.price());
         service.setActive(Boolean.TRUE.equals(request.active()));
     }
@@ -593,6 +737,56 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     private ParkingDtos.ParkingServiceResponse serviceResponse(ParkingServiceEntity service) {
         return new ParkingDtos.ParkingServiceResponse(service.getId(), service.getParkingLot().getId(), service.getName(),
                 service.getPrice(), service.isActive(), service.getVersion(), service.getCreatedAt(), service.getUpdatedAt());
+    }
+
+    private ParkingDtos.ParkingLotUpdateRequestResponse updateRequestResponse(ParkingLotUpdateRequest request) {
+        UUID requestId = request.getId();
+        return new ParkingDtos.ParkingLotUpdateRequestResponse(
+                request.getId(),
+                request.getParkingLot().getId(),
+                request.getParkingLot().getName(),
+                request.getRequestedBy().getId(),
+                staffDisplayName(request.getRequestedBy()),
+                request.getRequestedBy().getEmail(),
+                request.getStatus(),
+                request.getName(),
+                request.getAddress(),
+                request.getLatitude(),
+                request.getLongitude(),
+                request.getDescription(),
+                request.getExpectedVersion(),
+                request.getDecisionReason(),
+                request.getVersion(),
+                request.getCreatedAt(),
+                request.getUpdatedAt(),
+                updateCapacityRepository.findByRequestId(requestId).stream()
+                        .map(capacity -> new ParkingDtos.CapacityDraftResponse(capacity.getId(), capacity.getVehicleType(), capacity.getTotalCapacity()))
+                        .toList(),
+                updatePricingRuleRepository.findByRequestId(requestId).stream()
+                        .map(rule -> new ParkingDtos.PricingRuleDraftResponse(rule.getId(), rule.getVehicleType(),
+                                rule.getHourlyRate(), rule.getStartTime(), rule.getEndTime(), rule.isActive()))
+                        .toList(),
+                updateServiceRepository.findByRequestId(requestId).stream()
+                        .map(service -> new ParkingDtos.ParkingServiceDraftResponse(service.getId(), service.getName(),
+                                service.getPrice(), service.isActive()))
+                        .toList(),
+                updateImageRepository.findByRequestIdOrderByCreatedAtAsc(requestId).stream()
+                        .map(this::updateImageResponse)
+                        .toList()
+        );
+    }
+
+    private ParkingDtos.ParkingLotUpdateImageResponse updateImageResponse(ParkingLotUpdateImage image) {
+        return new ParkingDtos.ParkingLotUpdateImageResponse(
+                image.getId(),
+                "/api/v1/public/files/parking-lot-update-images/" + image.getId(),
+                image.getContentType(),
+                image.getFileSize()
+        );
+    }
+
+    private String staffDisplayName(Account account) {
+        return account == null ? null : account.getEmail();
     }
 
     private void applyPromotion(Promotion promotion, ParkingDtos.PromotionRequest request) {

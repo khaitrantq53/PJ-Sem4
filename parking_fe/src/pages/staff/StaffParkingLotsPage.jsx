@@ -32,6 +32,13 @@ const parkingLotsContent = `
         </div>
       </section>
 
+      <section class="staff-lot-section staff-lot-gallery-section">
+        <h2>Parking Lot Images</h2>
+        <div class="staff-lot-gallery" id="staffLotImageGallery">
+          <div class="empty-state">No approved images yet.</div>
+        </div>
+      </section>
+
       <section class="staff-lot-section">
         <h2>Hourly Rates</h2>
         <div class="staff-hourly-rates-list" id="staffHourlyRates">
@@ -99,6 +106,23 @@ const parkingLotsContent = `
                   <label class="staff-popup-field"><span>Longitude</span><input name="longitude" type="text" /></label>
                 </div>
                 <label class="staff-popup-field"><span>Description</span><textarea name="description" rows="3"></textarea></label>
+              </div>
+            </section>
+
+            <section class="staff-lot-form-section staff-popup-images-section">
+              <div class="staff-popup-section-title-row">
+                <div>
+                  <h3>Parking Lot Images</h3>
+                  <p>Upload up to 3 images for admin review.</p>
+                </div>
+                <button class="staff-image-upload-button" type="button" data-action="select-staff-lot-images">
+                  <span class="material-symbols-outlined" aria-hidden="true">upload</span>
+                  Upload Images
+                </button>
+              </div>
+              <input id="staffLotImageInput" name="images" type="file" accept="image/*" multiple hidden />
+              <div class="staff-lot-image-preview" id="staffLotImagePreview">
+                <span>No images selected</span>
               </div>
             </section>
 

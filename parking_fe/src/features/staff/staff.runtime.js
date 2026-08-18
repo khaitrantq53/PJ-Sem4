@@ -239,6 +239,7 @@ let selectedLotId = null;
 let selectedLotCapacities = [];
 let selectedLotPricingRules = [];
 let selectedLotServices = [];
+let selectedStaffLotImageFiles = [];
 let bookingsCache = [];
 let changeRequestsCache = [];
 let extensionRequestsCache = [];
@@ -258,6 +259,63 @@ const STAFF_PAID_AMENITY_PRICES = {
   'car wash': 10000,
   'ev charging': 50000,
 };
+const STAFF_LOT_IMAGE_LIMIT = 3;
+const STAFF_LOT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const STAFF_LOT_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+function clearSelectedStaffLotImages() {
+  selectedStaffLotImageFiles = [];
+  const input = $('#staffLotImageInput');
+  if (input) {
+    input.value = '';
+  }
+  renderStaffLotImagePreview();
+}
+
+function setSelectedStaffLotImages(files) {
+  const validFiles = [];
+  const rejectedFiles = [];
+
+  files.forEach((file) => {
+    if (!STAFF_LOT_IMAGE_TYPES.includes(file.type) || file.size > STAFF_LOT_IMAGE_MAX_BYTES) {
+      rejectedFiles.push(file.name || 'image');
+      return;
+    }
+    validFiles.push(file);
+  });
+
+  selectedStaffLotImageFiles = validFiles.slice(0, STAFF_LOT_IMAGE_LIMIT);
+  if (files.length > STAFF_LOT_IMAGE_LIMIT || rejectedFiles.length) {
+    const messages = [];
+    if (files.length > STAFF_LOT_IMAGE_LIMIT) {
+      messages.push('Only the first 3 valid images will be sent for review.');
+    }
+    if (rejectedFiles.length) {
+      messages.push(`Skipped unsupported or larger than 5MB: ${rejectedFiles.join(', ')}`);
+    }
+    setStatus('#staffLotsStatus', messages.join(' '), true);
+  }
+  renderStaffLotImagePreview();
+}
+
+function renderStaffLotImagePreview() {
+  const preview = $('#staffLotImagePreview');
+  if (!preview) {
+    return;
+  }
+
+  if (!selectedStaffLotImageFiles.length) {
+    preview.innerHTML = '<span>No images selected</span>';
+    return;
+  }
+
+  preview.innerHTML = selectedStaffLotImageFiles.map((file, index) => `
+    <figure>
+      <img src="${escapeHtml(URL.createObjectURL(file))}" alt="${escapeHtml(file.name || `Parking image ${index + 1}`)}" />
+      <figcaption>${escapeHtml(file.name || `Image ${index + 1}`)}</figcaption>
+    </figure>
+  `).join('');
+}
 
 function parkingLotCounts(lots) {
   return lots.reduce((counts, lot) => {
@@ -474,6 +532,34 @@ function renderStaffLotServices(services = []) {
   }
 }
 
+function approvedLotImages(lot) {
+  const images = Array.isArray(lot?.images) ? lot.images : [];
+  const imageUrls = Array.isArray(lot?.imageUrls) ? lot.imageUrls : [];
+  return [
+    ...images.map((image) => image.imageUrl).filter(Boolean),
+    ...imageUrls.filter(Boolean),
+  ].filter((url, index, urls) => urls.indexOf(url) === index).slice(0, 3);
+}
+
+function renderStaffLotImages(lot) {
+  const gallery = $('#staffLotImageGallery');
+  if (!gallery) {
+    return;
+  }
+  const images = approvedLotImages(lot);
+  if (!images.length) {
+    gallery.innerHTML = '<div class="empty-state">No approved images yet. Upload images in Edit Details and wait for admin approval.</div>';
+    return;
+  }
+
+  gallery.innerHTML = images.map((imageUrl, index) => `
+    <figure class="${index === 0 ? 'primary' : ''}">
+      <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(`${lot?.name || 'Parking lot'} image ${index + 1}`)}" onerror="this.closest('figure').classList.add('image-error');" />
+      <figcaption>${index === 0 ? 'Primary image' : `Image ${index + 1}`}</figcaption>
+    </figure>
+  `).join('');
+}
+
 function renderParkingLotDetail(lot) {
   setText('#staffLotSelectedStatus', lot?.status || '-');
   setText('#staffLotSelectedId', lot?.id ? `ID: ${lot.id}` : 'ID: -');
@@ -494,6 +580,7 @@ function renderParkingLotDetail(lot) {
   renderStaffLotCapacity(lot ? selectedLotCapacities : []);
   renderStaffLotPricing(lot ? selectedLotPricingRules : []);
   renderStaffLotServices(lot ? selectedLotServices : []);
+  renderStaffLotImages(lot);
 }
 
 function syncStaffParkingLotForm(lot) {
@@ -636,6 +723,7 @@ function openStaffLotModal() {
     return;
   }
   syncStaffParkingLotForm(selectedParkingLot());
+  clearSelectedStaffLotImages();
   modal.classList.remove('hidden');
   modal.setAttribute('aria-hidden', 'false');
   window.setTimeout(() => $('#staffParkingLotForm')?.elements.namedItem('name')?.focus(), 30);
@@ -722,6 +810,64 @@ async function saveStaffLotServices(parkingLotId, data) {
   services.forEach(upsertService);
 }
 
+async function uploadStaffLotRequestImages(parkingLotId, requestId, files) {
+  if (!files.length) {
+    return;
+  }
+  const payload = new FormData();
+  files.slice(0, STAFF_LOT_IMAGE_LIMIT).forEach((file) => {
+    payload.append('files', file);
+  });
+  await apiRequest(`/staff/parking-lots/${parkingLotId}/update-requests/${requestId}/images/batch`, {
+    method: 'POST',
+    body: payload,
+  });
+}
+
+function buildStaffLotReviewPayload(data, selectedLot) {
+  const capacityFields = [
+    ['capacity_car', 'CAR'],
+    ['capacity_motorbike', 'MOTORBIKE'],
+  ];
+  const rateFields = [
+    ['price_car_day', 'CAR', '07:00:00', '17:00:00'],
+    ['price_car_evening', 'CAR', '17:00:00', '22:00:00'],
+    ['price_car_night', 'CAR', '22:00:00', '07:00:00'],
+    ['price_motorbike_day', 'MOTORBIKE', '07:00:00', '17:00:00'],
+    ['price_motorbike_evening', 'MOTORBIKE', '17:00:00', '22:00:00'],
+    ['price_motorbike_night', 'MOTORBIKE', '22:00:00', '07:00:00'],
+  ];
+
+  return {
+    address: data.address,
+    capacities: capacityFields
+      .filter(([fieldName]) => data[fieldName] !== undefined && data[fieldName] !== '')
+      .map(([fieldName, vehicleType]) => ({
+        totalCapacity: Number(data[fieldName]),
+        vehicleType,
+      })),
+    description: data.description || null,
+    latitude: data.latitude ? Number(data.latitude) : null,
+    longitude: data.longitude ? Number(data.longitude) : null,
+    name: data.name,
+    pricingRules: rateFields
+      .filter(([fieldName]) => data[fieldName] !== undefined && data[fieldName] !== '')
+      .map(([fieldName, vehicleType, startTime, endTime]) => ({
+        active: true,
+        endTime,
+        hourlyRate: Number(data[fieldName]),
+        startTime,
+        vehicleType,
+      })),
+    services: STAFF_AMENITY_NAMES.map((amenity) => ({
+      active: data[`amenity_${amenity}`] === 'on',
+      name: amenity,
+      price: STAFF_PAID_AMENITY_PRICES[normalizeFilterValue(amenity)] || 0,
+    })),
+    version: selectedLot?.version ?? null,
+  };
+}
+
 async function saveStaffParkingLotDetails(form) {
   let selectedLot = selectedParkingLot();
   const data = formData(form);
@@ -743,23 +889,19 @@ async function saveStaffParkingLotDetails(form) {
     });
     selectedLotId = selectedLot.id;
     upsertParkingLot(selectedLot);
+    await saveStaffLotCapacity(selectedLot.id, data);
+    await saveStaffLotPricing(selectedLot.id, data);
+    await saveStaffLotServices(selectedLot.id, data);
+    return 'Parking lot details saved.';
   } else {
-    selectedLot = await apiRequest(`/staff/parking-lots/${selectedLot.id}`, {
-      method: 'PUT',
-      body: jsonBody({
-        address: data.address,
-        description: data.description || null,
-        latitude: data.latitude ? Number(data.latitude) : null,
-        longitude: data.longitude ? Number(data.longitude) : null,
-        name: data.name,
-      }),
+    const request = await apiRequest(`/staff/parking-lots/${selectedLot.id}/update-requests`, {
+      method: 'POST',
+      body: jsonBody(buildStaffLotReviewPayload(data, selectedLot)),
     });
-    upsertParkingLot(selectedLot);
+    await uploadStaffLotRequestImages(selectedLot.id, request.id, selectedStaffLotImageFiles);
+    clearSelectedStaffLotImages();
+    return 'Parking lot changes sent for admin approval.';
   }
-
-  await saveStaffLotCapacity(selectedLot.id, data);
-  await saveStaffLotPricing(selectedLot.id, data);
-  await saveStaffLotServices(selectedLot.id, data);
 }
 
 function bindStaffParkingLotsPage() {
@@ -774,6 +916,14 @@ function bindStaffParkingLotsPage() {
     button.addEventListener('click', closeStaffLotModal);
   });
 
+  $('[data-action="select-staff-lot-images"]')?.addEventListener('click', () => {
+    $('#staffLotImageInput')?.click();
+  });
+
+  $('#staffLotImageInput')?.addEventListener('change', (event) => {
+    setSelectedStaffLotImages([...event.currentTarget.files]);
+  });
+
   $('#staffLotEditModal')?.addEventListener('click', (event) => {
     if (event.target === event.currentTarget) {
       closeStaffLotModal();
@@ -782,11 +932,11 @@ function bindStaffParkingLotsPage() {
 
   $('#staffParkingLotForm')?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    setStatus('#staffLotsStatus', 'Saving parking lot details...');
+    setStatus('#staffLotsStatus', 'Submitting parking lot changes...');
     try {
-      await saveStaffParkingLotDetails(event.currentTarget);
+      const message = await saveStaffParkingLotDetails(event.currentTarget);
       closeStaffLotModal();
-      setStatus('#staffLotsStatus', 'Parking lot details saved.');
+      setStatus('#staffLotsStatus', message);
       await loadStaffParkingLots();
     } catch (error) {
       setStatus('#staffLotsStatus', error.message, true);

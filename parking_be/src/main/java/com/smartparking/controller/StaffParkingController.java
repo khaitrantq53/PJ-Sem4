@@ -12,6 +12,7 @@ import com.smartparking.parking.dto.ParkingDtos;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -57,6 +60,29 @@ public class StaffParkingController {
     ApiResponse<ParkingDtos.ParkingLotResponse> update(@PathVariable UUID parkingLotId,
                                                        @Valid @RequestBody ParkingDtos.ParkingLotRequest request) {
         return ApiResponse.ok(parkingLotService.update(SecurityUtils.currentUser(), parkingLotId, request), RequestContext.requestId());
+    }
+
+    @PostMapping("/{parkingLotId}/update-requests")
+    @ResponseStatus(HttpStatus.CREATED)
+    ApiResponse<ParkingDtos.ParkingLotUpdateRequestResponse> requestUpdate(@PathVariable UUID parkingLotId,
+                                                                           @Valid @RequestBody ParkingDtos.ParkingLotEditReviewRequest request) {
+        return ApiResponse.ok(parkingLotService.requestUpdate(SecurityUtils.currentUser(), parkingLotId, request), RequestContext.requestId());
+    }
+
+    @PostMapping(path = "/{parkingLotId}/update-requests/{requestId}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    ApiResponse<ParkingDtos.ParkingLotUpdateImageResponse> uploadUpdateRequestImage(@PathVariable UUID parkingLotId,
+                                                                                    @PathVariable UUID requestId,
+                                                                                    @RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok(parkingLotService.uploadUpdateRequestImage(SecurityUtils.currentUser(), parkingLotId, requestId, file), RequestContext.requestId());
+    }
+
+    @PostMapping(path = "/{parkingLotId}/update-requests/{requestId}/images/batch", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    ApiResponse<List<ParkingDtos.ParkingLotUpdateImageResponse>> uploadUpdateRequestImages(@PathVariable UUID parkingLotId,
+                                                                                           @PathVariable UUID requestId,
+                                                                                           @RequestPart("files") List<MultipartFile> files) {
+        return ApiResponse.ok(parkingLotService.uploadUpdateRequestImages(SecurityUtils.currentUser(), parkingLotId, requestId, files), RequestContext.requestId());
     }
 
     @PostMapping("/{parkingLotId}/submit-approval")

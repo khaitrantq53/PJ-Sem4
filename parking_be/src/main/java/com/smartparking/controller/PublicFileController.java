@@ -2,6 +2,10 @@ package com.smartparking.controller;
 
 import com.smartparking.common.exception.BusinessException;
 import com.smartparking.common.exception.ErrorCode;
+import com.smartparking.parking.ParkingLotImage;
+import com.smartparking.parking.ParkingLotImageRepository;
+import com.smartparking.parking.ParkingLotUpdateImage;
+import com.smartparking.parking.ParkingLotUpdateImageRepository;
 import com.smartparking.vehicle.VehicleImage;
 import com.smartparking.vehicle.VehicleImageRepository;
 import io.minio.GetObjectArgs;
@@ -23,10 +27,17 @@ import java.util.concurrent.TimeUnit;
 @RequestMapping("/api/v1/public/files")
 public class PublicFileController {
     private final VehicleImageRepository vehicleImageRepository;
+    private final ParkingLotImageRepository parkingLotImageRepository;
+    private final ParkingLotUpdateImageRepository parkingLotUpdateImageRepository;
     private final MinioClient minioClient;
 
-    public PublicFileController(VehicleImageRepository vehicleImageRepository, MinioClient minioClient) {
+    public PublicFileController(VehicleImageRepository vehicleImageRepository,
+                                ParkingLotImageRepository parkingLotImageRepository,
+                                ParkingLotUpdateImageRepository parkingLotUpdateImageRepository,
+                                MinioClient minioClient) {
         this.vehicleImageRepository = vehicleImageRepository;
+        this.parkingLotImageRepository = parkingLotImageRepository;
+        this.parkingLotUpdateImageRepository = parkingLotUpdateImageRepository;
         this.minioClient = minioClient;
     }
 
@@ -48,6 +59,39 @@ public class PublicFileController {
             throw exception;
         } catch (Exception exception) {
             throw new BusinessException(ErrorCode.STORAGE_UPLOAD_FAILED, "Không đọc được ảnh xe");
+        }
+    }
+
+    @GetMapping("/parking-lot-images/{imageId}")
+    ResponseEntity<InputStreamResource> parkingLotImage(@PathVariable UUID imageId) {
+        ParkingLotImage image = parkingLotImageRepository.findById(imageId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PARKING_LOT_NOT_FOUND, "Parking lot image không tồn tại"));
+        return fileResponse(image.getBucket(), image.getObjectKey(), image.getContentType(), image.getFileSize(), "Không đọc được ảnh bãi đỗ");
+    }
+
+    @GetMapping("/parking-lot-update-images/{imageId}")
+    ResponseEntity<InputStreamResource> parkingLotUpdateImage(@PathVariable UUID imageId) {
+        ParkingLotUpdateImage image = parkingLotUpdateImageRepository.findById(imageId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PARKING_LOT_NOT_FOUND, "Parking lot update image không tồn tại"));
+        return fileResponse(image.getBucket(), image.getObjectKey(), image.getContentType(), image.getFileSize(), "Không đọc được ảnh request bãi đỗ");
+    }
+
+    private ResponseEntity<InputStreamResource> fileResponse(String bucket, String objectKey, String contentType,
+                                                             long fileSize, String errorMessage) {
+        try {
+            InputStreamResource resource = new InputStreamResource(minioClient.getObject(GetObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(objectKey)
+                    .build()));
+            return ResponseEntity.ok()
+                    .cacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePublic())
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileSize))
+                    .body(resource);
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new BusinessException(ErrorCode.STORAGE_UPLOAD_FAILED, errorMessage);
         }
     }
 }

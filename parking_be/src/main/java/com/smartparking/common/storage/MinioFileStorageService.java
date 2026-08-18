@@ -48,6 +48,13 @@ public class MinioFileStorageService implements FileStorageService {
         return storeImage(file, objectKey);
     }
 
+    @Override
+    @Transactional
+    public StoredFile storeParkingLotImage(UUID staffId, UUID parkingLotId, MultipartFile file) {
+        String objectKey = "parking-lots/" + parkingLotId + "/requests/" + staffId + "/" + UUID.randomUUID() + extension(file.getOriginalFilename());
+        return storeImage(file, objectKey);
+    }
+
     private StoredFile storeImage(MultipartFile file, String objectKey) {
         validateImage(file);
         String bucket = properties.minio().bucket();

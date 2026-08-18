@@ -1,6 +1,7 @@
 package com.smartparking.parking.dto;
 
 import com.smartparking.common.ParkingLotStatus;
+import com.smartparking.common.RequestStatus;
 import com.smartparking.common.VehicleType;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -48,6 +49,8 @@ public final class ParkingDtos {
             ParkingLotStatus status,
             String description,
             BigDecimal hourlyRate,
+            List<ParkingLotImageResponse> images,
+            List<String> imageUrls,
             Long version,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt
@@ -64,8 +67,18 @@ public final class ParkingDtos {
             BigDecimal hourlyRate,
             BigDecimal averageRating,
             long reviewCount,
+            List<ParkingLotImageResponse> images,
+            List<String> imageUrls,
             Long version,
             OffsetDateTime updatedAt
+    ) {
+    }
+
+    public record ParkingLotImageResponse(
+            UUID id,
+            String imageUrl,
+            String contentType,
+            long fileSize
     ) {
     }
 
@@ -169,6 +182,83 @@ public final class ParkingDtos {
             Long version,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt
+    ) {
+    }
+
+    public record CapacityDraftRequest(
+            @NotNull VehicleType vehicleType,
+            @Min(0) int totalCapacity
+    ) {
+    }
+
+    public record ParkingLotEditReviewRequest(
+            @NotBlank @Size(max = 255) String name,
+            @NotBlank @Size(max = 500) String address,
+            @DecimalMin("-90.0") @DecimalMax("90.0") BigDecimal latitude,
+            @DecimalMin("-180.0") @DecimalMax("180.0") BigDecimal longitude,
+            String description,
+            Long version,
+            List<CapacityDraftRequest> capacities,
+            List<PricingRuleRequest> pricingRules,
+            List<ParkingServiceRequest> services
+    ) {
+    }
+
+    public record CapacityDraftResponse(
+            UUID id,
+            VehicleType vehicleType,
+            int totalCapacity
+    ) {
+    }
+
+    public record PricingRuleDraftResponse(
+            UUID id,
+            VehicleType vehicleType,
+            BigDecimal hourlyRate,
+            LocalTime startTime,
+            LocalTime endTime,
+            boolean active
+    ) {
+    }
+
+    public record ParkingServiceDraftResponse(
+            UUID id,
+            String name,
+            BigDecimal price,
+            boolean active
+    ) {
+    }
+
+    public record ParkingLotUpdateImageResponse(
+            UUID id,
+            String imageUrl,
+            String contentType,
+            long fileSize
+    ) {
+    }
+
+    public record ParkingLotUpdateRequestResponse(
+            UUID id,
+            UUID parkingLotId,
+            String parkingLotName,
+            UUID requestedBy,
+            String requestedByName,
+            String requestedByEmail,
+            RequestStatus status,
+            String name,
+            String address,
+            BigDecimal latitude,
+            BigDecimal longitude,
+            String description,
+            Long expectedVersion,
+            String decisionReason,
+            Long version,
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt,
+            List<CapacityDraftResponse> capacities,
+            List<PricingRuleDraftResponse> pricingRules,
+            List<ParkingServiceDraftResponse> services,
+            List<ParkingLotUpdateImageResponse> images
     ) {
     }
 

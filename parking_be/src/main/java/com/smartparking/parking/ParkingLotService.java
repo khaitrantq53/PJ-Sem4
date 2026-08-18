@@ -5,6 +5,7 @@ import com.smartparking.common.security.CurrentUser;
 import com.smartparking.parking.dto.ParkingDtos;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -18,6 +19,15 @@ public interface ParkingLotService {
     ParkingDtos.ParkingLotResponse getForStaff(CurrentUser currentUser, UUID parkingLotId);
 
     ParkingDtos.ParkingLotResponse update(CurrentUser currentUser, UUID parkingLotId, ParkingDtos.ParkingLotRequest request);
+
+    ParkingDtos.ParkingLotUpdateRequestResponse requestUpdate(CurrentUser currentUser, UUID parkingLotId,
+                                                              ParkingDtos.ParkingLotEditReviewRequest request);
+
+    ParkingDtos.ParkingLotUpdateImageResponse uploadUpdateRequestImage(CurrentUser currentUser, UUID parkingLotId,
+                                                                       UUID requestId, MultipartFile file);
+
+    List<ParkingDtos.ParkingLotUpdateImageResponse> uploadUpdateRequestImages(CurrentUser currentUser, UUID parkingLotId,
+                                                                              UUID requestId, List<MultipartFile> files);
 
     ParkingDtos.ParkingLotResponse submitApproval(CurrentUser currentUser, UUID parkingLotId);
 

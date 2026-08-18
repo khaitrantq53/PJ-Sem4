@@ -12,5 +12,7 @@ public interface ParkingServiceRepository extends JpaRepository<ParkingServiceEn
 
     Optional<ParkingServiceEntity> findByIdAndParkingLotId(UUID id, UUID parkingLotId);
 
+    Optional<ParkingServiceEntity> findByParkingLotIdAndNameIgnoreCase(UUID parkingLotId, String name);
+
     List<ParkingServiceEntity> findByParkingLotIdAndIdInAndActiveTrue(UUID parkingLotId, Collection<UUID> ids);
 }

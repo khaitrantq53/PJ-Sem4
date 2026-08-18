@@ -3,6 +3,7 @@ import { AdminBookings } from '../pages/admin/AdminBookings.jsx';
 import { AdminDashboard } from '../pages/admin/AdminDashboard.jsx';
 import { AdminLots } from '../pages/admin/AdminLots.jsx';
 import { AdminRefunds } from '../pages/admin/AdminRefunds.jsx';
+import { AdminRequests } from '../pages/admin/AdminRequests.jsx';
 import { AdminStaff } from '../pages/admin/AdminStaff.jsx';
 import { AdminUsers } from '../pages/admin/AdminUsers.jsx';
 import { AuthPage } from '../pages/auth/AuthPage.jsx';
@@ -25,6 +26,7 @@ const adminComponents = {
   'admin-users.html': AdminUsers,
   'admin-staff.html': AdminStaff,
   'admin-lots.html': AdminLots,
+  'admin-requests.html': AdminRequests,
   'admin-refunds.html': AdminRefunds,
   'admin-audit.html': AdminAudit,
   'admin-bookings.html': AdminBookings,

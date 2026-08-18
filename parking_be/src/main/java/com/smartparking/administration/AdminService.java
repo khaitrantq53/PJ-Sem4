@@ -40,6 +40,15 @@ public interface AdminService {
 
     AdminDtos.ParkingCommandResponse rejectClosure(CurrentUser currentUser, UUID parkingLotId, AdminDtos.ReasonRequest request);
 
+    Page<ParkingDtos.ParkingLotUpdateRequestResponse> parkingLotUpdateRequests(Pageable pageable);
+
+    ParkingDtos.ParkingLotUpdateRequestResponse parkingLotUpdateRequest(UUID requestId);
+
+    ParkingDtos.ParkingLotUpdateRequestResponse approveParkingLotUpdate(CurrentUser currentUser, UUID requestId);
+
+    ParkingDtos.ParkingLotUpdateRequestResponse rejectParkingLotUpdate(CurrentUser currentUser, UUID requestId,
+                                                                       AdminDtos.ReasonRequest request);
+
     Page<BookingDtos.BookingListResponse> bookings(AdminDtos.AdminBookingFilter filter, Pageable pageable);
 
     Page<BookingDtos.BookingListResponse> customerBookings(UUID customerId, Pageable pageable);

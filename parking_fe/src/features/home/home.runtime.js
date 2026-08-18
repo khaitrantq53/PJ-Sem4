@@ -138,6 +138,14 @@ function getImageForIndex(index) {
   return images[index % images.length];
 }
 
+function getPrimaryLotImage(lot, index) {
+  const imageUrls = Array.isArray(lot?.imageUrls) ? lot.imageUrls : [];
+  const images = Array.isArray(lot?.images) ? lot.images : [];
+  return imageUrls.find(Boolean)
+    || images.map((image) => image.imageUrl).find(Boolean)
+    || getImageForIndex(index);
+}
+
 function summarizeCapacity(capacities = []) {
   if (!Array.isArray(capacities) || capacities.length === 0) {
     return null;
@@ -244,7 +252,7 @@ function mapBackendLot(lot, index) {
       lot.status || 'ACTIVE',
       hasVietnamCoordinate ? 'Mapped location' : 'Ha Noi area',
     ].filter(Boolean),
-    image: getImageForIndex(index),
+    image: getPrimaryLotImage(lot, index),
     latitude,
     longitude,
   };
@@ -765,7 +773,7 @@ function createParkingCard(lot, index = 0, count = 1) {
 
   card.innerHTML = `
     <div class="parking-visual">
-      <img src="${lot.image}" alt="Illustration for ${escapeHtml(lot.name)}" />
+      <img src="${escapeHtml(lot.image)}" alt="Illustration for ${escapeHtml(lot.name)}" onerror="this.onerror=null;this.src='/assets/garage-premium.svg';" />
     </div>
     <div class="parking-body">
       <div class="parking-title-row">

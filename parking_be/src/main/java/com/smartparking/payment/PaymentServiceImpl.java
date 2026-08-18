@@ -80,13 +80,19 @@ public class PaymentServiceImpl implements PaymentService {
         if (request.paymentMethod() != booking.getPaymentMethod()) {
             throw new BusinessException(ErrorCode.PAYMENT_PROVIDER_ERROR, "Payment method không khớp booking");
         }
-        Payment payment = new Payment();
-        payment.setBooking(booking);
-        payment.setPaymentMethod(request.paymentMethod());
+        Payment payment = paymentRepository.findByBookingIdAndPaymentMethod(bookingId, request.paymentMethod())
+                .orElseGet(() -> {
+                    Payment created = new Payment();
+                    created.setBooking(booking);
+                    created.setPaymentMethod(request.paymentMethod());
+                    return created;
+                });
         payment.setStatus(PaymentStatus.PENDING);
         payment.setAmount(booking.getTotalAmount());
         payment.setCurrency(booking.getCurrency());
-        payment.setIdempotencyKey(idempotencyKey);
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            payment.setIdempotencyKey(idempotencyKey);
+        }
         payment = paymentRepository.save(payment);
         booking.setPaymentStatus(PaymentStatus.PENDING);
         auditService.record(currentUser.id(), currentUser.role(), "CREATE", "PAYMENT", payment.getId().toString(), null, payment.getStatus().name(), null);

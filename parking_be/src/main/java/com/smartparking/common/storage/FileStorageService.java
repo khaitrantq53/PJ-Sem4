@@ -9,4 +9,6 @@ public interface FileStorageService {
     StoredFile storeCustomerAvatar(UUID customerId, MultipartFile file);
 
     StoredFile storeVehicleImage(UUID customerId, UUID vehicleId, MultipartFile file);
+
+    StoredFile storeParkingLotImage(UUID staffId, UUID parkingLotId, MultipartFile file);
 }

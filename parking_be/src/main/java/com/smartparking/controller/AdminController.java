@@ -89,6 +89,27 @@ public class AdminController {
         return PageResponse.of(adminService.pendingParkingLots(pageable), RequestContext.requestId());
     }
 
+    @GetMapping("/parking-lots/update-requests")
+    PageResponse<ParkingDtos.ParkingLotUpdateRequestResponse> parkingUpdateRequests(Pageable pageable) {
+        return PageResponse.of(adminService.parkingLotUpdateRequests(pageable), RequestContext.requestId());
+    }
+
+    @GetMapping("/parking-lots/update-requests/{requestId}")
+    ApiResponse<ParkingDtos.ParkingLotUpdateRequestResponse> parkingUpdateRequest(@PathVariable UUID requestId) {
+        return ApiResponse.ok(adminService.parkingLotUpdateRequest(requestId), RequestContext.requestId());
+    }
+
+    @PostMapping("/parking-lots/update-requests/{requestId}/approve")
+    ApiResponse<ParkingDtos.ParkingLotUpdateRequestResponse> approveParkingUpdate(@PathVariable UUID requestId) {
+        return ApiResponse.ok(adminService.approveParkingLotUpdate(SecurityUtils.currentUser(), requestId), RequestContext.requestId());
+    }
+
+    @PostMapping("/parking-lots/update-requests/{requestId}/reject")
+    ApiResponse<ParkingDtos.ParkingLotUpdateRequestResponse> rejectParkingUpdate(@PathVariable UUID requestId,
+                                                                                 @Valid @RequestBody AdminDtos.ReasonRequest request) {
+        return ApiResponse.ok(adminService.rejectParkingLotUpdate(SecurityUtils.currentUser(), requestId, request), RequestContext.requestId());
+    }
+
     @GetMapping("/parking-lots/{parkingLotId}")
     ApiResponse<ParkingDtos.ParkingLotResponse> parking(@PathVariable UUID parkingLotId) {
         return ApiResponse.ok(adminService.parkingLot(parkingLotId), RequestContext.requestId());

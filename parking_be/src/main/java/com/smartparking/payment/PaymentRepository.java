@@ -16,6 +16,8 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
     boolean existsByBookingIdAndPaymentMethod(UUID bookingId, com.smartparking.common.PaymentMethod paymentMethod);
 
+    Optional<Payment> findByBookingIdAndPaymentMethod(UUID bookingId, com.smartparking.common.PaymentMethod paymentMethod);
+
     Optional<Payment> findByIdempotencyKey(String idempotencyKey);
 
     Optional<Payment> findByProviderTransactionId(String providerTransactionId);

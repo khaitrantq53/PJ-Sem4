@@ -137,6 +137,29 @@ function userInitials(user) {
   return initials.toUpperCase();
 }
 
+function ensureAdminRequestNavLink() {
+  const nav = $('.admin-nav-links');
+  if (!nav || nav.querySelector('a[href="/admin-requests.html"]')) {
+    return;
+  }
+
+  const link = document.createElement('a');
+  link.href = '/admin-requests.html';
+  link.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 3h10l4 4v14H5V3Zm9 2v4h4l-4-4ZM8 11h8v2H8v-2Zm0 4h8v2H8v-2Zm0-8h4v2H8V7Z" />
+    </svg>
+    Requests
+  `;
+
+  const lotLink = nav.querySelector('a[href="/admin-lots.html"]');
+  if (lotLink?.nextSibling) {
+    nav.insertBefore(link, lotLink.nextSibling);
+  } else {
+    nav.appendChild(link);
+  }
+}
+
 function shortAccountId(id, prefix = 'USR') {
   const rawId = String(id || '').trim();
   if (!rawId) {
@@ -481,6 +504,9 @@ let adminUsersCache = [];
 let adminUsersPagination = null;
 let adminStaffCache = [];
 let adminStaffPagination = null;
+let adminRequestsCache = [];
+let adminRequestsPagination = null;
+let activeAdminRequest = null;
 
 function filteredAdminUsers() {
   const search = normalizeFilterValue($('#adminUserSearch')?.value);
@@ -1430,6 +1456,290 @@ function bindAdminStaffActions() {
   });
 }
 
+function requestStaffName(request) {
+  return request.requestedByName || request.staffName || request.requestedByEmail || request.requestedBy || 'Unknown staff';
+}
+
+function renderAdminRequests(items = adminRequestsCache, pagination = adminRequestsPagination) {
+  const table = $('#adminRequestList');
+  if (!table) {
+    return;
+  }
+
+  setText('#adminRequestTotal', pagination?.totalElements ?? items.length);
+  setText('#adminRequestPagination', `Showing ${items.length} of ${pagination?.totalElements ?? items.length} requests`);
+
+  if (!items.length) {
+    table.innerHTML = `
+      <tr>
+        <td colspan="5">
+          <div class="empty-state">No parking lot edit requests waiting for review.</div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  table.innerHTML = items.map((request) => {
+    const staff = {
+      email: request.requestedByEmail,
+      fullName: requestStaffName(request),
+      id: request.requestedBy,
+    };
+
+    return `
+      <tr>
+        <td>
+          <div class="admin-staff-member">
+            <span class="admin-staff-avatar">${escapeHtml(userInitials(staff))}</span>
+            <div>
+              <strong>${escapeHtml(requestStaffName(request))}</strong>
+              <span>${escapeHtml(request.requestedByEmail || 'No email')}</span>
+            </div>
+          </div>
+        </td>
+        <td><span class="admin-short-id" title="${escapeHtml(request.id)}">${escapeHtml(shortAccountId(request.id, 'REQ'))}</span></td>
+        <td>
+          <strong class="admin-request-lot-name">${escapeHtml(request.parkingLotName || request.name || 'Parking lot')}</strong>
+          <span class="admin-request-lot-preview">${escapeHtml(request.name || 'No requested name')}</span>
+        </td>
+        <td>${escapeHtml(formatDateTime(request.createdAt))}</td>
+        <td>
+          <div class="admin-user-row-actions">
+            <button type="button" title="View request" data-admin-view-request="${escapeHtml(request.id)}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c5 0 9 5.5 9 7s-4 7-9 7-9-5.5-9-7 4-7 9-7Zm0 2c-3.7 0-6.8 3.8-7 5 .2 1.2 3.3 5 7 5s6.8-3.8 7-5c-.2-1.2-3.3-5-7-5Zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" /></svg>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderRequestCapacity(capacities = []) {
+  if (!capacities.length) {
+    return '<div class="empty-state">No slot capacity changes submitted.</div>';
+  }
+
+  return capacities.map((capacity) => `
+    <div class="admin-request-mini-row">
+      <span>${escapeHtml(vehicleTypeLabel(capacity.vehicleType))}</span>
+      <strong>${escapeHtml(capacity.totalCapacity ?? 0)} slots</strong>
+    </div>
+  `).join('');
+}
+
+function renderRequestRates(pricingRules = []) {
+  const groupedRates = groupedActiveRatesByVehicle(pricingRules);
+  const vehicleOrder = ['CAR', 'MOTORBIKE'];
+  const rateGroups = [
+    ...vehicleOrder.filter((vehicleType) => groupedRates[vehicleType]?.length),
+    ...Object.keys(groupedRates).filter((vehicleType) => !vehicleOrder.includes(vehicleType)),
+  ];
+
+  if (!rateGroups.length) {
+    return '<div class="empty-state">No hourly rate changes submitted.</div>';
+  }
+
+  return rateGroups.map((vehicleType) => `
+    <div class="admin-request-rate-group">
+      <strong>${escapeHtml(vehicleTypeLabel(vehicleType))}</strong>
+      <div>
+        ${groupedRates[vehicleType].map((rule) => `
+          <span class="admin-staff-lot-rate-chip">
+            <em>${escapeHtml(formatRuleTime(rule.startTime))} - ${escapeHtml(formatRuleTime(rule.endTime))}</em>
+            ${escapeHtml(money(rule.hourlyRate))}
+          </span>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderRequestServices(services = []) {
+  if (!services.length) {
+    return '<div class="empty-state">No amenities or service changes submitted.</div>';
+  }
+
+  return services.map((service, index) => `
+    <span class="tone-${index % 4}${service.active === false ? ' muted' : ''}">
+      ${escapeHtml(service.name || 'Service')} · ${escapeHtml(money(service.price))}
+      ${service.active === false ? ' · Off' : ''}
+    </span>
+  `).join('');
+}
+
+function renderRequestImages(images = []) {
+  if (!images.length) {
+    return '<div class="empty-state">No parking lot images submitted.</div>';
+  }
+
+  return images.slice(0, 3).map((image, index) => `
+    <figure>
+      <img src="${escapeHtml(image.imageUrl || '')}" alt="${escapeHtml(`Requested parking image ${index + 1}`)}" />
+      <figcaption>Image ${index + 1}</figcaption>
+    </figure>
+  `).join('');
+}
+
+function renderAdminRequestDetail(request) {
+  const content = $('#requestDetailContent');
+  if (!content) {
+    return;
+  }
+
+  setText('#requestDetailSubtitle', `${requestStaffName(request)} · ${request.requestedByEmail || 'No email'}`);
+  const coordinate = request.latitude && request.longitude ? `${request.latitude}, ${request.longitude}` : '-';
+
+  content.innerHTML = `
+    <section class="admin-request-hero">
+      <div>
+        <span>Requested Parking Lot Update</span>
+        <h3>${escapeHtml(request.name || 'Unnamed parking lot')}</h3>
+        <p>${escapeHtml(request.address || 'No address')}</p>
+      </div>
+      <span class="admin-user-status pending">${escapeHtml(String(request.status || 'PENDING').replaceAll('_', ' '))}</span>
+    </section>
+
+    <section class="admin-request-summary-grid">
+      <div><span>Current Parking Lot</span><strong>${escapeHtml(request.parkingLotName || '-')}</strong></div>
+      <div><span>Request ID</span><strong title="${escapeHtml(request.id)}">${escapeHtml(shortAccountId(request.id, 'REQ'))}</strong></div>
+      <div><span>Submitted</span><strong>${escapeHtml(formatDateTime(request.createdAt))}</strong></div>
+      <div><span>Coordinates</span><strong>${escapeHtml(coordinate)}</strong></div>
+    </section>
+
+    ${request.description ? `
+      <section class="admin-request-section">
+        <h4>Description</h4>
+        <p>${escapeHtml(request.description)}</p>
+      </section>
+    ` : ''}
+
+    <section class="admin-request-section">
+      <h4>Parking Lot Images</h4>
+      <div class="admin-request-image-grid">${renderRequestImages(request.images || [])}</div>
+    </section>
+
+    <section class="admin-request-section">
+      <h4>Slot Capacity</h4>
+      <div class="admin-request-mini-grid">${renderRequestCapacity(request.capacities || [])}</div>
+    </section>
+
+    <section class="admin-request-section">
+      <h4>Hourly Rates</h4>
+      <div class="admin-request-rate-list">${renderRequestRates(request.pricingRules || [])}</div>
+    </section>
+
+    <section class="admin-request-section">
+      <h4>Amenities & Services</h4>
+      <div class="admin-staff-lot-service-list">${renderRequestServices(request.services || [])}</div>
+    </section>
+  `;
+}
+
+async function openAdminRequestDetailModal(requestId) {
+  const modal = $('#requestDetailModal');
+  if (!modal) {
+    return;
+  }
+
+  activeAdminRequest = adminRequestsCache.find((item) => String(item.id) === String(requestId)) || null;
+  const approveButton = $('#approveRequestButton');
+  if (approveButton) {
+    approveButton.dataset.requestId = requestId;
+    approveButton.disabled = false;
+  }
+
+  const content = $('#requestDetailContent');
+  if (content) {
+    content.innerHTML = '<div class="admin-vehicles-loading">Loading request detail...</div>';
+  }
+
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+
+  try {
+    activeAdminRequest = await apiRequest(`/admin/parking-lots/update-requests/${requestId}`);
+    renderAdminRequestDetail(activeAdminRequest);
+  } catch (error) {
+    if (content) {
+      content.innerHTML = `<div class="empty-state">${escapeHtml(error.message || 'Unable to load request detail.')}</div>`;
+    }
+  }
+}
+
+function closeAdminRequestDetailModal() {
+  const modal = $('#requestDetailModal');
+  if (!modal) {
+    return;
+  }
+
+  activeAdminRequest = null;
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+async function approveAdminRequest(requestId) {
+  if (!requestId) {
+    return;
+  }
+
+  const approveButton = $('#approveRequestButton');
+  if (approveButton) {
+    approveButton.disabled = true;
+  }
+
+  setStatus('#adminStatus', 'Approving parking lot change request...');
+  try {
+    await apiRequest(`/admin/parking-lots/update-requests/${requestId}/approve`, {
+      method: 'POST',
+    });
+    closeAdminRequestDetailModal();
+    setStatus('#adminStatus', 'Parking lot information has been updated.');
+    await reloadAdminPage();
+  } catch (error) {
+    setStatus('#adminStatus', error.message, true);
+  } finally {
+    if (approveButton) {
+      approveButton.disabled = false;
+    }
+  }
+}
+
+function bindAdminRequestControls() {
+  $all('[data-admin-close-request-detail]').forEach((button) => {
+    button.addEventListener('click', closeAdminRequestDetailModal);
+  });
+
+  $('#requestDetailModal')?.addEventListener('click', (event) => {
+    if (event.target === event.currentTarget) {
+      closeAdminRequestDetailModal();
+    }
+  });
+
+  $('#approveRequestButton')?.addEventListener('click', (event) => {
+    approveAdminRequest(event.currentTarget.dataset.requestId || activeAdminRequest?.id);
+  });
+
+  $('[data-admin-refresh-requests]')?.addEventListener('click', () => {
+    loadAdminRequests();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeAdminRequestDetailModal();
+    }
+  });
+}
+
+function bindAdminRequestActions() {
+  $all('[data-admin-view-request]').forEach((button) => {
+    button.addEventListener('click', () => {
+      openAdminRequestDetailModal(button.dataset.adminViewRequest);
+    });
+  });
+}
+
 function renderAdminRefunds(items = [], pagination = null) {
   const element = $('#adminRefundList');
   if (!element) {
@@ -1910,6 +2220,32 @@ async function loadAdminBookings() {
   }
 }
 
+async function loadAdminRequests() {
+  const current = await requireRole('ADMIN');
+  if (!current) {
+    return;
+  }
+
+  try {
+    const [summary, requests] = await Promise.all([
+      apiRequest('/admin/dashboard/summary'),
+      apiPage('/admin/parking-lots/update-requests', {
+        size: 50,
+        sort: 'createdAt,desc',
+      }),
+    ]);
+
+    setText('#adminLots', summary.activeParkingLots);
+    setText('#adminRevenue', money(summary.revenue));
+    adminRequestsCache = requests.items || [];
+    adminRequestsPagination = requests.pagination || null;
+    renderAdminRequests(adminRequestsCache, adminRequestsPagination);
+    bindAdminRequestActions();
+  } catch (error) {
+    setStatus('#adminStatus', error.message, true);
+  }
+}
+
 async function loadAdmin() {
   const current = await requireRole('ADMIN');
   if (!current) {
@@ -1973,6 +2309,11 @@ async function reloadAdminPage() {
 
   if (page === 'admin-bookings') {
     await loadAdminBookings();
+    return;
+  }
+
+  if (page === 'admin-requests') {
+    await loadAdminRequests();
     return;
   }
 
@@ -2109,6 +2450,10 @@ if (page !== 'auth' && page !== 'confirm-registration') {
   startSessionGuard();
 }
 
+if (page?.startsWith('admin')) {
+  ensureAdminRequestNavLink();
+}
+
 if (page === 'admin') {
   window.location.replace('/admin-users.html');
 }
@@ -2133,6 +2478,11 @@ if (page === 'admin-refunds') {
 
 if (page === 'admin-lots') {
   loadAdminLots();
+}
+
+if (page === 'admin-requests') {
+  bindAdminRequestControls();
+  loadAdminRequests();
 }
 
 if (page === 'admin-audit') {
