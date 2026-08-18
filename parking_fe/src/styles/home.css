@@ -14050,6 +14050,18 @@ body,
   grid-template-columns: minmax(0, 8fr) minmax(320px, 4fr);
 }
 
+.active-booking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.active-booking-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .active-booking-switcher {
   background: #fff;
   border: 1px solid var(--line);
