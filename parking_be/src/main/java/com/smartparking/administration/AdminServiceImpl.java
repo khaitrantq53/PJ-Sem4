@@ -206,6 +206,9 @@ public class AdminServiceImpl implements AdminService {
         String action;
         switch (target) {
             case ACTIVE -> {
+                if (account.getRole() == Role.CUSTOMER && previous == AccountStatus.PENDING_APPROVAL) {
+                    throw new BusinessException(ErrorCode.BOOKING_INVALID_STATE, "Customer phải xác thực email để kích hoạt tài khoản");
+                }
                 if (previous != AccountStatus.PENDING_APPROVAL
                         && previous != AccountStatus.SUSPENDED
                         && previous != AccountStatus.LOCKED) {

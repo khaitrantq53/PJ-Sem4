@@ -54,7 +54,7 @@ const adminUsersPage = {
                   <select id="adminStatusFilter">
                     <option value="">All Statuses</option>
                     <option value="ACTIVE">Active</option>
-                    <option value="PENDING_APPROVAL">Pending</option>
+                    <option value="PENDING_APPROVAL">Email Unverified</option>
                     <option value="SUSPENDED">Suspended</option>
                     <option value="LOCKED">Locked</option>
                   </select>

@@ -72,11 +72,21 @@ public class AuthServiceImpl implements AuthService {
         if (email == null || email.isBlank()) {
             throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Email là bắt buộc để xác thực tài khoản");
         }
-        if (accountRepository.existsByEmail(email)) {
+        var existingAccount = accountRepository.findByEmail(email);
+        if (existingAccount.isPresent()) {
+            Account account = existingAccount.get();
+            if (account.getRole() == Role.CUSTOMER && account.getStatus() == AccountStatus.PENDING_APPROVAL) {
+                updatePendingCustomerRegistration(account, request, phone);
+                sendOtp(normalizeDestination(account.getEmail()), OtpPurpose.CUSTOMER_REGISTRATION, account.getId());
+                return pendingResponse(account);
+            }
             throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Email đã được sử dụng");
         }
-        if (phone != null && accountRepository.existsByPhone(phone)) {
-            throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Số điện thoại đã được sử dụng");
+        if (phone != null) {
+            accountRepository.findByPhone(phone)
+                    .ifPresent(account -> {
+                        throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Số điện thoại đã được sử dụng");
+                    });
         }
         Account account = new Account();
         account.setEmail(email);
@@ -97,6 +107,35 @@ public class AuthServiceImpl implements AuthService {
 
         sendOtp(normalizeDestination(account.getEmail()), OtpPurpose.CUSTOMER_REGISTRATION, account.getId());
         return pendingResponse(account);
+    }
+
+    private void updatePendingCustomerRegistration(Account account, AuthDtos.CustomerRegisterRequest request, String phone) {
+        if (phone != null) {
+            accountRepository.findByPhone(phone)
+                    .filter(other -> !other.getId().equals(account.getId()))
+                    .ifPresent(other -> {
+                        throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Số điện thoại đã được sử dụng");
+                    });
+            account.setPhone(phone);
+        }
+
+        AccountCredential credential = credentialRepository.findByAccountId(account.getId())
+                .orElseGet(() -> {
+                    AccountCredential newCredential = new AccountCredential();
+                    newCredential.setAccount(account);
+                    return newCredential;
+                });
+        credential.setPasswordHash(passwordEncoder.encode(request.password()));
+        credentialRepository.save(credential);
+
+        CustomerProfile profile = customerProfileRepository.findByAccountId(account.getId())
+                .orElseGet(() -> {
+                    CustomerProfile newProfile = new CustomerProfile();
+                    newProfile.setAccount(account);
+                    return newProfile;
+                });
+        profile.setFullName(request.fullName());
+        customerProfileRepository.save(profile);
     }
 
     @Override

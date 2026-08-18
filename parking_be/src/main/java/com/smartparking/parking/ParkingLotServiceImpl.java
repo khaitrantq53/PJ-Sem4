@@ -93,7 +93,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
         parkingLot.setLatitude(request.latitude());
         parkingLot.setLongitude(request.longitude());
         parkingLot.setDescription(request.description());
-        parkingLot.setStatus(ParkingLotStatus.DRAFT);
+        parkingLot.setStatus(ParkingLotStatus.ACTIVE);
         parkingLot = parkingLotRepository.save(parkingLot);
 
         ParkingLotStaff assignment = new ParkingLotStaff();
@@ -127,6 +127,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
         parkingLot.setLatitude(request.latitude());
         parkingLot.setLongitude(request.longitude());
         parkingLot.setDescription(request.description());
+        activateStaffManagedDraft(parkingLot, currentUser);
         auditService.record(currentUser.id(), currentUser.role(), "UPDATE", "PARKING_LOT", parkingLot.getId().toString(), null, parkingLot.getStatus().name(), null);
         return mapper.toResponse(parkingLot);
     }
@@ -134,7 +135,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     @Override
     @Transactional
     public ParkingDtos.ParkingLotResponse submitApproval(CurrentUser currentUser, UUID parkingLotId) {
-        return transitionStaff(currentUser, parkingLotId, ParkingLotStatus.DRAFT, ParkingLotStatus.PENDING_APPROVAL, "SUBMIT_APPROVAL", null);
+        return transitionStaff(currentUser, parkingLotId, ParkingLotStatus.DRAFT, ParkingLotStatus.ACTIVE, "AUTO_ACTIVATE", "Temporary staff self-activation");
     }
 
     @Override
@@ -518,6 +519,17 @@ public class ParkingLotServiceImpl implements ParkingLotService {
         parkingLot.setStatus(next);
         auditService.record(user.id(), user.role(), action, "PARKING_LOT", parkingLotId.toString(), expected.name(), next.name(), reason);
         return mapper.toResponse(parkingLot);
+    }
+
+    private void activateStaffManagedDraft(ParkingLot parkingLot, CurrentUser currentUser) {
+        if (parkingLot.getStatus() != ParkingLotStatus.DRAFT && parkingLot.getStatus() != ParkingLotStatus.PENDING_APPROVAL) {
+            return;
+        }
+        ParkingLotStatus previous = parkingLot.getStatus();
+        parkingLot.setPreviousStatus(null);
+        parkingLot.setStatus(ParkingLotStatus.ACTIVE);
+        auditService.record(currentUser.id(), currentUser.role(), "AUTO_ACTIVATE", "PARKING_LOT",
+                parkingLot.getId().toString(), previous.name(), ParkingLotStatus.ACTIVE.name(), "Temporary staff self-activation");
     }
 
     private ParkingLot getManaged(CurrentUser currentUser, UUID parkingLotId) {

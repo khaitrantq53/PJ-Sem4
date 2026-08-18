@@ -206,7 +206,7 @@ function statusClass(status) {
 function accountStatusLabel(status) {
   const normalized = String(status || 'ACTIVE').toUpperCase();
   if (normalized === 'PENDING_APPROVAL') {
-    return 'Pending';
+    return 'Email Unverified';
   }
   return normalized
     .toLowerCase()
@@ -528,9 +528,10 @@ function renderAdminUsers(items = adminUsersCache, pagination = adminUsersPagina
     const userStatusClass = statusClass(statusName);
     const mutedAvatar = userStatusClass === 'suspended' || userStatusClass === 'locked' ? ' muted' : '';
     const displayId = shortAccountId(user.id, 'CUS');
-    const canActivate = userStatusClass === 'suspended' || userStatusClass === 'pending' || userStatusClass === 'locked';
+    const isEmailUnverified = statusName === 'PENDING_APPROVAL';
+    const canActivate = userStatusClass === 'suspended' || userStatusClass === 'locked';
     const toggleStatus = canActivate ? 'ACTIVE' : 'SUSPENDED';
-    const toggleTitle = canActivate ? 'Approve / Activate account' : 'Suspend account';
+    const toggleTitle = canActivate ? 'Activate account' : 'Suspend account';
     const toggleClass = canActivate ? 'success' : 'danger';
     const toggleIcon = canActivate
       ? '<path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm-1.1 14.4-4.2-4.2 1.4-1.4 2.8 2.8 5.7-5.7 1.4 1.4-7.1 7.1Z" />'
@@ -555,9 +556,13 @@ function renderAdminUsers(items = adminUsersCache, pagination = adminUsersPagina
             <button type="button" title="View detail" data-admin-view-user="${escapeHtml(user.id)}">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c5 0 9 5.5 9 7s-4 7-9 7-9-5.5-9-7 4-7 9-7Zm0 2c-3.7 0-6.8 3.8-7 5 .2 1.2 3.3 5 7 5s6.8-3.8 7-5c-.2-1.2-3.3-5-7-5Zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" /></svg>
             </button>
-            <button type="button" class="${escapeHtml(toggleClass)}" title="${escapeHtml(toggleTitle)}" data-admin-update-user-status="${escapeHtml(user.id)}" data-admin-user-status="${escapeHtml(toggleStatus)}" data-admin-user-version="${escapeHtml(user.version)}">
-              <svg viewBox="0 0 24 24" aria-hidden="true">${toggleIcon}</svg>
-            </button>
+            ${isEmailUnverified
+              ? `<button type="button" disabled title="Waiting for customer email verification">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 3.2V17h16V8.2l-8 5.3-8-5.3Zm1.7-1.2 6.3 4.2L18.3 7H5.7Z" /></svg>
+                </button>`
+              : `<button type="button" class="${escapeHtml(toggleClass)}" title="${escapeHtml(toggleTitle)}" data-admin-update-user-status="${escapeHtml(user.id)}" data-admin-user-status="${escapeHtml(toggleStatus)}" data-admin-user-version="${escapeHtml(user.version)}">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">${toggleIcon}</svg>
+                </button>`}
             <button type="button" title="View vehicles" data-admin-view-vehicles="${escapeHtml(user.id)}">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11h14l-1.5-4.5A2 2 0 0 0 15.6 5H8.4a2 2 0 0 0-1.9 1.5L5 11Zm3.4-4h7.2l.7 2H7.7l.7-2ZM4 13v5h2v-2h12v2h2v-5H4Zm3 1.2a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6Zm10 0a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6Z" /></svg>
             </button>
@@ -835,7 +840,7 @@ function closeAdminBookingsModal() {
 function adminStatusReason(status) {
   const normalized = String(status || '').toUpperCase();
   if (normalized === 'ACTIVE') {
-    return 'Admin approved customer account';
+    return 'Admin activated customer account';
   }
   if (normalized === 'SUSPENDED') {
     return 'Admin suspended customer account';
