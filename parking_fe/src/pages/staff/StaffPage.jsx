@@ -2,60 +2,160 @@ import { PageShell } from '../../components/PageShell.jsx';
 import { createStaffPage, icons, staffButton } from './staffLayout.js';
 
 const dashboardContent = `
-  <header class="staff-page-head">
+  <header class="dashboard-hero staff-dashboard-hero">
     <div>
-      <p data-account-role>Staff</p>
-      <h1>Capacity Management</h1>
-      <span>Monitor today capacity, bookings, revenue, and operational health.</span>
+      <p data-account-role>Staff · SmartPark</p>
+      <h1>Dashboard</h1>
+      <span>Monitor capacity, bookings, revenue, and daily operations for your parking lot.</span>
+    </div>
+    <div class="dashboard-hero-actions">
+      <span class="dashboard-live-pill" id="staffLiveTime">Syncing backend...</span>
+      <a class="dashboard-secondary-button" href="/staff-bookings.html">
+        <span class="material-symbols-outlined" aria-hidden="true">event_available</span>
+        Booking Queue
+      </a>
     </div>
   </header>
 
   <span class="status-line staff-status-line" id="staffStatus"></span>
 
-  <section class="staff-capacity-hero" aria-label="Capacity overview">
-    <div class="staff-capacity-metrics">
-      <article><span>Available</span><strong class="tone-lavender" id="staffAvailable">0</strong></article>
-      <article><span>Occupied</span><strong class="tone-peach" id="staffOccupied">0</strong></article>
-      <article><span>Reserved</span><strong class="tone-ochre" id="staffReserved">0</strong></article>
-      <article><span>Blocked</span><strong class="tone-pink" id="staffBlocked">0</strong></article>
-    </div>
-    <div class="staff-capacity-mark" aria-hidden="true">
-      <svg viewBox="0 0 80 80">
-        <path d="M40 6a34 34 0 1 0 0 68 34 34 0 0 0 0-68Zm-8 50V24h15c8 0 13 5 13 12.8 0 8-5 13.2-13 13.2h-7v6h-8Zm8-14h6.5c3.2 0 5.3-2 5.3-5.1 0-3-2.1-4.9-5.3-4.9H40v10Z" />
+  <section class="dashboard-kpi-grid staff-dashboard-kpis" aria-label="Capacity overview">
+    <article class="dashboard-kpi-card k-lav">
+      <span>Available</span>
+      <strong id="staffAvailable">0</strong>
+      <small>Slots ready now</small>
+    </article>
+    <article class="dashboard-kpi-card k-peach">
+      <span>Occupied</span>
+      <strong id="staffOccupied">0</strong>
+      <small>Checked-in vehicles</small>
+    </article>
+    <article class="dashboard-kpi-card k-ochre">
+      <span>Reserved</span>
+      <strong id="staffReserved">0</strong>
+      <small>Approved bookings</small>
+    </article>
+    <article class="dashboard-kpi-card k-pink">
+      <span>Blocked</span>
+      <strong id="staffBlocked">0</strong>
+      <small>Unavailable slots</small>
+    </article>
+    <article class="dashboard-kpi-card dark staff-occupancy-card">
+      <span>Occupancy Rate</span>
+      <strong id="staffOccupancyRate">0%</strong>
+      <small id="staffOccupancySub">0 of 0 slots active</small>
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle cx="60" cy="60" r="46"></circle>
+        <circle cx="60" cy="60" r="46" id="staffOccupancyRing"></circle>
       </svg>
-    </div>
+    </article>
   </section>
 
-  <div class="staff-dashboard-grid">
-    <section class="staff-panel">
-      <div class="staff-section-title"><h2>Today's Performance</h2><span>Live from backend</span></div>
-      <div class="staff-performance-grid">
-        <article><div>${icons.bookings}<span>Bookings</span></div><strong id="staffTodayBookings">0</strong></article>
-        <article><div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4V6Zm2 2v8h12V8H6Zm6 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" /></svg><span>Revenue</span></div><strong id="staffRevenue">0</strong></article>
+  <div class="dashboard-grid two">
+    <section class="dashboard-panel">
+      <div class="dashboard-panel-head">
+        <div>
+          <p>Capacity</p>
+          <h2>Capacity by Vehicle Type</h2>
+        </div>
+        <span id="staffTotalCapacity">0 slots</span>
       </div>
-      <div class="staff-activity-chart" aria-label="Activity trend">
-        <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+      <div class="staff-vehicle-capacity-list" id="staffCapacityRows"></div>
+      <div class="dashboard-legend">
+        <span><i class="available"></i>Available</span>
+        <span><i class="occupied"></i>Checked-in</span>
+        <span><i class="reserved"></i>Reserved</span>
+        <span><i class="blocked"></i>Blocked</span>
       </div>
     </section>
 
-    <section class="staff-panel" id="operations">
-      <div class="staff-section-title"><h2>Operational Status</h2><span>Needs attention</span></div>
-      <div class="staff-status-list">
-        <article><div>${icons.bookings}<span>Pending</span></div><strong id="staffPending">0</strong></article>
-        <article><div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2.8 4.2 1.4-1.4 17 17-1.4 1.4-2.4-2.4A10.8 10.8 0 0 1 12 20a11 11 0 0 1-9.7-5.8l1.8-1A9 9 0 0 0 12 18c1.4 0 2.8-.3 4-.9L2.8 4.2ZM12 4a11 11 0 0 1 9.7 5.8l-1.8 1A9 9 0 0 0 12 6c-1.3 0-2.5.3-3.6.7L6.8 5A10.8 10.8 0 0 1 12 4Z" /></svg><span>Offline</span></div><strong class="danger" id="staffOfflineDevices">0</strong></article>
+    <section class="dashboard-panel">
+      <div class="dashboard-panel-head">
+        <div>
+          <p>Today</p>
+          <h2>Performance</h2>
+        </div>
+        <a href="/staff-bookings.html">View bookings</a>
       </div>
+      <div class="dashboard-performance-cards">
+        <article>
+          <span>Bookings Today</span>
+          <strong id="staffTodayBookings">0</strong>
+        </article>
+        <article>
+          <span>Revenue Today</span>
+          <strong id="staffRevenue">0</strong>
+        </article>
+      </div>
+      <div class="dashboard-bar-chart" id="staffActivityChart" aria-label="Activity trend"></div>
     </section>
   </div>
 
-  <div class="staff-dashboard-grid lower">
-    <section class="staff-panel" id="parking-lots">
-      <div class="staff-section-title"><h2>My Parking Lot</h2><span id="staffManagedLots">No lot yet</span></div>
-      <div class="staff-data-list" id="staffLotList"></div>
+  <div class="dashboard-grid two">
+    <section class="dashboard-panel" id="operations">
+      <div class="dashboard-panel-head">
+        <div>
+          <p>Operations</p>
+          <h2>Operational Status</h2>
+        </div>
+        <span>Needs attention</span>
+      </div>
+      <div class="dashboard-ops-list" id="staffOpsList"></div>
     </section>
 
-    <section class="staff-panel" id="bookings">
-      <div class="staff-section-title"><h2>Booking Queue</h2><span id="staffOpenBookings">0 records</span></div>
-      <div class="staff-data-list" id="staffBookingList"></div>
+    <section class="dashboard-panel">
+      <div class="dashboard-panel-head">
+        <div>
+          <p>Location</p>
+          <h2>My Parking Lot</h2>
+        </div>
+        <span id="staffManagedLots">No lot yet</span>
+      </div>
+      <article class="staff-lot-dashboard-card">
+        <div class="staff-lot-status-row">
+          <span class="dashboard-status-pill" id="staffLotStatus">UNKNOWN</span>
+          <a href="/staff-parking-lots.html" aria-label="Edit parking lot">
+            <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+          </a>
+        </div>
+        <h3 id="staffLotName">No assigned parking lot</h3>
+        <p id="staffLotAddress">Create or update your parking lot details.</p>
+        <div class="staff-lot-dashboard-metrics">
+          <span><strong id="staffLotLowestRate">0</strong><small>Lowest hourly price</small></span>
+          <span><strong id="staffLotServices">0</strong><small>Services</small></span>
+          <span><strong id="staffLotPromotions">0</strong><small>Promotions</small></span>
+        </div>
+      </article>
+    </section>
+  </div>
+
+  <div class="dashboard-grid two">
+    <section class="dashboard-panel" id="bookings">
+      <div class="dashboard-panel-head">
+        <div>
+          <p>Bookings</p>
+          <h2>Booking Queue</h2>
+        </div>
+        <span id="staffOpenBookings">0 records</span>
+      </div>
+      <div class="dashboard-tabs" id="staffBookingTabs">
+        <button class="active" type="button" data-staff-dashboard-booking-filter="">All</button>
+        <button type="button" data-staff-dashboard-booking-filter="PENDING_APPROVAL">Pending</button>
+        <button type="button" data-staff-dashboard-booking-filter="CHECKED_IN">Checked in</button>
+        <button type="button" data-staff-dashboard-booking-filter="OVERDUE">Overdue</button>
+      </div>
+      <div class="dashboard-data-list" id="staffBookingList"></div>
+    </section>
+
+    <section class="dashboard-panel">
+      <div class="dashboard-panel-head">
+        <div>
+          <p>Schedule</p>
+          <h2>Check-in Today</h2>
+        </div>
+        <a href="/staff-bookings.html">Open schedule</a>
+      </div>
+      <div class="staff-checkin-schedule" id="staffCheckinSchedule"></div>
     </section>
   </div>
 `;
@@ -63,8 +163,9 @@ const dashboardContent = `
 const staffPage = createStaffPage({
   activeNav: 'dashboard',
   content: dashboardContent,
+  contentClass: 'staff-dashboard-content',
+  pageClass: 'staff-dashboard-console',
   pageKey: 'staff',
-  sideFooterAction: staffButton('Export Report', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10.2l3.6-3.6L17 11l-5 5-5-5 1.4-1.4 3.6 3.6V3h2ZM5 19h14v2H5v-2Z" /></svg>'),
   title: 'ParkFinder Staff | Dashboard',
 });
 

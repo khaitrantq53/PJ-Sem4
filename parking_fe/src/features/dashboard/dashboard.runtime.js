@@ -139,24 +139,39 @@ function userInitials(user) {
 
 function ensureAdminRequestNavLink() {
   const nav = $('.admin-nav-links');
-  if (!nav || nav.querySelector('a[href="/admin-requests.html"]')) {
+  if (!nav) {
     return;
   }
 
-  const link = document.createElement('a');
-  link.href = '/admin-requests.html';
-  link.innerHTML = `
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M5 3h10l4 4v14H5V3Zm9 2v4h4l-4-4ZM8 11h8v2H8v-2Zm0 4h8v2H8v-2Zm0-8h4v2H8V7Z" />
-    </svg>
-    Requests
-  `;
+  if (!nav.querySelector('a[href="/admin.html"]')) {
+    const dashboardLink = document.createElement('a');
+    dashboardLink.href = '/admin.html';
+    dashboardLink.classList.toggle('active', page === 'admin');
+    dashboardLink.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 13h7V4H4v9Zm0 7h7v-5H4v5Zm9 0h7v-9h-7v9Zm0-16v5h7V4h-7Z" />
+      </svg>
+      Dashboard
+    `;
+    nav.insertBefore(dashboardLink, nav.firstElementChild);
+  }
 
-  const lotLink = nav.querySelector('a[href="/admin-lots.html"]');
-  if (lotLink?.nextSibling) {
-    nav.insertBefore(link, lotLink.nextSibling);
-  } else {
-    nav.appendChild(link);
+  if (!nav.querySelector('a[href="/admin-requests.html"]')) {
+    const link = document.createElement('a');
+    link.href = '/admin-requests.html';
+    link.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 3h10l4 4v14H5V3Zm9 2v4h4l-4-4ZM8 11h8v2H8v-2Zm0 4h8v2H8v-2Zm0-8h4v2H8V7Z" />
+      </svg>
+      Requests
+    `;
+
+    const lotLink = nav.querySelector('a[href="/admin-lots.html"]');
+    if (lotLink?.nextSibling) {
+      nav.insertBefore(link, lotLink.nextSibling);
+    } else {
+      nav.appendChild(link);
+    }
   }
 }
 
@@ -2246,49 +2261,278 @@ async function loadAdminRequests() {
   }
 }
 
-async function loadAdmin() {
+function dashboardNumber(value) {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function dashboardCount(value) {
+  return new Intl.NumberFormat('en-US').format(dashboardNumber(value));
+}
+
+async function safeAdminPage(path, params = {}) {
+  try {
+    return await apiPage(path, params);
+  } catch {
+    return { items: [], pagination: null };
+  }
+}
+
+function renderDashboardBars(selector, items = [], colorClass = '') {
+  const element = $(selector);
+  if (!element) {
+    return;
+  }
+
+  const buckets = [0, 4, 8, 12, 16, 20, 23].map((hour) => ({
+    hour,
+    count: items.filter((item) => {
+      const date = parseDate(item.startTime || item.createdAt || item.updatedAt);
+      return date && date.getHours() >= hour && date.getHours() < hour + 4;
+    }).length,
+  }));
+  const max = Math.max(1, ...buckets.map((bucket) => bucket.count));
+
+  element.innerHTML = buckets.map((bucket) => `
+    <span class="${escapeHtml(colorClass)}" style="--bar-height: ${Math.max(14, Math.round((bucket.count / max) * 100))}%">
+      <small>${escapeHtml(String(bucket.hour).padStart(2, '0'))}</small>
+    </span>
+  `).join('');
+}
+
+function renderAdminDashboardOps(summary = {}, staffPending = [], pendingLots = [], bookings = [], updateRequests = []) {
+  const overdue = bookings.filter((booking) => booking.status === 'OVERDUE').length;
+  const paymentPending = bookings.filter((booking) => booking.status === 'PENDING_PAYMENT').length;
+  const rows = [
+    {
+      label: 'Staff pending approval',
+      value: staffPending.length,
+      detail: 'New staff accounts waiting for admin',
+      href: '/admin-staff.html',
+      icon: 'groups',
+      iconTone: 'ochre',
+      tone: staffPending.length ? 'pending' : 'active',
+    },
+    {
+      label: 'Parking lots pending',
+      value: pendingLots.length,
+      detail: 'Lots waiting to become public',
+      href: '/admin-lots.html',
+      icon: 'local_parking',
+      iconTone: 'blue',
+      tone: pendingLots.length ? 'pending' : 'active',
+    },
+    {
+      label: 'Lot update requests',
+      value: updateRequests.length,
+      detail: 'Staff changes waiting for review',
+      href: '/admin-requests.html',
+      icon: 'edit_note',
+      iconTone: 'lav',
+      tone: updateRequests.length ? 'pending' : 'active',
+    },
+    {
+      label: 'Suspended accounts',
+      value: summary.suspendedAccounts,
+      detail: 'Users currently blocked from login',
+      href: '/admin-users.html',
+      icon: 'person_off',
+      iconTone: 'pink',
+      tone: summary.suspendedAccounts ? 'danger' : 'active',
+    },
+    {
+      label: 'Suspended parking lots',
+      value: summary.suspendedParkingLots,
+      detail: 'Lots hidden from customers',
+      href: '/admin-lots.html',
+      icon: 'domain_disabled',
+      iconTone: 'red',
+      tone: summary.suspendedParkingLots ? 'danger' : 'active',
+    },
+    {
+      label: 'Booking exceptions',
+      value: overdue + paymentPending,
+      detail: 'Overdue or payment-pending bookings',
+      href: '/admin-bookings.html',
+      icon: 'warning',
+      iconTone: 'red',
+      tone: overdue + paymentPending ? 'danger' : 'active',
+    },
+    {
+      label: 'Device alerts',
+      value: summary.deviceAlerts,
+      detail: 'Offline or unhealthy devices',
+      href: '/admin.html#adminActions',
+      icon: 'wifi_off',
+      iconTone: 'muted',
+      tone: summary.deviceAlerts ? 'danger' : 'active',
+    },
+  ];
+
+  renderList('#adminOpsList', rows, (row) => `
+    <a class="dashboard-op-row ${escapeHtml(row.tone)}" href="${escapeHtml(row.href)}">
+      <span class="dashboard-op-icon ${escapeHtml(row.iconTone)}">
+        <span class="material-symbols-outlined" aria-hidden="true">${escapeHtml(row.icon)}</span>
+      </span>
+      <span>
+        <strong>${escapeHtml(row.label)}</strong>
+        <small>${escapeHtml(row.detail)}</small>
+      </span>
+      <b>${escapeHtml(dashboardCount(row.value))}</b>
+    </a>
+  `);
+}
+
+function renderAdminDashboardStaffQueue(staffPending = []) {
+  renderList('#adminStaffQueue', staffPending.slice(0, 5), (staff) => `
+    <article class="dashboard-person-row">
+      <span class="admin-user-avatar">${escapeHtml(userInitials(staff))}</span>
+      <div>
+        <strong>${escapeHtml(userDisplayName(staff))}</strong>
+        <small>${escapeHtml(staff.email || staff.phone || shortAccountId(staff.id, 'STF'))}</small>
+      </div>
+      <span class="dashboard-row-actions">
+        <button type="button" class="success" title="Approve staff" data-admin-staff-command="approve" data-staff-id="${escapeHtml(staff.id)}">
+          <span class="material-symbols-outlined" aria-hidden="true">check</span>
+        </button>
+        <button type="button" class="danger" title="Reject staff" data-admin-staff-command="reject" data-staff-id="${escapeHtml(staff.id)}" data-staff-version="${escapeHtml(staff.version)}">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </span>
+    </article>
+  `, 'No staff accounts are waiting for approval.');
+}
+
+function renderAdminDashboardLotQueue(pendingLots = []) {
+  renderList('#adminLotQueue', pendingLots.slice(0, 5), (lot) => `
+    <article class="dashboard-lot-row">
+      <div>
+        <strong>${escapeHtml(lot.name || 'Unnamed parking lot')}</strong>
+        <small>${escapeHtml(lot.address || 'No address')}</small>
+      </div>
+      <span class="dashboard-row-actions">
+        <button type="button" class="success" title="Approve parking lot" data-admin-parking-command="approve" data-parking-lot-id="${escapeHtml(lot.id)}">
+          <span class="material-symbols-outlined" aria-hidden="true">check</span>
+        </button>
+        <button type="button" class="danger" title="Reject parking lot" data-admin-parking-command="reject" data-parking-lot-id="${escapeHtml(lot.id)}">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </span>
+    </article>
+  `, 'No parking lots are waiting for approval.');
+}
+
+function bookingExceptionLabel(booking) {
+  const status = String(booking.status || '').toUpperCase();
+  if (status === 'PENDING_APPROVAL') {
+    return 'Approval waiting';
+  }
+  if (status === 'PENDING_PAYMENT') {
+    return 'Payment pending';
+  }
+  if (status === 'OVERDUE') {
+    return 'Overdue';
+  }
+  if (status === 'CONFIRMED') {
+    return 'Possible no-show';
+  }
+  return dashboardStatusText(status);
+}
+
+function dashboardStatusText(status) {
+  return String(status || 'UNKNOWN').replaceAll('_', ' ');
+}
+
+function renderAdminDashboardExceptions(bookings = []) {
+  const exceptionStatuses = new Set(['PENDING_APPROVAL', 'PENDING_PAYMENT', 'OVERDUE', 'CONFIRMED']);
+  const exceptions = bookings
+    .filter((booking) => exceptionStatuses.has(booking.status))
+    .sort((a, b) => (parseDate(b.updatedAt || b.startTime)?.getTime() || 0) - (parseDate(a.updatedAt || a.startTime)?.getTime() || 0))
+    .slice(0, 6);
+
+  renderList('#adminExceptionQueue', exceptions, (booking) => `
+    <article class="dashboard-booking-row">
+      <span class="dashboard-booking-mark ${escapeHtml(bookingStatusClass(booking.status))}"></span>
+      <div>
+        <strong>${escapeHtml(booking.bookingCode || shortAccountId(booking.id, 'BKG'))}</strong>
+        <small>${escapeHtml(booking.plateNumber || booking.vehicleId || 'Vehicle')} · ${escapeHtml(booking.parkingLotName || booking.parkingLotId || 'Parking lot')}</small>
+        <em>${escapeHtml(formatDateTime(booking.startTime))} · ${escapeHtml(adminParkingDuration(booking))}</em>
+      </div>
+      <span class="dashboard-status-pill ${escapeHtml(bookingStatusClass(booking.status))}">${escapeHtml(bookingExceptionLabel(booking))}</span>
+    </article>
+  `, 'No booking exceptions need review.');
+}
+
+function renderAdminDashboardAudit(logs = []) {
+  renderList('#adminRecentAudit', logs.slice(0, 6), (log) => `
+    <article class="dashboard-audit-row">
+      <span>${escapeHtml(auditActorInitials(log))}</span>
+      <div>
+        <strong>${escapeHtml(log.action || 'Audit action')}</strong>
+        <small>${escapeHtml(auditActor(log))} · ${escapeHtml(log.entityType || 'System')} ${escapeHtml(log.entityId || '')}</small>
+      </div>
+      <time>${escapeHtml(formatDateTime(log.createdAt))}</time>
+    </article>
+  `, 'No audit logs found.');
+}
+
+function bindAdminDashboardActions() {
+  bindAdminStaffActions();
+  bindAdminApprovalActions();
+}
+
+async function loadAdminDashboard() {
   const current = await requireRole('ADMIN');
   if (!current) {
     return;
   }
 
   try {
-    const [summary, users, pendingLots, bookings, refunds] = await Promise.all([
+    const [summary, users, pendingLots, bookings, audits, updateRequests] = await Promise.all([
       apiRequest('/admin/dashboard/summary'),
-      apiPage('/admin/users'),
-      apiPage('/admin/parking-lots/pending'),
-      apiPage('/admin/bookings'),
-      apiPage('/admin/refunds'),
+      apiPage('/admin/users', { size: 100 }),
+      safeAdminPage('/admin/parking-lots/pending', { size: 20 }),
+      safeAdminPage('/admin/bookings', { size: 60 }),
+      safeAdminPage('/admin/audit-logs', { size: 6 }),
+      safeAdminPage('/admin/parking-lots/update-requests', { size: 20 }),
     ]);
 
-    setText('#adminUsers', summary.totalUsers);
-    setText('#adminLots', summary.activeParkingLots);
-    setText('#adminPending', summary.pendingApprovals);
-    setText('#adminRevenue', money(summary.revenue));
+    const userItems = users.items || [];
+    const pendingStaff = userItems.filter((user) => user.role === 'STAFF' && statusClass(user.status) === 'pending');
+    const pendingLotItems = pendingLots.items || [];
+    const bookingItems = bookings.items || [];
 
-    adminUsersCache = users.items || [];
+    setText('#adminLiveTime', `Backend synced · ${formatTime(new Date())}`);
+    setText('#adminDashTotalUsers', dashboardCount(summary.totalUsers));
+    setText('#adminDashActiveCustomers', dashboardCount(summary.activeCustomers));
+    setText('#adminDashActiveStaff', dashboardCount(summary.activeStaff));
+    setText('#adminDashActiveLots', dashboardCount(summary.activeParkingLots));
+    setText('#adminDashPending', dashboardCount(summary.pendingApprovals));
+    setText('#adminDashPendingSub', `Staff ${dashboardCount(pendingStaff.length)} · Lots ${dashboardCount(pendingLotItems.length)}`);
+    setText('#adminDashTodayBookings', dashboardCount(summary.todayBookings));
+    setText('#adminDashRevenue', money(summary.revenue));
+    setText('#adminDashRefund', money(summary.refund));
+    setText('#adminPerfBookings', dashboardCount(summary.todayBookings));
+    setText('#adminPerfRevenue', money(summary.revenue));
+
+    adminUsersCache = userItems;
     adminUsersPagination = users.pagination || null;
-    refreshAdminUserTable();
+    adminStaffCache = userItems.filter((user) => user.role === 'STAFF');
 
-    renderAdminLots(pendingLots.items || []);
-
-    renderList('#adminBookingList', bookings.items, (booking) => `
-      <article class="data-row">
-        <div>
-          <h3>${escapeHtml(booking.bookingCode || booking.id)}</h3>
-          <p>${escapeHtml(booking.startTime)} to ${escapeHtml(booking.endTime)}</p>
-        </div>
-        <span class="pill">${escapeHtml(booking.status)}</span>
-      </article>
-    `);
-
-    renderAdminRefunds(refunds.items || [], refunds.pagination);
-
-    bindAdminApprovalActions();
-    bindAdminRefundActions();
+    renderAdminDashboardOps(summary, pendingStaff, pendingLotItems, bookingItems, updateRequests.items || []);
+    renderAdminDashboardStaffQueue(pendingStaff);
+    renderAdminDashboardLotQueue(pendingLotItems);
+    renderAdminDashboardExceptions(bookingItems);
+    renderAdminDashboardAudit(audits.items || []);
+    renderDashboardBars('#adminPerformanceChart', bookingItems, 'admin');
+    bindAdminDashboardActions();
   } catch (error) {
     setStatus('#adminStatus', error.message, true);
   }
+}
+
+async function loadAdmin() {
+  await loadAdminDashboard();
 }
 
 async function reloadAdminPage() {
@@ -2322,8 +2566,13 @@ async function reloadAdminPage() {
     return;
   }
 
-  if (page === 'admin-users' || page === 'admin') {
+  if (page === 'admin-users') {
     await loadAdminUsers();
+    return;
+  }
+
+  if (page === 'admin') {
+    await loadAdminDashboard();
     return;
   }
 
@@ -2454,14 +2703,15 @@ if (page?.startsWith('admin')) {
   ensureAdminRequestNavLink();
 }
 
-if (page === 'admin') {
-  window.location.replace('/admin-users.html');
-}
-
 if (page === 'admin-users') {
   bindAdminUserControls();
   bindAdminForms();
   loadAdminUsers();
+}
+
+if (page === 'admin') {
+  bindAdminForms();
+  loadAdminDashboard();
 }
 
 if (page === 'admin-staff') {

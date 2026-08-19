@@ -171,6 +171,248 @@ async function requireStaff() {
   return current;
 }
 
+function numberValue(value) {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function formatCount(value) {
+  return new Intl.NumberFormat('en-US').format(numberValue(value));
+}
+
+function dashboardStatusLabel(status) {
+  return String(status || 'UNKNOWN').replaceAll('_', ' ');
+}
+
+function bookingHourBucket(booking) {
+  const date = parseBookingDate(booking?.actualCheckInTime || booking?.startTime || booking?.createdAt);
+  return date ? date.getHours() : null;
+}
+
+function renderDashboardBars(selector, items = [], colorClass = '') {
+  const element = $(selector);
+  if (!element) {
+    return;
+  }
+
+  const buckets = [0, 4, 8, 12, 16, 20, 23].map((hour) => ({
+    hour,
+    count: items.filter((item) => {
+      const itemHour = bookingHourBucket(item);
+      return itemHour !== null && itemHour >= hour && itemHour < hour + 4;
+    }).length,
+  }));
+  const max = Math.max(1, ...buckets.map((bucket) => bucket.count));
+
+  element.innerHTML = buckets.map((bucket) => `
+    <span class="${escapeHtml(colorClass)}" style="--bar-height: ${Math.max(14, Math.round((bucket.count / max) * 100))}%">
+      <small>${escapeHtml(String(bucket.hour).padStart(2, '0'))}</small>
+    </span>
+  `).join('');
+}
+
+function renderStaffCapacityRows(capacities = []) {
+  const element = $('#staffCapacityRows');
+  if (!element) {
+    return;
+  }
+
+  if (!capacities.length) {
+    element.innerHTML = '<div class="empty-state">No capacity data has been configured for this parking lot.</div>';
+    return;
+  }
+
+  element.innerHTML = capacities.map((capacity) => {
+    const total = Math.max(1, numberValue(capacity.totalCapacity));
+    const available = numberValue(capacity.available);
+    const occupied = numberValue(capacity.checkedIn);
+    const reserved = numberValue(capacity.reserved);
+    const blocked = numberValue(capacity.blocked);
+
+    return `
+      <article class="staff-capacity-row">
+        <div class="staff-capacity-row-head">
+          <div>
+            <strong>${escapeHtml(vehicleTypeLabel(capacity.vehicleType))}</strong>
+            <span>${escapeHtml(formatCount(total))} total slots</span>
+          </div>
+          <span>${escapeHtml(formatCount(available))} available</span>
+        </div>
+        <div class="staff-capacity-stats">
+          <span><b>${escapeHtml(formatCount(available))}</b>Ready</span>
+          <span><b>${escapeHtml(formatCount(occupied))}</b>Checked in</span>
+          <span><b>${escapeHtml(formatCount(reserved))}</b>Reserved</span>
+          <span><b>${escapeHtml(formatCount(blocked))}</b>Blocked</span>
+        </div>
+        <div class="staff-capacity-bar" aria-hidden="true">
+          <i class="available" style="width:${Math.max(0, (available / total) * 100)}%"></i>
+          <i class="occupied" style="width:${Math.max(0, (occupied / total) * 100)}%"></i>
+          <i class="reserved" style="width:${Math.max(0, (reserved / total) * 100)}%"></i>
+          <i class="blocked" style="width:${Math.max(0, (blocked / total) * 100)}%"></i>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+function renderStaffDashboardOps(summary = {}, bookings = [], changeRequests = [], extensionRequests = []) {
+  const overdueCount = bookings.filter((booking) => booking.status === 'OVERDUE').length;
+  const rows = [
+    {
+      label: 'Pending approvals',
+      value: summary.pendingApprovals,
+      detail: 'Bookings waiting for check-in approval',
+      href: '/staff-bookings.html',
+      tone: 'pending',
+    },
+    {
+      label: 'Overdue',
+      value: overdueCount,
+      detail: 'Vehicles past expected checkout',
+      href: '/staff-bookings.html',
+      tone: overdueCount ? 'danger' : 'active',
+    },
+    {
+      label: 'Change requests',
+      value: changeRequests.length,
+      detail: 'Customer booking change requests',
+      href: '/staff-bookings.html#change-requests',
+      tone: changeRequests.length ? 'pending' : 'active',
+    },
+    {
+      label: 'Extension requests',
+      value: extensionRequests.length,
+      detail: 'Requests to extend parking time',
+      href: '/staff-bookings.html#extension-requests',
+      tone: extensionRequests.length ? 'pending' : 'active',
+    },
+    {
+      label: 'Offline devices',
+      value: summary.offlineDevices,
+      detail: 'Devices requiring attention',
+      href: '#operations',
+      tone: summary.offlineDevices ? 'danger' : 'active',
+    },
+  ];
+
+  renderList('#staffOpsList', rows, (row) => `
+    <a class="dashboard-op-row ${escapeHtml(row.tone)}" href="${escapeHtml(row.href)}">
+      <span>
+        <strong>${escapeHtml(row.label)}</strong>
+        <small>${escapeHtml(row.detail)}</small>
+      </span>
+      <b>${escapeHtml(formatCount(row.value))}</b>
+    </a>
+  `);
+}
+
+function lowestHourlyRate(pricingRules = []) {
+  const activeRates = pricingRules
+    .filter((rule) => rule.active !== false)
+    .map((rule) => numberValue(rule.hourlyRate))
+    .filter((rate) => rate > 0);
+
+  return activeRates.length ? Math.min(...activeRates) : 0;
+}
+
+function renderStaffDashboardLot(lot, capacities = [], pricingRules = [], services = [], promotions = []) {
+  setText('#staffManagedLots', lot ? 'Assigned lot' : 'No lot yet');
+  setText('#staffLotStatus', dashboardStatusLabel(lot?.status));
+  setText('#staffLotName', lot?.name || 'No assigned parking lot');
+  setText('#staffLotAddress', lot?.address || 'Create or update your parking lot details.');
+  setText('#staffLotLowestRate', money(lowestHourlyRate(pricingRules)));
+  setText('#staffLotServices', services.filter((service) => service.active !== false).length);
+  setText('#staffLotPromotions', promotions.filter((promotion) => promotion.active !== false).length);
+
+  const totalCapacity = capacities.reduce((sum, capacity) => sum + numberValue(capacity.totalCapacity), 0);
+  setText('#staffTotalCapacity', `${formatCount(totalCapacity)} slots`);
+}
+
+function renderStaffDashboardBookings(bookings = []) {
+  const filteredBookings = staffDashboardBookingFilter
+    ? bookings.filter((booking) => booking.status === staffDashboardBookingFilter)
+    : bookings;
+  const orderedBookings = [...filteredBookings].sort((a, b) => {
+    const aDate = parseBookingDate(a.updatedAt || a.startTime)?.getTime() || 0;
+    const bDate = parseBookingDate(b.updatedAt || b.startTime)?.getTime() || 0;
+    return bDate - aDate;
+  }).slice(0, 6);
+
+  setText('#staffOpenBookings', `${formatCount(bookings.length)} ${bookings.length === 1 ? 'record' : 'records'}`);
+  renderList('#staffBookingList', orderedBookings, (booking) => {
+    const statusClassName = bookingStatusClass(booking.status);
+    const start = bookingDateParts(booking.startTime);
+    const customerLabel = bookingCustomerLabel(booking);
+
+    return `
+      <article class="dashboard-booking-row">
+        <span class="staff-booking-vehicle-icon ${escapeHtml(statusClassName)}">${icons.bookings}</span>
+        <div>
+          <strong>${escapeHtml(bookingVehicleLabel(booking))}</strong>
+          <small>${escapeHtml(customerLabel)} · ${escapeHtml(bookingLotName(booking.parkingLotId))}</small>
+          <em>${escapeHtml(bookingDateLabel(start))}</em>
+        </div>
+        <span class="dashboard-status-pill ${escapeHtml(statusClassName)}">${escapeHtml(dashboardStatusLabel(booking.status))}</span>
+      </article>
+    `;
+  }, 'No bookings match this view.');
+}
+
+function renderStaffCheckinSchedule(bookings = []) {
+  const today = new Date();
+  const todayBookings = bookings
+    .filter((booking) => {
+      const date = parseBookingDate(booking.startTime);
+      return date && date.toDateString() === today.toDateString();
+    })
+    .sort((a, b) => (parseBookingDate(a.startTime)?.getTime() || 0) - (parseBookingDate(b.startTime)?.getTime() || 0))
+    .slice(0, 8);
+
+  renderList('#staffCheckinSchedule', todayBookings, (booking) => {
+    const statusClassName = bookingStatusClass(booking.status);
+    return `
+      <article class="staff-schedule-row ${escapeHtml(statusClassName)}">
+        <time>${escapeHtml(formatTime(booking.startTime))}</time>
+        <span>
+          <strong>${escapeHtml(bookingVehicleLabel(booking))}</strong>
+          <small>${escapeHtml(bookingCustomerLabel(booking))}</small>
+        </span>
+        <b>${escapeHtml(dashboardStatusLabel(booking.status))}</b>
+      </article>
+    `;
+  }, 'No check-ins scheduled for today.');
+}
+
+function bindStaffDashboardControls(bookings = []) {
+  $all('[data-staff-dashboard-booking-filter]').forEach((button) => {
+    button.addEventListener('click', () => {
+      staffDashboardBookingFilter = button.dataset.staffDashboardBookingFilter || '';
+      $all('[data-staff-dashboard-booking-filter]').forEach((item) => item.classList.toggle('active', item === button));
+      renderStaffDashboardBookings(bookings);
+    });
+  });
+}
+
+function updateStaffOccupancy(summary = {}, capacities = []) {
+  const available = numberValue(summary.available);
+  const occupied = numberValue(summary.occupied);
+  const reserved = numberValue(summary.reserved);
+  const blocked = numberValue(summary.blocked);
+  const capacityTotal = capacities.reduce((sum, capacity) => sum + numberValue(capacity.totalCapacity), 0);
+  const total = capacityTotal || available + occupied + reserved + blocked;
+  const rate = total ? Math.round((occupied / total) * 100) : 0;
+  const circumference = 2 * Math.PI * 46;
+
+  setText('#staffOccupancyRate', `${rate}%`);
+  setText('#staffOccupancySub', `${formatCount(occupied)} of ${formatCount(total)} slots active`);
+
+  const ring = $('#staffOccupancyRing');
+  if (ring) {
+    ring.style.strokeDasharray = `${circumference}`;
+    ring.style.strokeDashoffset = `${circumference - (circumference * rate / 100)}`;
+  }
+}
+
 async function loadStaffDashboard() {
   const current = await requireStaff();
   if (!current) {
@@ -178,57 +420,41 @@ async function loadStaffDashboard() {
   }
 
   try {
-    const [summary, lots, bookings] = await Promise.all([
+    const [summary, lots, bookings, changeRequests, extensionRequests] = await Promise.all([
       apiRequest('/staff/dashboard/summary'),
-      apiPage('/staff/parking-lots'),
-      apiPage('/staff/bookings'),
+      apiPage('/staff/parking-lots', { size: 50 }),
+      optionalApiPage('/staff/bookings', { size: 50 }),
+      optionalApiPage('/staff/booking-change-requests', { size: 50, status: 'PENDING' }),
+      optionalApiPage('/staff/booking-extension-requests', { size: 50, status: 'PENDING' }),
     ]);
+    const assignedLots = lots.items || [];
+    const bookingsItems = bookings.items || [];
+    const selectedLot = assignedLots.find((lot) => lot.id === summary.parkingLotId) || assignedLots[0] || null;
+    const [capacities, pricingRules, services, promotions] = selectedLot
+      ? await Promise.all([
+        apiRequest(`/staff/parking-lots/${selectedLot.id}/capacities`).catch(() => []),
+        apiRequest(`/staff/parking-lots/${selectedLot.id}/pricing-rules`).catch(() => []),
+        apiRequest(`/staff/parking-lots/${selectedLot.id}/services`).catch(() => []),
+        apiRequest(`/staff/parking-lots/${selectedLot.id}/promotions`).catch(() => []),
+      ])
+      : [[], [], [], []];
 
-    setText('#staffAvailable', summary.available);
-    setText('#staffOccupied', summary.occupied);
-    setText('#staffReserved', summary.reserved);
-    setText('#staffBlocked', summary.blocked);
-    setText('#staffPending', summary.pendingApprovals);
+    bookingLotsCache = assignedLots;
+    setText('#staffLiveTime', `Backend synced · ${formatTime(new Date())}`);
+    setText('#staffAvailable', formatCount(summary.available));
+    setText('#staffOccupied', formatCount(summary.occupied));
+    setText('#staffReserved', formatCount(summary.reserved));
+    setText('#staffBlocked', formatCount(summary.blocked));
     setText('#staffTodayBookings', summary.todayBookings);
     setText('#staffRevenue', money(summary.revenue, summary.currency || 'VND'));
-    setText('#staffOfflineDevices', summary.offlineDevices);
-    setText('#staffManagedLots', lots.items.length ? 'Assigned lot' : 'No lot yet');
-    setText('#staffOpenBookings', `${bookings.items.length} ${bookings.items.length === 1 ? 'record' : 'records'}`);
-
-    renderList('#staffLotList', lots.items, (lot) => `
-      <article class="data-row staff-list-card">
-        <div>
-          <h3>${escapeHtml(lot.name)}</h3>
-          <p>${escapeHtml(lot.address)}</p>
-        </div>
-        <div class="pill-row">
-          <span class="pill">${escapeHtml(lot.status)}</span>
-          <button class="ghost-button" type="button" data-select-lot="${escapeHtml(lot.id)}">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6-1.4 1.4 4.6 4.6-4.6 4.6L9 18Z" /></svg>
-            View
-          </button>
-        </div>
-      </article>
-    `);
-
-    renderList('#staffBookingList', bookings.items, (booking) => `
-      <article class="data-row staff-list-card">
-        <div>
-          <h3>${escapeHtml(booking.bookingCode || booking.id)}</h3>
-          <p>${escapeHtml(formatDate(booking.startTime))} ${escapeHtml(formatTime(booking.startTime))} to ${escapeHtml(formatTime(booking.endTime))}</p>
-        </div>
-        <div class="pill-row">
-          <span class="pill">${escapeHtml(booking.status)}</span>
-          <span class="pill">${escapeHtml(booking.paymentStatus || 'PAYMENT')}</span>
-        </div>
-      </article>
-    `);
-
-    $all('[data-select-lot]').forEach((button) => {
-      button.addEventListener('click', () => {
-        window.location.href = `/staff-parking-lots.html?lot=${encodeURIComponent(button.dataset.selectLot)}`;
-      });
-    });
+    updateStaffOccupancy(summary, capacities);
+    renderStaffCapacityRows(capacities);
+    renderStaffDashboardOps(summary, bookingsItems, changeRequests.items || [], extensionRequests.items || []);
+    renderStaffDashboardLot(selectedLot, capacities, pricingRules, services, promotions);
+    renderStaffDashboardBookings(bookingsItems);
+    renderStaffCheckinSchedule(bookingsItems);
+    renderDashboardBars('#staffActivityChart', bookingsItems, 'staff');
+    bindStaffDashboardControls(bookingsItems);
   } catch (error) {
     setStatus('#staffStatus', error.message, true);
   }
@@ -249,6 +475,7 @@ let activeBookingStatusGroup = '';
 let staffBookingDurationTimer = null;
 let checkoutPreviewTimer = null;
 let checkoutDraft = null;
+let staffDashboardBookingFilter = '';
 const STAFF_ACTIVE_BOOKING_STATUSES = ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN'];
 const staffLotIcons = {
   amenity: (name) => `<span class="material-symbols-outlined" aria-hidden="true">${amenityIcon(name)}</span>`,
