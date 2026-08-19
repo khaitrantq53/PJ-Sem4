@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { withUnifiedAdminSidebar } from './adminSidebar.js';
 
 export function AdminScreen({ page }) {
   useEffect(() => {
@@ -23,5 +24,5 @@ export function AdminScreen({ page }) {
     };
   }, [page]);
 
-  return <div dangerouslySetInnerHTML={{ __html: page.markup }} />;
+  return <div dangerouslySetInnerHTML={{ __html: withUnifiedAdminSidebar(page.markup) }} />;
 }
