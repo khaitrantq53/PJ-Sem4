@@ -31,6 +31,7 @@ import com.smartparking.pricing.PricingService.PricingCalculation;
 import com.smartparking.notification.Notification;
 import com.smartparking.notification.NotificationRepository;
 import com.smartparking.payment.Payment;
+import com.smartparking.payment.CommissionService;
 import com.smartparking.payment.PaymentRepository;
 import com.smartparking.promotion.PromotionUsage;
 import com.smartparking.promotion.PromotionUsageRepository;
@@ -99,6 +100,7 @@ public class BookingServiceImpl implements BookingService {
     private final PaymentRepository paymentRepository;
     private final VehicleConditionRecordRepository conditionRecordRepository;
     private final NotificationRepository notificationRepository;
+    private final CommissionService commissionService;
     private final SmartParkingProperties properties;
 
     public BookingServiceImpl(BookingRepository bookingRepository,
@@ -125,6 +127,7 @@ public class BookingServiceImpl implements BookingService {
                               PaymentRepository paymentRepository,
                               VehicleConditionRecordRepository conditionRecordRepository,
                               NotificationRepository notificationRepository,
+                              CommissionService commissionService,
                               SmartParkingProperties properties) {
         this.bookingRepository = bookingRepository;
         this.reservationRepository = reservationRepository;
@@ -150,6 +153,7 @@ public class BookingServiceImpl implements BookingService {
         this.paymentRepository = paymentRepository;
         this.conditionRecordRepository = conditionRecordRepository;
         this.notificationRepository = notificationRepository;
+        this.commissionService = commissionService;
         this.properties = properties;
     }
 
@@ -432,6 +436,20 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<BookingDtos.BookingRequestResponse> staffChangeRequests(CurrentUser currentUser, RequestStatus status, Pageable pageable) {
+        return changeRequestRepository.findForStaff(currentUser.id(), status, pageable)
+                .map(this::requestResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<BookingDtos.BookingRequestResponse> staffExtensionRequests(CurrentUser currentUser, RequestStatus status, Pageable pageable) {
+        return extensionRequestRepository.findForStaff(currentUser.id(), status, pageable)
+                .map(this::requestResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public BookingDtos.VerifyQrResponse verifyQr(CurrentUser currentUser, UUID bookingId, BookingDtos.VerifyQrRequest request) {
         Booking booking = getBooking(bookingId);
         assertStaffAccess(currentUser, booking.getParkingLot().getId());
@@ -620,8 +638,8 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private long available(ParkingVehicleCapacity capacity, OffsetDateTime startTime, OffsetDateTime endTime) {
-        long checkedIn = bookingRepository.countCheckedInCapacity(capacity.getParkingLot().getId(), capacity.getVehicleType(),
-                CHECKED_IN_CAPACITY_STATUSES, startTime, endTime);
+        long checkedIn = bookingRepository.countCurrentCheckedInCapacity(capacity.getParkingLot().getId(), capacity.getVehicleType(),
+                CHECKED_IN_CAPACITY_STATUSES);
         long reserved = bookingRepository.countReservedCapacity(capacity.getParkingLot().getId(), capacity.getVehicleType(),
                 RESERVED_CAPACITY_STATUSES, startTime, endTime);
         long blocked = blockRepository.countBlocked(capacity.getParkingLot().getId(), capacity.getVehicleType(), startTime, endTime);
@@ -703,29 +721,16 @@ public class BookingServiceImpl implements BookingService {
         }).toList());
     }
 
-    private void createCashPaymentIfRequired(Booking booking) {
-        if (booking.getPaymentMethod() != PaymentMethod.CASH
-                || paymentRepository.existsByBookingIdAndPaymentMethod(booking.getId(), PaymentMethod.CASH)) {
-            return;
-        }
-        Payment payment = new Payment();
-        payment.setBooking(booking);
-        payment.setPaymentMethod(PaymentMethod.CASH);
-        payment.setStatus(PaymentStatus.UNPAID);
-        payment.setAmount(booking.getTotalAmount());
-        payment.setCurrency(booking.getCurrency());
-        paymentRepository.save(payment);
-    }
-
     private void completeStaffPayment(Booking booking) {
+        PaymentMethod paymentMethod = booking.getPaymentMethod();
         List<Payment> payments = paymentRepository.findByBookingId(booking.getId());
         Payment payment = payments.stream()
-                .filter(existing -> existing.getPaymentMethod() == booking.getPaymentMethod())
+                .filter(existing -> existing.getPaymentMethod() == paymentMethod)
                 .findFirst()
                 .orElseGet(() -> {
                     Payment created = new Payment();
                     created.setBooking(booking);
-                    created.setPaymentMethod(booking.getPaymentMethod());
+                    created.setPaymentMethod(paymentMethod);
                     return created;
                 });
         payment.setStatus(PaymentStatus.PAID);
@@ -733,7 +738,8 @@ public class BookingServiceImpl implements BookingService {
         payment.setCurrency(booking.getCurrency());
         payment.setProvider("STAFF");
         payment.setProviderTransactionId("STAFF-DONE-" + booking.getBookingCode());
-        paymentRepository.save(payment);
+        payment = paymentRepository.save(payment);
+        commissionService.recordPaidPayment(payment);
     }
 
     private void assertNoPendingRequest(UUID bookingId) {
@@ -800,8 +806,8 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private long availableExcluding(ParkingVehicleCapacity capacity, UUID excludedBookingId, OffsetDateTime startTime, OffsetDateTime endTime) {
-        long checkedIn = bookingRepository.countCheckedInCapacityExcluding(capacity.getParkingLot().getId(), capacity.getVehicleType(),
-                excludedBookingId, CHECKED_IN_CAPACITY_STATUSES, startTime, endTime);
+        long checkedIn = bookingRepository.countCurrentCheckedInCapacityExcluding(capacity.getParkingLot().getId(), capacity.getVehicleType(),
+                excludedBookingId, CHECKED_IN_CAPACITY_STATUSES);
         long reserved = bookingRepository.countReservedCapacityExcluding(capacity.getParkingLot().getId(), capacity.getVehicleType(),
                 excludedBookingId, RESERVED_CAPACITY_STATUSES, startTime, endTime);
         long blocked = blockRepository.countBlocked(capacity.getParkingLot().getId(), capacity.getVehicleType(), startTime, endTime);

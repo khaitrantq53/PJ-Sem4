@@ -56,7 +56,7 @@ function methodLabel(row) {
     return 'BANK';
   }
 
-  return row.paymentMethod || 'CASH';
+  return row.paymentMethod || 'QR';
 }
 
 function buildRows(bookings, paymentMap) {

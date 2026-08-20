@@ -86,10 +86,29 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
     @Query("""
             select count(b)
             from Booking b
+            join ParkingLotStaff s on s.parkingLot.id = b.parkingLot.id
+            where s.staff.id = :staffId
+              and (:parkingLotId is null or b.parkingLot.id = :parkingLotId)
+              and b.startTime >= :startTime
+              and b.startTime < :endTime
+            """)
+    long countForStaffBetween(UUID staffId, UUID parkingLotId, OffsetDateTime startTime, OffsetDateTime endTime);
+
+    @Query("""
+            select count(b)
+            from Booking b
             where b.startTime >= :startOfDay
               and b.startTime < :nextDay
             """)
     long countTodayAll(OffsetDateTime startOfDay, OffsetDateTime nextDay);
+
+    @Query("""
+            select count(b)
+            from Booking b
+            where b.startTime >= :startTime
+              and b.startTime < :endTime
+            """)
+    long countAllBetween(OffsetDateTime startTime, OffsetDateTime endTime);
 
     long countByStatus(BookingStatus status);
 
@@ -156,6 +175,30 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
             """)
     long countCheckedInCapacity(UUID parkingLotId, VehicleType vehicleType, Collection<BookingStatus> statuses,
                                 OffsetDateTime startTime, OffsetDateTime endTime);
+
+    @Query("""
+            select count(b)
+            from Booking b
+            where b.parkingLot.id = :parkingLotId
+              and b.vehicleType = :vehicleType
+              and b.status in :statuses
+              and b.actualCheckInTime is not null
+              and b.actualCheckOutTime is null
+            """)
+    long countCurrentCheckedInCapacity(UUID parkingLotId, VehicleType vehicleType, Collection<BookingStatus> statuses);
+
+    @Query("""
+            select count(b)
+            from Booking b
+            where b.parkingLot.id = :parkingLotId
+              and b.vehicleType = :vehicleType
+              and b.id <> :excludedBookingId
+              and b.status in :statuses
+              and b.actualCheckInTime is not null
+              and b.actualCheckOutTime is null
+            """)
+    long countCurrentCheckedInCapacityExcluding(UUID parkingLotId, VehicleType vehicleType, UUID excludedBookingId,
+                                               Collection<BookingStatus> statuses);
 
     @Query("""
             select count(b)

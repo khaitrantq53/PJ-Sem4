@@ -6,6 +6,7 @@ import com.smartparking.common.dto.ApiResponse;
 import com.smartparking.common.security.RequestContext;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -20,5 +21,11 @@ public class AdminDashboardController {
     @GetMapping("/summary")
     ApiResponse<AdminDtos.SystemDashboardSummaryResponse> summary() {
         return ApiResponse.ok(adminService.dashboardSummary(), RequestContext.requestId());
+    }
+
+    @GetMapping("/performance")
+    ApiResponse<AdminDtos.PerformanceResponse> performance(@RequestParam(required = false) String metric,
+                                                           @RequestParam(required = false) String range) {
+        return ApiResponse.ok(adminService.dashboardPerformance(metric, range), RequestContext.requestId());
     }
 }

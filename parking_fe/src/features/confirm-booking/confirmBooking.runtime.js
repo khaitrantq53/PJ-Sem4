@@ -304,7 +304,7 @@ function buildBookingRequest() {
     deliveryMethod: elements.deliveryMethod.value,
     serviceIds: getSelectedServiceIds(),
     promotionCode: elements.promotionCode.value.trim() || null,
-    paymentMethod: elements.paymentMethod?.value || 'QR',
+    paymentMethod: elements.paymentMethod?.value || 'BANK_TRANSFER',
   };
 
   if (!payload.parkingLotId || String(payload.parkingLotId).startsWith('sample-')) {

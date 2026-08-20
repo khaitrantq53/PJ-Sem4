@@ -108,6 +108,11 @@ function escapeHtml(value) {
   })[character]);
 }
 
+function shortId(value) {
+  const text = String(value || '');
+  return text.length > 8 ? text.slice(0, 8).toUpperCase() : text || '-';
+}
+
 function renderList(selector, items, renderItem, empty = 'No records yet.') {
   const element = $(selector);
   if (!element) {
@@ -522,6 +527,15 @@ let adminStaffPagination = null;
 let adminRequestsCache = [];
 let adminRequestsPagination = null;
 let activeAdminRequest = null;
+let adminFinanceCommissionItems = [];
+let adminCommissionModalContext = null;
+let adminCommissionModalPeriod = 'today';
+let adminBookingsCache = [];
+let activeAdminBooking = null;
+let adminDashboardPerformanceMetric = 'bookings';
+let adminDashboardPerformanceRange = 'today';
+let adminDashboardControlsBound = false;
+let adminDashboardSummaryCache = {};
 
 function filteredAdminUsers() {
   const search = normalizeFilterValue($('#adminUserSearch')?.value);
@@ -1852,6 +1866,407 @@ function bindAdminRefundActions() {
   });
 }
 
+function commissionStatusClass(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized.includes('paid') || normalized.includes('deduct')) {
+    return 'succeeded';
+  }
+  if (normalized.includes('cancel')) {
+    return 'refunded';
+  }
+  return 'pending';
+}
+
+function commissionPaymentMethodLabel(method) {
+  const normalized = String(method || '').toUpperCase();
+  if (normalized === 'BANK_TRANSFER') {
+    return 'Bank transfer';
+  }
+  if (normalized === 'CASH') {
+    return 'Cash';
+  }
+  if (normalized === 'QR') {
+    return 'QR';
+  }
+  if (normalized === 'CARD') {
+    return 'Card';
+  }
+  return normalized || '-';
+}
+
+function commissionRateLabel(commission) {
+  const rate = Number(commission?.commissionRate);
+  return Number.isFinite(rate) ? `${Math.round(rate * 100)}%` : '10%';
+}
+
+function commissionDateKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'unknown';
+  }
+
+  return date.toLocaleDateString('en-CA');
+}
+
+function adminCommissionStaffKey(commission) {
+  return String(commission.staffId || commission.staffEmail || 'staff');
+}
+
+function adminCommissionLotKey(commission) {
+  return String(commission.parkingLotId || 'lot');
+}
+
+function isTodayDateKey(key) {
+  return key === new Date().toLocaleDateString('en-CA');
+}
+
+function adminCommissionPeriodRange(period) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  if (period === '7days') {
+    start.setDate(start.getDate() - 6);
+  }
+
+  if (period === '30days') {
+    start.setDate(start.getDate() - 29);
+  }
+
+  return { start, end };
+}
+
+function isWithinAdminCommissionPeriod(value, period) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return false;
+  }
+
+  const { start, end } = adminCommissionPeriodRange(period);
+  return date >= start && date < end;
+}
+
+function staffDisplayName(commission) {
+  const name = commission.staffName || '';
+  const email = commission.staffEmail || '';
+  if (name && name !== email) {
+    return name;
+  }
+
+  return email ? email.split('@')[0] : shortId(commission.staffId);
+}
+
+function groupedAdminCommissions(items = []) {
+  const groups = new Map();
+
+  items.forEach((commission) => {
+    const dateKey = commissionDateKey(commission.createdAt);
+    if (!isTodayDateKey(dateKey)) {
+      return;
+    }
+
+    const staffKey = adminCommissionStaffKey(commission);
+    const parkingLotKey = adminCommissionLotKey(commission);
+    const key = [staffKey, parkingLotKey, dateKey].join('|');
+    const existing = groups.get(key) || {
+      staffKey,
+      staffId: commission.staffId,
+      staffName: staffDisplayName(commission),
+      staffEmail: commission.staffEmail || '',
+      parkingLotKey,
+      parkingLotId: commission.parkingLotId,
+      parkingLotName: commission.parkingLotName || '-',
+      dateKey,
+      grossAmount: 0,
+      commissionAmount: 0,
+      staffNetAmount: 0,
+      currency: commission.currency || 'VND',
+      payableIds: [],
+      collectedCount: 0,
+      totalCount: 0,
+    };
+    const status = String(commission.status || '').toUpperCase();
+    existing.grossAmount += Number(commission.grossAmount || 0);
+    existing.commissionAmount += Number(commission.commissionAmount || 0);
+    existing.staffNetAmount += Number(commission.staffNetAmount || 0);
+    existing.totalCount += 1;
+    if (status === 'PAYABLE') {
+      existing.payableIds.push(commission.id);
+    } else {
+      existing.collectedCount += 1;
+    }
+    groups.set(key, existing);
+  });
+
+  const statusFilter = $('#adminCommissionStatusFilter')?.value || '';
+  return [...groups.values()]
+    .filter((group) => {
+      if (statusFilter === 'UNCOLLECTED') {
+        return group.payableIds.length > 0;
+      }
+      if (statusFilter === 'COLLECTED') {
+        return group.payableIds.length === 0;
+      }
+      return true;
+    })
+    .sort((left, right) => right.commissionAmount - left.commissionAmount);
+}
+
+function renderAdminCommissions(items = []) {
+  const element = $('#adminCommissionList');
+  if (!element) {
+    return;
+  }
+
+  const groups = groupedAdminCommissions(items);
+
+  if (!groups.length) {
+    element.innerHTML = `
+      <tr>
+        <td colspan="7">
+          <div class="empty-state">No commission totals found for today.</div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  element.innerHTML = groups.map((group) => {
+    const isCollected = group.payableIds.length === 0;
+    const status = isCollected ? 'Collected' : 'Uncollected';
+    return `
+      <tr>
+        <td>
+          <strong>${escapeHtml(group.staffName || '-')}</strong>
+          <span>${escapeHtml(group.staffEmail || shortId(group.staffId))}</span>
+        </td>
+        <td>${escapeHtml(group.parkingLotName || '-')}</td>
+        <td><span class="admin-refund-amount">${escapeHtml(money(group.grossAmount, group.currency))}</span></td>
+        <td><strong>${escapeHtml(money(group.commissionAmount, group.currency))}</strong><span>10%</span></td>
+        <td>${escapeHtml(money(group.staffNetAmount, group.currency))}</td>
+        <td><span class="admin-refund-status ${isCollected ? 'succeeded' : 'pending'}">${escapeHtml(status)}</span></td>
+        <td>
+          <button
+            class="admin-refund-action admin-commission-detail-icon-button"
+            type="button"
+            title="View commission detail"
+            aria-label="View commission detail"
+            data-admin-open-commission-detail
+            data-admin-commission-staff-key="${escapeHtml(group.staffKey)}"
+            data-admin-commission-lot-key="${escapeHtml(group.parkingLotKey)}"
+            data-admin-commission-staff-name="${escapeHtml(group.staffName || '-')}"
+            data-admin-commission-staff-email="${escapeHtml(group.staffEmail || shortId(group.staffId))}"
+            data-admin-commission-lot-name="${escapeHtml(group.parkingLotName || '-')}"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 5c5.1 0 8.7 4.4 9.8 6.2.3.5.3 1.1 0 1.6C20.7 14.6 17.1 19 12 19s-8.7-4.4-9.8-6.2a1.5 1.5 0 0 1 0-1.6C3.3 9.4 6.9 5 12 5Zm0 2c-4 0-6.9 3.4-8 5 1.1 1.6 4 5 8 5s6.9-3.4 8-5c-1.1-1.6-4-5-8-5Zm0 2.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Zm0 2a.8.8 0 1 0 0 1.6.8.8 0 0 0 0-1.6Z" />
+            </svg>
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  bindAdminCommissionActions();
+}
+
+function adminCommissionDetailItems() {
+  if (!adminCommissionModalContext) {
+    return [];
+  }
+
+  return adminFinanceCommissionItems
+    .filter((commission) => {
+      return adminCommissionStaffKey(commission) === adminCommissionModalContext.staffKey
+        && adminCommissionLotKey(commission) === adminCommissionModalContext.parkingLotKey
+        && isWithinAdminCommissionPeriod(commission.createdAt, adminCommissionModalPeriod);
+    })
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+}
+
+function renderAdminCommissionDetail() {
+  const list = $('#adminCommissionDetailList');
+  if (!list || !adminCommissionModalContext) {
+    return;
+  }
+
+  const items = adminCommissionDetailItems();
+  const currency = items.find((item) => item.currency)?.currency || 'VND';
+  const payableIds = items
+    .filter((commission) => String(commission.status || '').toUpperCase() === 'PAYABLE' && commission.id)
+    .map((commission) => commission.id);
+  const totals = items.reduce((summary, commission) => {
+    summary.gross += Number(commission.grossAmount || 0);
+    summary.admin += Number(commission.commissionAmount || 0);
+    summary.net += Number(commission.staffNetAmount || 0);
+    return summary;
+  }, { gross: 0, admin: 0, net: 0 });
+
+  setText('#adminCommissionDetailTitle', adminCommissionModalContext.staffName || 'Commission detail');
+  setText(
+    '#adminCommissionDetailMeta',
+    `${adminCommissionModalContext.staffEmail || '-'} - ${adminCommissionModalContext.parkingLotName || '-'}`
+  );
+  setText('#adminCommissionDetailGross', money(totals.gross, currency));
+  setText('#adminCommissionDetailAdmin', money(totals.admin, currency));
+  setText('#adminCommissionDetailNet', money(totals.net, currency));
+
+  const payButton = $('#adminCommissionMarkFilteredPaid');
+  if (payButton) {
+    payButton.disabled = payableIds.length === 0;
+    payButton.dataset.adminCommissionPayableIds = payableIds.join(',');
+    payButton.textContent = payableIds.length ? `Mark ${payableIds.length} paid` : 'All paid';
+  }
+
+  $all('[data-admin-commission-detail-period]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.adminCommissionDetailPeriod === adminCommissionModalPeriod);
+  });
+
+  if (!items.length) {
+    list.innerHTML = `
+      <tr>
+        <td colspan="8">
+          <div class="empty-state">No commission records found for this period.</div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  list.innerHTML = items.map((commission) => {
+    const status = commission.status || 'PAYABLE';
+    return `
+      <tr>
+        <td>
+          <strong>${escapeHtml(commission.bookingCode || shortId(commission.bookingId))}</strong>
+          <span>${escapeHtml(shortId(commission.paymentId))}</span>
+        </td>
+        <td>${escapeHtml(money(commission.grossAmount, commission.currency || 'VND'))}</td>
+        <td>${escapeHtml(commissionPaymentMethodLabel(commission.paymentMethod))}</td>
+        <td>${escapeHtml(commissionRateLabel(commission))}</td>
+        <td><strong>${escapeHtml(money(commission.commissionAmount, commission.currency || 'VND'))}</strong></td>
+        <td>${escapeHtml(money(commission.staffNetAmount, commission.currency || 'VND'))}</td>
+        <td><span class="admin-refund-status ${escapeHtml(commissionStatusClass(status))}">${escapeHtml(status)}</span></td>
+        <td>${escapeHtml(formatDate(commission.createdAt))}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function closeAdminCommissionDetail() {
+  const modal = $('#adminCommissionDetailModal');
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+  adminCommissionModalContext = null;
+}
+
+function openAdminCommissionDetail(context) {
+  const modal = $('#adminCommissionDetailModal');
+  if (!modal) {
+    return;
+  }
+
+  adminCommissionModalContext = context;
+  adminCommissionModalPeriod = 'today';
+  renderAdminCommissionDetail();
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function bindAdminCommissionActions() {
+  $all('[data-admin-open-commission-detail]').forEach((button) => {
+    button.addEventListener('click', () => {
+      openAdminCommissionDetail({
+        parkingLotKey: button.dataset.adminCommissionLotKey || 'lot',
+        parkingLotName: button.dataset.adminCommissionLotName || '-',
+        staffEmail: button.dataset.adminCommissionStaffEmail || '',
+        staffKey: button.dataset.adminCommissionStaffKey || 'staff',
+        staffName: button.dataset.adminCommissionStaffName || '-',
+      });
+    });
+  });
+
+  $all('[data-admin-mark-commissions-collected]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const ids = String(button.dataset.adminMarkCommissionsCollected || '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      if (!ids.length) {
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = 'Updating...';
+      setStatus('#adminStatus', 'Marking commission as collected...');
+      try {
+        await Promise.all(ids.map((id) => apiRequest(`/admin/finance/commissions/${id}/mark-collected`, {
+          method: 'POST',
+        })));
+        setStatus('#adminStatus', 'Commission marked as collected.');
+        await loadAdminFinance();
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = 'Mark collected';
+        setStatus('#adminStatus', error.message, true);
+      }
+    });
+  });
+}
+
+function bindAdminCommissionDetailModal() {
+  $all('[data-admin-close-commission-detail]').forEach((button) => {
+    button.addEventListener('click', closeAdminCommissionDetail);
+  });
+
+  $('#adminCommissionDetailModal')?.addEventListener('click', (event) => {
+    if (event.target === event.currentTarget) {
+      closeAdminCommissionDetail();
+    }
+  });
+
+  $all('[data-admin-commission-detail-period]').forEach((button) => {
+    button.addEventListener('click', () => {
+      adminCommissionModalPeriod = button.dataset.adminCommissionDetailPeriod || 'today';
+      renderAdminCommissionDetail();
+    });
+  });
+
+  $('#adminCommissionMarkFilteredPaid')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const ids = String(button.dataset.adminCommissionPayableIds || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    if (!ids.length) {
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = 'Updating...';
+    setStatus('#adminStatus', 'Marking filtered commissions as paid...');
+    try {
+      await Promise.all(ids.map((id) => apiRequest(`/admin/finance/commissions/${id}/mark-collected`, {
+        method: 'POST',
+      })));
+      await loadAdminFinance();
+      renderAdminCommissionDetail();
+      setStatus('#adminStatus', 'Filtered commissions marked as paid.');
+    } catch (error) {
+      setStatus('#adminStatus', error.message, true);
+      renderAdminCommissionDetail();
+    }
+  });
+}
+
+function bindAdminFinanceControls() {
+  $('#adminCommissionStatusFilter')?.addEventListener('change', loadAdminFinance);
+}
+
 function renderAdminLots(items = []) {
   renderList('#adminPendingLots', items, (lot, index) => `
     <article class="admin-approval-card">
@@ -1943,6 +2358,73 @@ function paymentStatusClass(status) {
   return 'pending';
 }
 
+function adminBookingDateRange() {
+  const activeRange = $('[data-admin-booking-range].active')?.dataset.adminBookingRange || 'today';
+  const end = new Date();
+  end.setHours(0, 0, 0, 0);
+  end.setDate(end.getDate() + 1);
+
+  const start = new Date(end);
+  if (activeRange === '7') {
+    start.setDate(start.getDate() - 7);
+  } else if (activeRange === '30') {
+    start.setDate(start.getDate() - 30);
+  } else {
+    start.setDate(start.getDate() - 1);
+  }
+
+  return {
+    createdFrom: start.toISOString(),
+    createdTo: end.toISOString(),
+  };
+}
+
+function adminBookingQueryParams() {
+  const search = $('#adminBookingSearch')?.value?.trim() || '';
+  const status = $('#adminBookingStatusFilter')?.value || '';
+  const dateRange = adminBookingDateRange();
+  return {
+    ...dateRange,
+    search,
+    status,
+    size: 50,
+    sort: 'createdAt,desc',
+  };
+}
+
+function adminBookingSearchParams(mode = 'bookingCode') {
+  const { createdFrom, createdTo, search, status, size, sort } = adminBookingQueryParams();
+  return {
+    bookingCode: search && mode === 'bookingCode' ? search : undefined,
+    createdFrom,
+    createdTo,
+    plateNumber: search && mode === 'plateNumber' ? search : undefined,
+    size,
+    sort,
+    status,
+  };
+}
+
+function bookingCustomerLabel(booking) {
+  return booking.customerName || booking.customerEmail || booking.customerPhone || shortId(booking.customerId);
+}
+
+function bookingVehicleSummary(booking) {
+  return [
+    booking.vehicleBrand,
+    booking.vehicleColor,
+    vehicleTypeLabel(booking.vehicleType),
+  ].filter(Boolean).join(' / ');
+}
+
+function bookingCheckInDisplay(booking) {
+  return formatDateTime(booking.actualCheckInTime) || 'Not checked in';
+}
+
+function bookingCheckOutDisplay(booking) {
+  return formatDateTime(booking.actualCheckOutTime) || 'Not checked out';
+}
+
 function renderAdminBookings(items = [], pagination = null) {
   const element = $('#adminBookingList');
   if (!element) {
@@ -1960,7 +2442,7 @@ function renderAdminBookings(items = [], pagination = null) {
   if (!items.length) {
     element.innerHTML = `
       <tr>
-        <td colspan="7">
+        <td colspan="8">
           <div class="empty-state">No bookings found.</div>
         </td>
       </tr>
@@ -1970,25 +2452,65 @@ function renderAdminBookings(items = [], pagination = null) {
 
   element.innerHTML = items.map((booking) => {
     const statusClassName = bookingStatusClass(booking.status);
-    const paymentClassName = paymentStatusClass(booking.paymentStatus);
     const paymentAmount = booking.total ? money(booking.total.amount, booking.total.currency || 'VND') : '-';
+    const checkInDisplay = bookingCheckInDisplay(booking);
+    const checkOutDisplay = bookingCheckOutDisplay(booking);
 
     return `
       <tr>
-        <td><strong>${escapeHtml(booking.bookingCode || booking.id)}</strong><span>${escapeHtml(booking.id)}</span></td>
-        <td><strong>Vehicle</strong><span>${escapeHtml(booking.vehicleId)}</span></td>
-        <td>${escapeHtml(booking.parkingLotId)}</td>
-        <td><strong>${escapeHtml(formatDate(booking.startTime))} ${escapeHtml(formatTime(booking.startTime))}</strong><span>${escapeHtml(formatDate(booking.endTime))} ${escapeHtml(formatTime(booking.endTime))}</span></td>
+        <td><strong>${escapeHtml(booking.bookingCode || shortId(booking.id))}</strong><span>${escapeHtml(shortId(booking.id))}</span></td>
+        <td><strong>${escapeHtml(bookingCustomerLabel(booking))}</strong><span>${escapeHtml(booking.customerEmail || booking.customerPhone || '-')}</span></td>
+        <td><strong>${escapeHtml(booking.plateNumber || shortId(booking.vehicleId))}</strong><span>${escapeHtml(bookingVehicleSummary(booking) || '-')}</span></td>
+        <td><strong>${escapeHtml(booking.parkingLotName || shortId(booking.parkingLotId))}</strong><span>${escapeHtml(shortId(booking.parkingLotId))}</span></td>
+        <td><strong>${escapeHtml(checkInDisplay)}</strong><span>${escapeHtml(checkOutDisplay)}</span></td>
         <td><span class="admin-booking-status ${escapeHtml(statusClassName)}">${escapeHtml(booking.status)}</span></td>
-        <td><strong class="${paymentClassName === 'refunded' ? 'muted' : ''}">${escapeHtml(paymentAmount)}</strong><span class="admin-booking-payment ${escapeHtml(paymentClassName)}">${escapeHtml(booking.paymentStatus || 'UNPAID')}</span></td>
+        <td><strong>${escapeHtml(paymentAmount)}</strong></td>
         <td>
           <button type="button" class="admin-booking-action" data-admin-booking-detail="${escapeHtml(booking.id)}" aria-label="View booking details">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z" /></svg>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c5.1 0 8.7 4.4 9.8 6.2.3.5.3 1.1 0 1.6C20.7 14.6 17.1 19 12 19s-8.7-4.4-9.8-6.2a1.5 1.5 0 0 1 0-1.6C3.3 9.4 6.9 5 12 5Zm0 2c-4 0-6.9 3.4-8 5 1.1 1.6 4 5 8 5s6.9-3.4 8-5c-1.1-1.6-4-5-8-5Zm0 2.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Zm0 2a.8.8 0 1 0 0 1.6.8.8 0 0 0 0-1.6Z" /></svg>
           </button>
         </td>
       </tr>
     `;
   }).join('');
+}
+
+function renderAdminBookingDetail(booking) {
+  activeAdminBooking = booking;
+  setText('#adminBookingDetailTitle', booking.bookingCode || shortId(booking.id));
+  setText('#adminBookingDetailMeta', `${booking.status || '-'} - ${booking.paymentStatus || 'UNPAID'}`);
+  setText('#adminBookingDetailCustomer', bookingCustomerLabel(booking));
+  setText('#adminBookingDetailCustomerMeta', booking.customerEmail || booking.customerPhone || shortId(booking.customerId));
+  setText('#adminBookingDetailVehicle', booking.plateNumber || shortId(booking.vehicleId));
+  setText('#adminBookingDetailVehicleMeta', bookingVehicleSummary(booking) || '-');
+  setText('#adminBookingDetailLot', booking.parkingLotName || shortId(booking.parkingLotId));
+  setText('#adminBookingDetailLotMeta', shortId(booking.parkingLotId));
+  setText('#adminBookingDetailTotal', money(adminBookingTotal(booking)));
+  setText('#adminBookingDetailPayment', `${booking.paymentMethod || '-'} - ${booking.paymentStatus || 'UNPAID'}`);
+  setText('#adminBookingDetailCheckIn', bookingCheckInDisplay(booking));
+  setText('#adminBookingDetailCheckOut', bookingCheckOutDisplay(booking));
+}
+
+function openAdminBookingDetailModal(booking) {
+  const modal = $('#adminBookingDetailModal');
+  if (!modal) {
+    return;
+  }
+
+  renderAdminBookingDetail(booking);
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeAdminBookingDetailModal() {
+  const modal = $('#adminBookingDetailModal');
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+  activeAdminBooking = null;
 }
 
 function bindAdminBookingActions() {
@@ -1997,11 +2519,40 @@ function bindAdminBookingActions() {
       setStatus('#adminStatus', 'Loading booking detail...');
       try {
         const detail = await apiRequest(`/admin/bookings/${button.dataset.adminBookingDetail}`);
-        setStatus('#adminStatus', `Booking ${detail.bookingCode || detail.id}: ${detail.status}`);
+        openAdminBookingDetailModal(detail);
+        setStatus('#adminStatus', '');
       } catch (error) {
         setStatus('#adminStatus', error.message, true);
       }
     });
+  });
+}
+
+function bindAdminBookingControls() {
+  const search = $('#adminBookingSearch');
+  let searchTimer = null;
+  search?.addEventListener('input', () => {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(loadAdminBookings, 300);
+  });
+
+  $('#adminBookingStatusFilter')?.addEventListener('change', loadAdminBookings);
+  $('[data-admin-refresh-bookings]')?.addEventListener('click', loadAdminBookings);
+  $all('[data-admin-booking-range]').forEach((button) => {
+    button.addEventListener('click', () => {
+      $all('[data-admin-booking-range]').forEach((item) => item.classList.toggle('active', item === button));
+      loadAdminBookings();
+    });
+  });
+
+  $all('[data-admin-close-booking-detail]').forEach((button) => {
+    button.addEventListener('click', closeAdminBookingDetailModal);
+  });
+
+  $('#adminBookingDetailModal')?.addEventListener('click', (event) => {
+    if (event.target === event.currentTarget) {
+      closeAdminBookingDetailModal();
+    }
   });
 }
 
@@ -2166,6 +2717,30 @@ async function loadAdminRefunds() {
   }
 }
 
+async function loadAdminFinance() {
+  const current = await requireRole('ADMIN');
+  if (!current) {
+    return;
+  }
+
+  try {
+    const [summary, commissions] = await Promise.all([
+      apiRequest('/admin/finance/commissions/summary'),
+      apiPage('/admin/finance/commissions', { size: 500, sort: 'createdAt,desc' }),
+    ]);
+
+    setText('#adminFinanceGross', money(summary.grossAmount, summary.currency || 'VND'));
+    setText('#adminFinanceCommission', money(summary.commissionAmount, summary.currency || 'VND'));
+    setText('#adminFinancePlatform', money(summary.staffNetAmount, summary.currency || 'VND'));
+    setText('#adminFinancePayable', money(summary.payableAmount, summary.currency || 'VND'));
+    adminFinanceCommissionItems = commissions.items || [];
+    renderAdminCommissions(adminFinanceCommissionItems);
+    setStatus('#adminStatus', '');
+  } catch (error) {
+    setStatus('#adminStatus', error.message, true);
+  }
+}
+
 async function loadAdminLots() {
   const current = await requireRole('ADMIN');
   if (!current) {
@@ -2219,17 +2794,16 @@ async function loadAdminBookings() {
   }
 
   try {
-    const [summary, bookings] = await Promise.all([
-      apiRequest('/admin/dashboard/summary'),
-      apiPage('/admin/bookings'),
-    ]);
+    let bookings = await apiPage('/admin/bookings', adminBookingSearchParams('bookingCode'));
+    const hasSearch = Boolean(adminBookingQueryParams().search);
+    if (hasSearch && !bookings.items.length) {
+      bookings = await apiPage('/admin/bookings', adminBookingSearchParams('plateNumber'));
+    }
 
-    setText('#adminUsers', summary.totalUsers);
-    setText('#adminLots', summary.activeParkingLots);
-    setText('#adminPending', summary.pendingApprovals);
-    setText('#adminRevenue', money(summary.revenue));
-    renderAdminBookings(bookings.items || [], bookings.pagination);
+    adminBookingsCache = bookings.items || [];
+    renderAdminBookings(adminBookingsCache, bookings.pagination);
     bindAdminBookingActions();
+    setStatus('#adminStatus', '');
   } catch (error) {
     setStatus('#adminStatus', error.message, true);
   }
@@ -2278,109 +2852,101 @@ async function safeAdminPage(path, params = {}) {
   }
 }
 
-function renderDashboardBars(selector, items = [], colorClass = '') {
+async function loadAdminDashboardBookingExceptions() {
+  const exceptionStatuses = ['PENDING_APPROVAL', 'PENDING_PAYMENT', 'EXPIRED', 'NO_SHOW'];
+  const pages = await Promise.all(exceptionStatuses.map((status) => safeAdminPage('/admin/bookings', {
+    size: 8,
+    sort: 'updatedAt,desc',
+    status,
+  })));
+
+  return pages
+    .flatMap((result) => result.items || [])
+    .sort((a, b) => (parseDate(b.updatedAt || b.createdAt)?.getTime() || 0) - (parseDate(a.updatedAt || a.createdAt)?.getTime() || 0))
+    .slice(0, 8);
+}
+
+function adminPerformanceAmount(value) {
+  const amount = Number(value?.amount ?? value ?? 0);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function adminPerformanceValueLabel(value, currency = 'VND') {
+  return adminDashboardPerformanceMetric === 'revenue'
+    ? money(value, currency)
+    : dashboardCount(value);
+}
+
+function adminPerformanceRangeLabel(range = adminDashboardPerformanceRange) {
+  if (range === '7') {
+    return 'Last 7 days';
+  }
+  if (range === '30') {
+    return 'Last 30 days';
+  }
+  return 'Today';
+}
+
+function adminPerformanceTotal(performance) {
+  return (performance?.buckets || []).reduce((sum, bucket) => sum + adminPerformanceAmount(bucket.value), 0);
+}
+
+function renderDashboardBars(selector, buckets = [], colorClass = 'admin', currency = 'VND') {
   const element = $(selector);
   if (!element) {
     return;
   }
 
-  const buckets = [0, 4, 8, 12, 16, 20, 23].map((hour) => ({
-    hour,
-    count: items.filter((item) => {
-      const date = parseDate(item.startTime || item.createdAt || item.updatedAt);
-      return date && date.getHours() >= hour && date.getHours() < hour + 4;
-    }).length,
+  const normalizedBuckets = buckets.map((bucket) => ({
+    label: bucket.label,
+    value: adminPerformanceAmount(bucket.value),
   }));
-  const max = Math.max(1, ...buckets.map((bucket) => bucket.count));
+  const max = Math.max(1, ...normalizedBuckets.map((bucket) => bucket.value));
+  const hasActivity = normalizedBuckets.some((bucket) => bucket.value > 0);
 
-  element.innerHTML = buckets.map((bucket) => `
-    <span class="${escapeHtml(colorClass)}" style="--bar-height: ${Math.max(14, Math.round((bucket.count / max) * 100))}%">
-      <small>${escapeHtml(String(bucket.hour).padStart(2, '0'))}</small>
+  element.classList.toggle('is-revenue', adminDashboardPerformanceMetric === 'revenue');
+  element.classList.toggle('is-daily', adminDashboardPerformanceRange !== 'today');
+  element.classList.toggle('is-range-7', adminDashboardPerformanceRange === '7');
+  element.classList.toggle('is-range-30', adminDashboardPerformanceRange === '30');
+  element.classList.toggle('is-empty-chart', !hasActivity);
+
+  element.innerHTML = normalizedBuckets.map((bucket) => `
+    <span class="${escapeHtml(colorClass)}${hasActivity ? '' : ' is-empty'}" style="--bar-height: ${Math.max(18, Math.round((bucket.value / max) * 100))}%">
+      <em>${escapeHtml(adminPerformanceValueLabel(bucket.value, currency))}</em>
+      <small>${escapeHtml(bucket.label)}</small>
     </span>
-  `).join('');
+  `).join('') + (!hasActivity
+    ? `<strong class="dashboard-chart-empty-label">No ${adminDashboardPerformanceMetric === 'revenue' ? 'revenue' : 'booking'} data</strong>`
+    : '');
 }
 
-function renderAdminDashboardOps(summary = {}, staffPending = [], pendingLots = [], bookings = [], updateRequests = []) {
-  const overdue = bookings.filter((booking) => booking.status === 'OVERDUE').length;
-  const paymentPending = bookings.filter((booking) => booking.status === 'PENDING_PAYMENT').length;
-  const rows = [
-    {
-      label: 'Staff pending approval',
-      value: staffPending.length,
-      detail: 'New staff accounts waiting for admin',
-      href: '/admin-staff.html',
-      icon: 'groups',
-      iconTone: 'ochre',
-      tone: staffPending.length ? 'pending' : 'active',
-    },
-    {
-      label: 'Parking lots pending',
-      value: pendingLots.length,
-      detail: 'Lots waiting to become public',
-      href: '/admin-lots.html',
-      icon: 'local_parking',
-      iconTone: 'blue',
-      tone: pendingLots.length ? 'pending' : 'active',
-    },
-    {
-      label: 'Lot update requests',
-      value: updateRequests.length,
-      detail: 'Staff changes waiting for review',
-      href: '/admin-requests.html',
-      icon: 'edit_note',
-      iconTone: 'lav',
-      tone: updateRequests.length ? 'pending' : 'active',
-    },
-    {
-      label: 'Suspended accounts',
-      value: summary.suspendedAccounts,
-      detail: 'Users currently blocked from login',
-      href: '/admin-users.html',
-      icon: 'person_off',
-      iconTone: 'pink',
-      tone: summary.suspendedAccounts ? 'danger' : 'active',
-    },
-    {
-      label: 'Suspended parking lots',
-      value: summary.suspendedParkingLots,
-      detail: 'Lots hidden from customers',
-      href: '/admin-lots.html',
-      icon: 'domain_disabled',
-      iconTone: 'red',
-      tone: summary.suspendedParkingLots ? 'danger' : 'active',
-    },
-    {
-      label: 'Booking exceptions',
-      value: overdue + paymentPending,
-      detail: 'Overdue or payment-pending bookings',
-      href: '/admin-bookings.html',
-      icon: 'warning',
-      iconTone: 'red',
-      tone: overdue + paymentPending ? 'danger' : 'active',
-    },
-    {
-      label: 'Device alerts',
-      value: summary.deviceAlerts,
-      detail: 'Offline or unhealthy devices',
-      href: '/admin.html#adminActions',
-      icon: 'wifi_off',
-      iconTone: 'muted',
-      tone: summary.deviceAlerts ? 'danger' : 'active',
-    },
-  ];
+async function renderAdminPerformanceChart(summary = adminDashboardSummaryCache) {
+  const range = adminDashboardPerformanceRange;
+  const bookingsQuery = new URLSearchParams({ metric: 'bookings', range });
+  const revenueQuery = new URLSearchParams({ metric: 'revenue', range });
 
-  renderList('#adminOpsList', rows, (row) => `
-    <a class="dashboard-op-row ${escapeHtml(row.tone)}" href="${escapeHtml(row.href)}">
-      <span class="dashboard-op-icon ${escapeHtml(row.iconTone)}">
-        <span class="material-symbols-outlined" aria-hidden="true">${escapeHtml(row.icon)}</span>
-      </span>
-      <span>
-        <strong>${escapeHtml(row.label)}</strong>
-        <small>${escapeHtml(row.detail)}</small>
-      </span>
-      <b>${escapeHtml(dashboardCount(row.value))}</b>
-    </a>
-  `);
+  try {
+    const [bookingsPerformance, revenuePerformance] = await Promise.all([
+      apiRequest(`/admin/dashboard/performance?${bookingsQuery.toString()}`),
+      apiRequest(`/admin/dashboard/performance?${revenueQuery.toString()}`),
+    ]);
+    const selectedPerformance = adminDashboardPerformanceMetric === 'revenue' ? revenuePerformance : bookingsPerformance;
+    renderDashboardBars(
+      '#adminPerformanceChart',
+      selectedPerformance.buckets || [],
+      'admin',
+      selectedPerformance.currency || revenuePerformance.currency || 'VND'
+    );
+    setText('#adminPerformanceRangeLabel', adminPerformanceRangeLabel(range));
+    setText('#adminPerfBookings', dashboardCount(adminPerformanceTotal(bookingsPerformance)));
+    setText('#adminPerfRevenue', money(adminPerformanceTotal(revenuePerformance), revenuePerformance.currency || 'VND'));
+  } catch (error) {
+    renderDashboardBars('#adminPerformanceChart', [], 'admin');
+    setText('#adminPerformanceRangeLabel', adminPerformanceRangeLabel(range));
+    setText('#adminPerfBookings', dashboardCount(summary.todayBookings));
+    setText('#adminPerfRevenue', money(summary.revenue));
+    setStatus('#adminStatus', error.message, true);
+  }
 }
 
 function renderAdminDashboardStaffQueue(staffPending = []) {
@@ -2430,11 +2996,11 @@ function bookingExceptionLabel(booking) {
   if (status === 'PENDING_PAYMENT') {
     return 'Payment pending';
   }
-  if (status === 'OVERDUE') {
-    return 'Overdue';
+  if (status === 'EXPIRED') {
+    return 'Auto expired';
   }
-  if (status === 'CONFIRMED') {
-    return 'Possible no-show';
+  if (status === 'NO_SHOW') {
+    return 'No show';
   }
   return dashboardStatusText(status);
 }
@@ -2444,19 +3010,13 @@ function dashboardStatusText(status) {
 }
 
 function renderAdminDashboardExceptions(bookings = []) {
-  const exceptionStatuses = new Set(['PENDING_APPROVAL', 'PENDING_PAYMENT', 'OVERDUE', 'CONFIRMED']);
-  const exceptions = bookings
-    .filter((booking) => exceptionStatuses.has(booking.status))
-    .sort((a, b) => (parseDate(b.updatedAt || b.startTime)?.getTime() || 0) - (parseDate(a.updatedAt || a.startTime)?.getTime() || 0))
-    .slice(0, 6);
-
-  renderList('#adminExceptionQueue', exceptions, (booking) => `
+  renderList('#adminExceptionQueue', bookings.slice(0, 6), (booking) => `
     <article class="dashboard-booking-row">
       <span class="dashboard-booking-mark ${escapeHtml(bookingStatusClass(booking.status))}"></span>
       <div>
         <strong>${escapeHtml(booking.bookingCode || shortAccountId(booking.id, 'BKG'))}</strong>
         <small>${escapeHtml(booking.plateNumber || booking.vehicleId || 'Vehicle')} · ${escapeHtml(booking.parkingLotName || booking.parkingLotId || 'Parking lot')}</small>
-        <em>${escapeHtml(formatDateTime(booking.startTime))} · ${escapeHtml(adminParkingDuration(booking))}</em>
+        <em>${escapeHtml(formatDateTime(booking.updatedAt || booking.createdAt))} · ${escapeHtml(adminParkingDuration(booking))}</em>
       </div>
       <span class="dashboard-status-pill ${escapeHtml(bookingStatusClass(booking.status))}">${escapeHtml(bookingExceptionLabel(booking))}</span>
     </article>
@@ -2481,37 +3041,71 @@ function bindAdminDashboardActions() {
   bindAdminApprovalActions();
 }
 
+function bindAdminDashboardControls() {
+  if (adminDashboardControlsBound) {
+    return;
+  }
+  adminDashboardControlsBound = true;
+
+  document.addEventListener('click', async (event) => {
+    const metricButton = event.target.closest?.('[data-admin-performance-metric]');
+    if (!metricButton) {
+      return;
+    }
+
+    adminDashboardPerformanceMetric = metricButton.dataset.adminPerformanceMetric || 'bookings';
+    $all('[data-admin-performance-metric]').forEach((item) => item.classList.toggle('active', item === metricButton));
+    await renderAdminPerformanceChart();
+  });
+
+  document.addEventListener('click', async (event) => {
+    const rangeButton = event.target.closest?.('[data-admin-performance-range]');
+    if (!rangeButton) {
+      return;
+    }
+
+    adminDashboardPerformanceRange = rangeButton.dataset.adminPerformanceRange || 'today';
+    $all('[data-admin-performance-range]').forEach((item) => item.classList.toggle('active', item === rangeButton));
+    await renderAdminPerformanceChart();
+  });
+}
+
 async function loadAdminDashboard() {
   const current = await requireRole('ADMIN');
   if (!current) {
     return;
   }
 
+  bindAdminDashboardControls();
+
   try {
-    const [summary, users, pendingLots, bookings, audits, updateRequests] = await Promise.all([
+    const [
+      summary,
+      users,
+      pendingLots,
+      exceptionBookings,
+      audits,
+    ] = await Promise.all([
       apiRequest('/admin/dashboard/summary'),
-      apiPage('/admin/users', { size: 100 }),
-      safeAdminPage('/admin/parking-lots/pending', { size: 20 }),
-      safeAdminPage('/admin/bookings', { size: 60 }),
-      safeAdminPage('/admin/audit-logs', { size: 6 }),
-      safeAdminPage('/admin/parking-lots/update-requests', { size: 20 }),
+      apiPage('/admin/users', { size: 100, sort: 'createdAt,desc' }),
+      safeAdminPage('/admin/parking-lots/pending', { size: 20, sort: 'updatedAt,desc' }),
+      loadAdminDashboardBookingExceptions(),
+      safeAdminPage('/admin/audit-logs', { size: 6, sort: 'createdAt,desc' }),
     ]);
 
     const userItems = users.items || [];
     const pendingStaff = userItems.filter((user) => user.role === 'STAFF' && statusClass(user.status) === 'pending');
     const pendingLotItems = pendingLots.items || [];
-    const bookingItems = bookings.items || [];
+    adminDashboardSummaryCache = summary;
 
-    setText('#adminLiveTime', `Backend synced · ${formatTime(new Date())}`);
+    setText('#adminLiveTime', `Synced · ${formatTime(new Date())}`);
     setText('#adminDashTotalUsers', dashboardCount(summary.totalUsers));
-    setText('#adminDashActiveCustomers', dashboardCount(summary.activeCustomers));
     setText('#adminDashActiveStaff', dashboardCount(summary.activeStaff));
     setText('#adminDashActiveLots', dashboardCount(summary.activeParkingLots));
     setText('#adminDashPending', dashboardCount(summary.pendingApprovals));
     setText('#adminDashPendingSub', `Staff ${dashboardCount(pendingStaff.length)} · Lots ${dashboardCount(pendingLotItems.length)}`);
     setText('#adminDashTodayBookings', dashboardCount(summary.todayBookings));
     setText('#adminDashRevenue', money(summary.revenue));
-    setText('#adminDashRefund', money(summary.refund));
     setText('#adminPerfBookings', dashboardCount(summary.todayBookings));
     setText('#adminPerfRevenue', money(summary.revenue));
 
@@ -2519,12 +3113,11 @@ async function loadAdminDashboard() {
     adminUsersPagination = users.pagination || null;
     adminStaffCache = userItems.filter((user) => user.role === 'STAFF');
 
-    renderAdminDashboardOps(summary, pendingStaff, pendingLotItems, bookingItems, updateRequests.items || []);
     renderAdminDashboardStaffQueue(pendingStaff);
     renderAdminDashboardLotQueue(pendingLotItems);
-    renderAdminDashboardExceptions(bookingItems);
+    renderAdminDashboardExceptions(exceptionBookings);
     renderAdminDashboardAudit(audits.items || []);
-    renderDashboardBars('#adminPerformanceChart', bookingItems, 'admin');
+    await renderAdminPerformanceChart(summary);
     bindAdminDashboardActions();
   } catch (error) {
     setStatus('#adminStatus', error.message, true);
@@ -2536,8 +3129,8 @@ async function loadAdmin() {
 }
 
 async function reloadAdminPage() {
-  if (page === 'admin-refunds') {
-    await loadAdminRefunds();
+  if (page === 'admin-finance' || page === 'admin-refunds') {
+    await loadAdminFinance();
     return;
   }
 
@@ -2720,10 +3313,11 @@ if (page === 'admin-staff') {
   loadAdminStaff();
 }
 
-if (page === 'admin-refunds') {
-  bindAdminRefundControls();
+if (page === 'admin-finance' || page === 'admin-refunds') {
+  bindAdminFinanceControls();
+  bindAdminCommissionDetailModal();
   bindAdminForms();
-  loadAdminRefunds();
+  loadAdminFinance();
 }
 
 if (page === 'admin-lots') {
@@ -2740,5 +3334,6 @@ if (page === 'admin-audit') {
 }
 
 if (page === 'admin-bookings') {
+  bindAdminBookingControls();
   loadAdminBookings();
 }

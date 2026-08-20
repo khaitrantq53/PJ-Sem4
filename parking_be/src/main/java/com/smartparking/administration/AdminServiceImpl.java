@@ -56,18 +56,25 @@ import com.smartparking.pricing.ParkingPricingRule;
 import com.smartparking.pricing.ParkingPricingRuleRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
 public class AdminServiceImpl implements AdminService {
+    private static final DateTimeFormatter DAY_LABEL_FORMAT = DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH);
+
     private final AccountRepository accountRepository;
     private final AccountCredentialRepository credentialRepository;
     private final CustomerProfileRepository customerProfileRepository;
@@ -436,8 +443,7 @@ public class AdminServiceImpl implements AdminService {
     @Override
     @Transactional(readOnly = true)
     public Page<BookingDtos.BookingListResponse> bookings(AdminDtos.AdminBookingFilter filter, Pageable pageable) {
-        return bookingRepository.searchForAdmin(filter.parkingLotId(), filter.status(), filter.startFrom(), filter.endTo(),
-                filter.vehicleType(), blankToNull(filter.bookingCode()), blankToNull(filter.plateNumber()), pageable)
+        return bookingRepository.findAll(adminBookingSpecification(filter), pageable)
                 .map(bookingMapper::toListResponse);
     }
 
@@ -502,6 +508,66 @@ public class AdminServiceImpl implements AdminService {
                 parkingLotRepository.countByStatus(ParkingLotStatus.SUSPENDED),
                 alertRepository.count()
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminDtos.PerformanceResponse dashboardPerformance(String metric, String range) {
+        String normalizedMetric = normalizePerformanceMetric(metric);
+        String normalizedRange = normalizePerformanceRange(range);
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime todayStart = now.toLocalDate().atStartOfDay().atOffset(now.getOffset());
+        List<AdminDtos.PerformanceBucketResponse> buckets = new ArrayList<>();
+
+        if ("today".equals(normalizedRange)) {
+            for (int hour = 0; hour < 24; hour += 4) {
+                OffsetDateTime startTime = todayStart.plusHours(hour);
+                OffsetDateTime endTime = startTime.plusHours(4);
+                String label = "%02d-%02d".formatted(hour, Math.min(hour + 3, 23));
+                buckets.add(new AdminDtos.PerformanceBucketResponse(
+                        label,
+                        startTime,
+                        endTime,
+                        adminPerformanceValue(normalizedMetric, startTime, endTime)
+                ));
+            }
+        } else {
+            int days = Integer.parseInt(normalizedRange);
+            OffsetDateTime firstDay = todayStart.minusDays(days - 1L);
+            for (int index = 0; index < days; index++) {
+                OffsetDateTime startTime = firstDay.plusDays(index);
+                OffsetDateTime endTime = startTime.plusDays(1);
+                buckets.add(new AdminDtos.PerformanceBucketResponse(
+                        startTime.format(DAY_LABEL_FORMAT),
+                        startTime,
+                        endTime,
+                        adminPerformanceValue(normalizedMetric, startTime, endTime)
+                ));
+            }
+        }
+
+        return new AdminDtos.PerformanceResponse(normalizedMetric, normalizedRange, properties.pricing().currency(), buckets);
+    }
+
+    private String normalizePerformanceMetric(String metric) {
+        String normalized = metric == null ? "bookings" : metric.trim().toLowerCase(Locale.ROOT);
+        return "revenue".equals(normalized) ? "revenue" : "bookings";
+    }
+
+    private String normalizePerformanceRange(String range) {
+        String normalized = range == null ? "today" : range.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "7", "30" -> normalized;
+            default -> "today";
+        };
+    }
+
+    private BigDecimal adminPerformanceValue(String metric, OffsetDateTime startTime, OffsetDateTime endTime) {
+        if ("revenue".equals(metric)) {
+            return paymentRepository.revenueAllBetween(startTime, endTime);
+        }
+
+        return BigDecimal.valueOf(bookingRepository.countAllBetween(startTime, endTime));
     }
 
     private AdminDtos.ParkingCommandResponse transition(CurrentUser currentUser, UUID parkingLotId, ParkingLotStatus expected,
@@ -718,8 +784,8 @@ public class AdminServiceImpl implements AdminService {
         UUID parkingLotId = capacity.getParkingLot().getId();
         long reserved = bookingRepository.countActiveReservations(parkingLotId, capacity.getVehicleType(),
                 List.of(BookingStatus.PENDING_APPROVAL, BookingStatus.CONFIRMED), now, distantFuture);
-        long checkedIn = bookingRepository.countActiveReservations(parkingLotId, capacity.getVehicleType(),
-                List.of(BookingStatus.CHECKED_IN), now, distantFuture);
+        long checkedIn = bookingRepository.countCurrentCheckedInCapacity(parkingLotId, capacity.getVehicleType(),
+                List.of(BookingStatus.CHECKED_IN));
         long blocked = blockRepository.countBlocked(parkingLotId, capacity.getVehicleType(), now, distantFuture);
         long available = Math.max(0, capacity.getTotalCapacity() - reserved - checkedIn - blocked);
         return new ParkingDtos.CapacityResponse(parkingLotId, capacity.getVehicleType(), capacity.getTotalCapacity(),
@@ -799,5 +865,44 @@ public class AdminServiceImpl implements AdminService {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    private Specification<Booking> adminBookingSpecification(AdminDtos.AdminBookingFilter filter) {
+        return (root, query, builder) -> {
+            List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+            if (filter.parkingLotId() != null) {
+                predicates.add(builder.equal(root.get("parkingLot").get("id"), filter.parkingLotId()));
+            }
+            if (filter.status() != null) {
+                predicates.add(builder.equal(root.get("status"), filter.status()));
+            }
+            if (filter.startFrom() != null) {
+                predicates.add(builder.greaterThanOrEqualTo(root.get("startTime"), filter.startFrom()));
+            }
+            if (filter.endTo() != null) {
+                predicates.add(builder.lessThanOrEqualTo(root.get("endTime"), filter.endTo()));
+            }
+            if (filter.createdFrom() != null) {
+                predicates.add(builder.greaterThanOrEqualTo(root.get("createdAt"), filter.createdFrom()));
+            }
+            if (filter.createdTo() != null) {
+                predicates.add(builder.lessThan(root.get("createdAt"), filter.createdTo()));
+            }
+            if (filter.vehicleType() != null) {
+                predicates.add(builder.equal(root.get("vehicleType"), filter.vehicleType()));
+            }
+
+            String bookingCode = blankToNull(filter.bookingCode());
+            if (bookingCode != null) {
+                predicates.add(builder.like(builder.lower(root.get("bookingCode")), "%" + bookingCode.toLowerCase() + "%"));
+            }
+
+            String plateNumber = blankToNull(filter.plateNumber());
+            if (plateNumber != null) {
+                predicates.add(builder.like(builder.lower(root.get("vehicle").get("plateNumber")), "%" + plateNumber.toLowerCase() + "%"));
+            }
+
+            return builder.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+        };
     }
 }

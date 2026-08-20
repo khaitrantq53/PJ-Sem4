@@ -97,6 +97,11 @@ function escapeHtml(value) {
   })[character]);
 }
 
+function shortId(value) {
+  const text = String(value || '');
+  return text.length > 8 ? text.slice(0, 8).toUpperCase() : text || '-';
+}
+
 function idempotencyKey() {
   return window.crypto?.randomUUID?.() || '88888888-8888-4888-8888-888888888888';
 }
@@ -189,29 +194,162 @@ function bookingHourBucket(booking) {
   return date ? date.getHours() : null;
 }
 
-function renderDashboardBars(selector, items = [], colorClass = '') {
+function bookingChartDate(booking) {
+  return parseBookingDate(
+    booking?.actualCheckOutTime
+    || booking?.actualCheckInTime
+    || booking?.startTime
+    || booking?.createdAt
+  );
+}
+
+function startOfDay(date) {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function addDays(date, days) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function sameCalendarDay(left, right) {
+  return left && right && left.toDateString() === right.toDateString();
+}
+
+function bookingRevenueAmount(booking) {
+  const paymentStatus = String(booking?.paymentStatus || '').toUpperCase();
+  const bookingStatus = String(booking?.status || '').toUpperCase();
+  const isPaid = paymentStatus === 'PAID'
+    || paymentStatus === 'COMPLETED'
+    || bookingStatus === 'COMPLETED';
+
+  if (!isPaid && paymentStatus) {
+    return 0;
+  }
+
+  return moneyAmount(
+    booking?.totalAmount
+    || booking?.priceBreakdown?.total
+    || booking?.paidAmount
+    || booking?.amount
+  );
+}
+
+function performanceValueForBooking(booking) {
+  return staffDashboardPerformanceMetric === 'revenue'
+    ? bookingRevenueAmount(booking)
+    : 1;
+}
+
+function formatPerformanceValue(value, currency = 'VND') {
+  return staffDashboardPerformanceMetric === 'revenue'
+    ? money(value, currency)
+    : formatCount(value);
+}
+
+function performanceChartBuckets(items = []) {
+  const now = new Date();
+  const todayStart = startOfDay(now);
+
+  if (staffDashboardPerformanceRange === 'today') {
+    return [0, 4, 8, 12, 16, 20].map((hour) => {
+      const bucketStart = new Date(todayStart);
+      bucketStart.setHours(hour, 0, 0, 0);
+      const bucketEnd = new Date(todayStart);
+      bucketEnd.setHours(hour + 4, 0, 0, 0);
+      const bucketItems = items.filter((item) => {
+        const date = bookingChartDate(item);
+        return date && date >= bucketStart && date < bucketEnd;
+      });
+
+      return {
+        label: `${String(hour).padStart(2, '0')}-${String(Math.min(hour + 3, 23)).padStart(2, '0')}`,
+        value: bucketItems.reduce((sum, item) => sum + performanceValueForBooking(item), 0),
+      };
+    });
+  }
+
+  const days = Number(staffDashboardPerformanceRange) || 7;
+  const firstDay = addDays(todayStart, -(days - 1));
+  return Array.from({ length: days }, (_, index) => {
+    const day = addDays(firstDay, index);
+    const bucketItems = items.filter((item) => sameCalendarDay(bookingChartDate(item), day));
+
+    return {
+      label: day.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }),
+      value: bucketItems.reduce((sum, item) => sum + performanceValueForBooking(item), 0),
+    };
+  });
+}
+
+function renderDashboardBars(selector, items = [], colorClass = '', currency = 'VND', sourceBuckets = null) {
   const element = $(selector);
   if (!element) {
     return;
   }
 
-  const buckets = [0, 4, 8, 12, 16, 20, 23].map((hour) => ({
-    hour,
-    count: items.filter((item) => {
-      const itemHour = bookingHourBucket(item);
-      return itemHour !== null && itemHour >= hour && itemHour < hour + 4;
-    }).length,
-  }));
-  const max = Math.max(1, ...buckets.map((bucket) => bucket.count));
+  const buckets = Array.isArray(sourceBuckets) && sourceBuckets.length
+    ? sourceBuckets.map((bucket) => ({
+      label: bucket.label,
+      value: moneyAmount(bucket.value),
+    }))
+    : performanceChartBuckets(items);
+  const max = Math.max(1, ...buckets.map((bucket) => bucket.value));
+  const hasActivity = buckets.some((bucket) => bucket.value > 0);
+  element.classList.toggle('is-revenue', staffDashboardPerformanceMetric === 'revenue');
+  element.classList.toggle('is-daily', staffDashboardPerformanceRange !== 'today');
+  element.classList.toggle('is-range-7', staffDashboardPerformanceRange === '7');
+  element.classList.toggle('is-range-30', staffDashboardPerformanceRange === '30');
+  element.classList.toggle('is-empty-chart', !hasActivity);
 
   element.innerHTML = buckets.map((bucket) => `
-    <span class="${escapeHtml(colorClass)}" style="--bar-height: ${Math.max(14, Math.round((bucket.count / max) * 100))}%">
-      <small>${escapeHtml(String(bucket.hour).padStart(2, '0'))}</small>
+    <span class="${escapeHtml(colorClass)}${hasActivity ? '' : ' is-empty'}" style="--bar-height: ${Math.max(18, Math.round((bucket.value / max) * 100))}%">
+      <em>${escapeHtml(formatPerformanceValue(bucket.value, currency))}</em>
+      <small>${escapeHtml(bucket.label)}</small>
     </span>
-  `).join('');
+  `).join('') + (!hasActivity
+    ? `<strong class="dashboard-chart-empty-label">No ${staffDashboardPerformanceMetric === 'revenue' ? 'revenue' : 'booking'} data</strong>`
+    : '');
 }
 
-function renderStaffCapacityRows(capacities = []) {
+async function renderStaffPerformanceChart(bookings = [], summary = {}, parkingLotId = null) {
+  const query = new URLSearchParams({
+    metric: staffDashboardPerformanceMetric,
+    range: staffDashboardPerformanceRange,
+  });
+
+  if (parkingLotId) {
+    query.set('parkingLotId', parkingLotId);
+  }
+
+  try {
+    const performance = await apiRequest(`/staff/dashboard/performance?${query.toString()}`);
+    renderDashboardBars(
+      '#staffActivityChart',
+      bookings,
+      'staff',
+      performance.currency || summary.currency || 'VND',
+      performance.buckets || []
+    );
+  } catch (error) {
+    renderDashboardBars('#staffActivityChart', bookings, 'staff', summary.currency || 'VND');
+  }
+}
+
+function pendingApprovalCountsByVehicleType(bookings = []) {
+  return bookings.reduce((counts, booking) => {
+    if (booking.status === 'PENDING_APPROVAL' && booking.vehicleType) {
+      counts[booking.vehicleType] = (counts[booking.vehicleType] || 0) + 1;
+    }
+
+    return counts;
+  }, {});
+}
+
+function renderStaffCapacityRows(capacities = [], bookings = []) {
   const element = $('#staffCapacityRows');
   if (!element) {
     return;
@@ -222,12 +360,14 @@ function renderStaffCapacityRows(capacities = []) {
     return;
   }
 
+  const pendingCounts = pendingApprovalCountsByVehicleType(bookings);
+
   element.innerHTML = capacities.map((capacity) => {
     const total = Math.max(1, numberValue(capacity.totalCapacity));
     const available = numberValue(capacity.available);
     const occupied = numberValue(capacity.checkedIn);
-    const reserved = numberValue(capacity.reserved);
-    const blocked = numberValue(capacity.blocked);
+    const pending = numberValue(pendingCounts[capacity.vehicleType]);
+    const ready = Math.max(0, available - pending);
 
     return `
       <article class="staff-capacity-row">
@@ -236,19 +376,17 @@ function renderStaffCapacityRows(capacities = []) {
             <strong>${escapeHtml(vehicleTypeLabel(capacity.vehicleType))}</strong>
             <span>${escapeHtml(formatCount(total))} total slots</span>
           </div>
-          <span>${escapeHtml(formatCount(available))} available</span>
+          <span>${escapeHtml(formatCount(ready))} ready</span>
         </div>
         <div class="staff-capacity-stats">
-          <span><b>${escapeHtml(formatCount(available))}</b>Ready</span>
+          <span><b>${escapeHtml(formatCount(ready))}</b>Ready</span>
           <span><b>${escapeHtml(formatCount(occupied))}</b>Checked in</span>
-          <span><b>${escapeHtml(formatCount(reserved))}</b>Reserved</span>
-          <span><b>${escapeHtml(formatCount(blocked))}</b>Blocked</span>
+          <span><b>${escapeHtml(formatCount(pending))}</b>Pending approvals</span>
         </div>
         <div class="staff-capacity-bar" aria-hidden="true">
-          <i class="available" style="width:${Math.max(0, (available / total) * 100)}%"></i>
+          <i class="available" style="width:${Math.max(0, (ready / total) * 100)}%"></i>
           <i class="occupied" style="width:${Math.max(0, (occupied / total) * 100)}%"></i>
-          <i class="reserved" style="width:${Math.max(0, (reserved / total) * 100)}%"></i>
-          <i class="blocked" style="width:${Math.max(0, (blocked / total) * 100)}%"></i>
+          <i class="pending" style="width:${Math.max(0, (pending / total) * 100)}%"></i>
         </div>
       </article>
     `;
@@ -256,7 +394,6 @@ function renderStaffCapacityRows(capacities = []) {
 }
 
 function renderStaffDashboardOps(summary = {}, bookings = [], changeRequests = [], extensionRequests = []) {
-  const overdueCount = bookings.filter((booking) => booking.status === 'OVERDUE').length;
   const rows = [
     {
       label: 'Pending approvals',
@@ -264,13 +401,6 @@ function renderStaffDashboardOps(summary = {}, bookings = [], changeRequests = [
       detail: 'Bookings waiting for check-in approval',
       href: '/staff-bookings.html',
       tone: 'pending',
-    },
-    {
-      label: 'Overdue',
-      value: overdueCount,
-      detail: 'Vehicles past expected checkout',
-      href: '/staff-bookings.html',
-      tone: overdueCount ? 'danger' : 'active',
     },
     {
       label: 'Change requests',
@@ -328,6 +458,48 @@ function renderStaffDashboardLot(lot, capacities = [], pricingRules = [], servic
   setText('#staffTotalCapacity', `${formatCount(totalCapacity)} slots`);
 }
 
+function reviewStars(rating) {
+  const value = Math.max(0, Math.min(5, Math.round(numberValue(rating))));
+  return `${'★'.repeat(value)}${'☆'.repeat(5 - value)}`;
+}
+
+function reviewAverage(lot, reviews = []) {
+  const lotAverage = Number(lot?.averageRating);
+  if (Number.isFinite(lotAverage) && lotAverage > 0) {
+    return lotAverage;
+  }
+
+  if (!reviews.length) {
+    return 0;
+  }
+
+  return reviews.reduce((sum, review) => sum + numberValue(review.rating), 0) / reviews.length;
+}
+
+function renderStaffDashboardReviews(lot, reviewPage = { items: [], pagination: {} }) {
+  const reviews = reviewPage.items || [];
+  const totalReviews = numberValue(reviewPage.pagination?.totalElements ?? lot?.reviewCount ?? reviews.length);
+  const average = reviewAverage(lot, reviews);
+
+  setText('#staffReviewSummary', lot ? `${formatCount(totalReviews)} reviews` : 'No lot yet');
+  setText('#staffReviewAverage', average ? average.toFixed(1) : '0.0');
+  setText('#staffReviewStars', reviewStars(average));
+  setText('#staffReviewCount', totalReviews
+    ? `${formatCount(totalReviews)} completed booking ${totalReviews === 1 ? 'review' : 'reviews'}`
+    : 'No completed booking reviews yet');
+
+  renderList('#staffReviewList', reviews.slice(0, 3), (review) => `
+    <article class="staff-review-row">
+      <div class="staff-review-row-head">
+        <span>${escapeHtml(review.customerName || 'Customer')}</span>
+        <strong>${escapeHtml(reviewStars(review.rating))}</strong>
+      </div>
+      <p>${escapeHtml(review.content || 'No written comment was added for this review.')}</p>
+      <small>${escapeHtml(formatDate(review.createdAt))} · ${escapeHtml(review.bookingCode || shortId(review.bookingId))}</small>
+    </article>
+  `, lot ? 'No customer reviews for this parking lot yet.' : 'Create or assign a parking lot to view reviews.');
+}
+
 function renderStaffDashboardBookings(bookings = []) {
   const filteredBookings = staffDashboardBookingFilter
     ? bookings.filter((booking) => booking.status === staffDashboardBookingFilter)
@@ -346,7 +518,7 @@ function renderStaffDashboardBookings(bookings = []) {
 
     return `
       <article class="dashboard-booking-row">
-        <span class="staff-booking-vehicle-icon ${escapeHtml(statusClassName)}">${icons.bookings}</span>
+        ${bookingVehicleIcon(statusClassName)}
         <div>
           <strong>${escapeHtml(bookingVehicleLabel(booking))}</strong>
           <small>${escapeHtml(customerLabel)} · ${escapeHtml(bookingLotName(booking.parkingLotId))}</small>
@@ -383,23 +555,56 @@ function renderStaffCheckinSchedule(bookings = []) {
   }, 'No check-ins scheduled for today.');
 }
 
-function bindStaffDashboardControls(bookings = []) {
+function bindStaffDashboardControls() {
+  if (staffDashboardControlsBound) {
+    return;
+  }
+  staffDashboardControlsBound = true;
+
   $all('[data-staff-dashboard-booking-filter]').forEach((button) => {
     button.addEventListener('click', () => {
       staffDashboardBookingFilter = button.dataset.staffDashboardBookingFilter || '';
       $all('[data-staff-dashboard-booking-filter]').forEach((item) => item.classList.toggle('active', item === button));
-      renderStaffDashboardBookings(bookings);
+      renderStaffDashboardBookings(staffDashboardBookingsCache);
     });
+  });
+
+  document.addEventListener('click', async (event) => {
+    const metricButton = event.target.closest?.('[data-staff-performance-metric]');
+    if (!metricButton) {
+      return;
+    }
+
+    staffDashboardPerformanceMetric = metricButton.dataset.staffPerformanceMetric || 'bookings';
+    $all('[data-staff-performance-metric]').forEach((item) => item.classList.toggle('active', item === metricButton));
+    await renderStaffPerformanceChart(
+      staffDashboardBookingsCache,
+      staffDashboardSummaryCache,
+      staffDashboardSelectedLotId
+    );
+  });
+
+  document.addEventListener('click', async (event) => {
+    const rangeButton = event.target.closest?.('[data-staff-performance-range]');
+    if (!rangeButton) {
+      return;
+    }
+
+    staffDashboardPerformanceRange = rangeButton.dataset.staffPerformanceRange || 'today';
+    $all('[data-staff-performance-range]').forEach((item) => item.classList.toggle('active', item === rangeButton));
+    await renderStaffPerformanceChart(
+      staffDashboardBookingsCache,
+      staffDashboardSummaryCache,
+      staffDashboardSelectedLotId
+    );
   });
 }
 
 function updateStaffOccupancy(summary = {}, capacities = []) {
   const available = numberValue(summary.available);
   const occupied = numberValue(summary.occupied);
-  const reserved = numberValue(summary.reserved);
-  const blocked = numberValue(summary.blocked);
   const capacityTotal = capacities.reduce((sum, capacity) => sum + numberValue(capacity.totalCapacity), 0);
-  const total = capacityTotal || available + occupied + reserved + blocked;
+  const total = capacityTotal || available + occupied;
   const rate = total ? Math.round((occupied / total) * 100) : 0;
   const circumference = 2 * Math.PI * 46;
 
@@ -419,44 +624,46 @@ async function loadStaffDashboard() {
     return;
   }
 
+  bindStaffDashboardControls();
+
   try {
     const [summary, lots, bookings, changeRequests, extensionRequests] = await Promise.all([
       apiRequest('/staff/dashboard/summary'),
       apiPage('/staff/parking-lots', { size: 50 }),
-      optionalApiPage('/staff/bookings', { size: 50 }),
+      optionalApiPage('/staff/bookings', { size: 500 }),
       optionalApiPage('/staff/booking-change-requests', { size: 50, status: 'PENDING' }),
       optionalApiPage('/staff/booking-extension-requests', { size: 50, status: 'PENDING' }),
     ]);
     const assignedLots = lots.items || [];
     const bookingsItems = bookings.items || [];
     const selectedLot = assignedLots.find((lot) => lot.id === summary.parkingLotId) || assignedLots[0] || null;
-    const [capacities, pricingRules, services, promotions] = selectedLot
+    const [capacities, reviews] = selectedLot
       ? await Promise.all([
         apiRequest(`/staff/parking-lots/${selectedLot.id}/capacities`).catch(() => []),
-        apiRequest(`/staff/parking-lots/${selectedLot.id}/pricing-rules`).catch(() => []),
-        apiRequest(`/staff/parking-lots/${selectedLot.id}/services`).catch(() => []),
-        apiRequest(`/staff/parking-lots/${selectedLot.id}/promotions`).catch(() => []),
+        optionalApiPage(`/staff/parking-lots/${selectedLot.id}/reviews`, { size: 6 }),
       ])
-      : [[], [], [], []];
+      : [[], { items: [], pagination: {} }];
 
     bookingLotsCache = assignedLots;
-    setText('#staffLiveTime', `Backend synced · ${formatTime(new Date())}`);
+    staffDashboardBookingsCache = bookingsItems;
+    staffDashboardSummaryCache = summary;
+    staffDashboardSelectedLotId = selectedLot?.id || null;
+    setText('#staffLiveTime', `Synced · ${formatTime(new Date())}`);
     setText('#staffAvailable', formatCount(summary.available));
     setText('#staffOccupied', formatCount(summary.occupied));
-    setText('#staffReserved', formatCount(summary.reserved));
-    setText('#staffBlocked', formatCount(summary.blocked));
     setText('#staffTodayBookings', summary.todayBookings);
     setText('#staffRevenue', money(summary.revenue, summary.currency || 'VND'));
     updateStaffOccupancy(summary, capacities);
-    renderStaffCapacityRows(capacities);
+    renderStaffCapacityRows(capacities, bookingsItems);
     renderStaffDashboardOps(summary, bookingsItems, changeRequests.items || [], extensionRequests.items || []);
-    renderStaffDashboardLot(selectedLot, capacities, pricingRules, services, promotions);
+    renderStaffDashboardLot(selectedLot, capacities);
+    renderStaffDashboardReviews(selectedLot, reviews);
     renderStaffDashboardBookings(bookingsItems);
     renderStaffCheckinSchedule(bookingsItems);
-    renderDashboardBars('#staffActivityChart', bookingsItems, 'staff');
-    bindStaffDashboardControls(bookingsItems);
+    await renderStaffPerformanceChart(bookingsItems, summary, selectedLot?.id || null);
   } catch (error) {
     setStatus('#staffStatus', error.message, true);
+    renderStaffPerformanceChart(staffDashboardBookingsCache, staffDashboardSummaryCache, staffDashboardSelectedLotId);
   }
 }
 
@@ -476,6 +683,13 @@ let staffBookingDurationTimer = null;
 let checkoutPreviewTimer = null;
 let checkoutDraft = null;
 let staffDashboardBookingFilter = '';
+let staffDashboardPerformanceMetric = 'bookings';
+let staffDashboardPerformanceRange = 'today';
+let staffDashboardControlsBound = false;
+let staffDashboardBookingsCache = [];
+let staffDashboardSummaryCache = {};
+let staffDashboardSelectedLotId = null;
+let staffCommissionPeriod = 'today';
 const STAFF_ACTIVE_BOOKING_STATUSES = ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN'];
 const staffLotIcons = {
   amenity: (name) => `<span class="material-symbols-outlined" aria-hidden="true">${amenityIcon(name)}</span>`,
@@ -2258,6 +2472,129 @@ function bindStaffBookingsPage() {
   });
 }
 
+function commissionStatusClass(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized.includes('paid') || normalized.includes('deduct')) {
+    return 'completed';
+  }
+  if (normalized.includes('cancel')) {
+    return 'danger';
+  }
+  return 'pending';
+}
+
+function commissionPaymentMethodLabel(method) {
+  const normalized = String(method || '').toUpperCase();
+  if (normalized === 'BANK_TRANSFER') {
+    return 'Bank transfer';
+  }
+  if (normalized === 'CASH') {
+    return 'Cash';
+  }
+  if (normalized === 'QR') {
+    return 'QR';
+  }
+  if (normalized === 'CARD') {
+    return 'Card';
+  }
+  return normalized || '-';
+}
+
+function renderStaffCommissions(items = []) {
+  const element = $('#staffCommissionList');
+  if (!element) {
+    return;
+  }
+
+  if (!items.length) {
+    element.innerHTML = `
+      <tr>
+        <td colspan="8">
+          <div class="empty-state">No commission records found.</div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  element.innerHTML = items.map((commission) => {
+    const status = commission.status || 'PAYABLE';
+    return `
+      <tr>
+        <td>
+          <strong>${escapeHtml(commission.bookingCode || shortId(commission.bookingId))}</strong>
+          <span>${escapeHtml(shortId(commission.paymentId))}</span>
+        </td>
+        <td>${escapeHtml(money(commission.grossAmount, commission.currency || 'VND'))}</td>
+        <td>${escapeHtml(commissionPaymentMethodLabel(commission.paymentMethod))}</td>
+        <td>${escapeHtml(`${Math.round(numberValue(commission.commissionRate) * 100)}%`)}</td>
+        <td><strong>${escapeHtml(money(commission.commissionAmount, commission.currency || 'VND'))}</strong></td>
+        <td>${escapeHtml(money(commission.staffNetAmount, commission.currency || 'VND'))}</td>
+        <td><span class="staff-booking-status ${escapeHtml(commissionStatusClass(status))}">${escapeHtml(status)}</span></td>
+        <td>${escapeHtml(formatDate(commission.createdAt))}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function staffCommissionQuery(status, period) {
+  const query = new URLSearchParams();
+  if (status) {
+    query.set('status', status);
+  }
+  if (period) {
+    query.set('period', period);
+  }
+  const text = query.toString();
+  return text ? `?${text}` : '';
+}
+
+function renderStaffCommissionTotals(summary = {}) {
+  const currency = summary.currency || 'VND';
+  const count = numberValue(summary.bookingCommissionCount);
+  setText('#staffCommissionTotalGross', money(summary.grossAmount, currency));
+  setText('#staffCommissionTotalAdmin', money(summary.commissionAmount, currency));
+  setText('#staffCommissionTotalNet', money(summary.staffNetAmount, currency));
+  setText('#staffCommissionTotalBookings', `${formatCount(count)} ${count === 1 ? 'record' : 'records'}`);
+}
+
+async function loadStaffCommissions() {
+  const current = await requireStaff();
+  if (!current) {
+    return;
+  }
+
+  try {
+    const status = $('#staffCommissionStatusFilter')?.value || '';
+    const period = staffCommissionPeriod || 'today';
+    const [summary, commissions] = await Promise.all([
+      apiRequest(`/staff/commissions/summary${staffCommissionQuery(status, period)}`),
+      apiPage('/staff/commissions', { size: 50, status, period, sort: 'createdAt,desc' }),
+    ]);
+
+    setText('#staffCommissionGross', money(summary.grossAmount, summary.currency || 'VND'));
+    setText('#staffCommissionAdmin', money(summary.commissionAmount, summary.currency || 'VND'));
+    setText('#staffCommissionBookings', formatCount(summary.bookingCommissionCount));
+    setText('#staffCommissionNet', money(summary.staffNetAmount, summary.currency || 'VND'));
+    renderStaffCommissionTotals(summary);
+    renderStaffCommissions(commissions.items || []);
+    setStatus('#staffCommissionStatus', '');
+  } catch (error) {
+    setStatus('#staffCommissionStatus', error.message, true);
+  }
+}
+
+function bindStaffCommissionsPage() {
+  $('#staffCommissionStatusFilter')?.addEventListener('change', loadStaffCommissions);
+  $all('[data-staff-commission-period]').forEach((button) => {
+    button.addEventListener('click', () => {
+      staffCommissionPeriod = button.dataset.staffCommissionPeriod || 'today';
+      $all('[data-staff-commission-period]').forEach((item) => item.classList.toggle('active', item === button));
+      loadStaffCommissions();
+    });
+  });
+}
+
 bindLogout();
 startSessionGuard();
 
@@ -2273,4 +2610,9 @@ if (page === 'staff-lots') {
 if (page === 'staff-bookings') {
   bindStaffBookingsPage();
   loadStaffBookings();
+}
+
+if (page === 'staff-commissions') {
+  bindStaffCommissionsPage();
+  loadStaffCommissions();
 }

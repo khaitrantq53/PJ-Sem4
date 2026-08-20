@@ -83,8 +83,24 @@ public final class AdminDtos {
     ) {
     }
 
+    public record PerformanceBucketResponse(
+            String label,
+            OffsetDateTime startTime,
+            OffsetDateTime endTime,
+            BigDecimal value
+    ) {
+    }
+
+    public record PerformanceResponse(
+            String metric,
+            String range,
+            String currency,
+            List<PerformanceBucketResponse> buckets
+    ) {
+    }
+
     public record AdminBookingFilter(UUID parkingLotId, BookingStatus status, OffsetDateTime startFrom,
-                                     OffsetDateTime endTo, VehicleType vehicleType, String bookingCode,
-                                     String plateNumber) {
+                                     OffsetDateTime endTo, OffsetDateTime createdFrom, OffsetDateTime createdTo,
+                                     VehicleType vehicleType, String bookingCode, String plateNumber) {
     }
 }

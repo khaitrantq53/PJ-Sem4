@@ -1,10 +1,115 @@
 import { AdminScreen } from './AdminScreen.jsx';
 
 const adminBookingsPage = {
-  "title": "ParkFinder Admin | Bookings",
-  "bodyClass": "",
-  "pageKey": "admin-bookings",
-  "markup": "<div class=\"admin-console\">\n      <aside class=\"admin-side-nav\">\n        <a class=\"admin-brand\" href=\"/\" aria-label=\"ParkFinder\">\n          <span class=\"admin-brand-mark\" aria-hidden=\"true\"><svg viewBox=\"0 0 24 24\"><path d=\"M7 20V4h7.1c3.4 0 5.9 2.3 5.9 5.6s-2.5 5.7-5.9 5.7h-3.7V20H7Zm3.4-7.8h3.4c1.6 0 2.8-1 2.8-2.6S15.4 7 13.8 7h-3.4v5.2Z\" /></svg></span>\n          <span><strong>ParkFinder</strong><small>Admin Console</small></span>\n        </a>\n\n        <nav class=\"admin-nav-links\" aria-label=\"Admin navigation\">\n          <a href=\"/admin-users.html\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M10 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.4 0-8 2.1-8 5v1h13.2a5.7 5.7 0 0 1-.2-1.5c0-1.5.6-2.9 1.5-3.9A13.6 13.6 0 0 0 10 14Zm9.5.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm0 1.5 2 2-.9.9-1.1-1.1-1.7 1.7-.9-.9 2.6-2.6Z\" /></svg>Customers</a>\n          <a href=\"/admin-staff.html\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8.5 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM8 13c-3.3 0-6 1.7-6 3.8V20h12v-3.2C14 14.7 11.3 13 8 13Zm8.5 1c-.9 0-1.8.2-2.6.5a4 4 0 0 1 2.1 3.4V20h6v-2.6c0-1.9-2.5-3.4-5.5-3.4Z\" /></svg>Staff Management</a>\n          <a href=\"/admin-lots.html\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm-1 14-3.3-3.3 1.4-1.4 1.9 1.9 4.6-4.6 1.4 1.4-6 6Z\" /></svg>Lot Approvals</a>\n          <a href=\"/admin-refunds.html\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12H6a3 3 0 0 1-3-3V6Zm3-1a1 1 0 0 0-1 1v2h14V6a1 1 0 0 0-1-1H6Zm-1 5v5a1 1 0 0 0 1 1h13v-6H5Zm7 1h5v2h-5v-2Z\" /></svg>Refunds</a>\n          <a class=\"active\" href=\"/admin-bookings.html\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M7 2h2v2h6V2h2v2h3v18H4V4h3V2Zm11 8H6v10h12V10ZM6 8h12V6H6v2Z\" /></svg>Bookings</a>\n          <a href=\"/admin-audit.html\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 3h14v18l-3-2-3 2-3-2-3 2-2-1.3V3Zm3 5h8V6H8v2Zm0 4h8v-2H8v2Zm0 4h5v-2H8v2Z\" /></svg>Audit Logs</a>\n        </nav>\n      </aside>\n\n      <div class=\"admin-main-shell\">        <main class=\"admin-content\">\n          <section class=\"admin-page-heading\">\n            <div>\n              <p data-account-role>Admin</p>\n              <h1>Booking Management</h1>\n              <span>Monitor and manage all parking reservations across the system.</span>\n            </div>\n          </section>\n\n          <span class=\"status-line admin-status-line\" id=\"adminStatus\"></span>\n\n          <section class=\"admin-booking-stats\">\n            <article>\n              <div><span>Total Bookings</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M7 2h2v2h6V2h2v2h3v18H4V4h3V2Zm11 8H6v10h12V10Z\" /></svg></div>\n              <strong id=\"adminBookingTotal\">0</strong>\n              <p>All backend booking records</p>\n            </article>\n            <article>\n              <div><span>Active Sessions</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 11h14l-1.5-4.5A2 2 0 0 0 15.6 5H8.4a2 2 0 0 0-1.9 1.5L5 11Zm-1 2v5h2v-2h12v2h2v-5H4Z\" /></svg></div>\n              <strong id=\"adminBookingActive\">0</strong>\n              <p>Checked in or confirmed bookings</p>\n            </article>\n            <article>\n              <div><span>Booking Revenue</span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 6h16v12H4V6Zm2 2v8h12V8H6Zm6 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z\" /></svg></div>\n              <strong id=\"adminBookingRevenue\">0</strong>\n              <p>Current page total</p>\n            </article>\n          </section>\n\n          <section class=\"admin-booking-table-card\">\n            <div class=\"admin-booking-toolbar\">\n              <div>\n                <button type=\"button\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 6h16v2H4V6Zm3 5h10v2H7v-2Zm3 5h4v2h-4v-2Z\" /></svg>Filter</button>\n                <span>Status: Active</span>\n                <span>Time</span>\n                <span>Parking Lot</span>\n              </div>\n              <div>\n                <button type=\"button\" aria-label=\"Export\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 3v10.2l3.6-3.6L17 11l-5 5-5-5 1.4-1.4 3.6 3.6V3h2ZM5 19h14v2H5v-2Z\" /></svg></button>\n                <button type=\"button\" aria-label=\"Refresh\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.2L13 11h8V3l-3.3 3.3Z\" /></svg></button>\n              </div>\n            </div>\n\n            <div class=\"admin-booking-table-scroll\">\n              <table class=\"admin-booking-table\">\n                <thead>\n                  <tr>\n                    <th>Booking Code</th>\n                    <th>Vehicle</th>\n                    <th>Parking Lot</th>\n                    <th>Time</th>\n                    <th>Status</th>\n                    <th>Payment</th>\n                    <th>Actions</th>\n                  </tr>\n                </thead>\n                <tbody id=\"adminBookingList\"></tbody>\n              </table>\n            </div>\n\n            <div class=\"admin-booking-pagination\">\n              <span id=\"adminBookingPagination\">Showing bookings</span>\n              <div>\n                <button type=\"button\" disabled aria-label=\"Previous page\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m15 6-6 6 6 6 1.4-1.4-4.6-4.6 4.6-4.6L15 6Z\" /></svg></button>\n                <button class=\"active\" type=\"button\">1</button>\n                <button type=\"button\">2</button>\n                <button type=\"button\">3</button>\n                <span>...</span>\n                <button type=\"button\" aria-label=\"Next page\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m9 18 6-6-6-6-1.4 1.4 4.6 4.6-4.6 4.6L9 18Z\" /></svg></button>\n              </div>\n            </div>\n          </section>\n        </main>\n      </div>\n    </div>"
+  title: 'ParkFinder Admin | Bookings',
+  bodyClass: '',
+  pageKey: 'admin-bookings',
+  markup: `
+    <div class="admin-console">
+      <aside class="admin-side-nav"></aside>
+      <div class="admin-main-shell">
+        <main class="admin-content">
+          <section class="admin-page-heading">
+            <div>
+              <p data-account-role>Admin</p>
+              <h1>Bookings</h1>
+              <span>Monitor system bookings and resolve stuck exceptions.</span>
+            </div>
+          </section>
+
+          <span class="status-line admin-status-line" id="adminStatus"></span>
+
+          <section class="admin-booking-table-card">
+            <div class="admin-booking-toolbar admin-booking-toolbar-clean">
+              <div class="admin-booking-search">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M10.5 4a6.5 6.5 0 0 1 5.1 10.5l4 4-1.4 1.4-4-4A6.5 6.5 0 1 1 10.5 4Zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z" />
+                </svg>
+                <input id="adminBookingSearch" type="search" placeholder="Search booking code or plate number" />
+              </div>
+
+              <div class="admin-booking-filter-group">
+                <div class="dashboard-tabs compact admin-booking-date-tabs" aria-label="Booking date range">
+                  <button class="active" type="button" data-admin-booking-range="today">Today</button>
+                  <button type="button" data-admin-booking-range="7">7 days</button>
+                  <button type="button" data-admin-booking-range="30">30 days</button>
+                </div>
+                <select id="adminBookingStatusFilter" aria-label="Booking status">
+                  <option value="">All Status</option>
+                  <option value="PENDING_APPROVAL">Pending Approval</option>
+                  <option value="CHECKED_IN">Checked In</option>
+                  <option value="PENDING_PAYMENT">Pending Payment</option>
+                  <option value="COMPLETED">Completed</option>
+                </select>
+                <button class="admin-booking-refresh" type="button" data-admin-refresh-bookings aria-label="Refresh bookings">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.2L13 11h8V3l-3.3 3.3Z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="admin-booking-summary-strip">
+              <span>Total <strong id="adminBookingTotal">0</strong></span>
+              <span>Active <strong id="adminBookingActive">0</strong></span>
+              <span>Revenue <strong id="adminBookingRevenue">0</strong></span>
+            </div>
+
+            <div class="admin-booking-table-scroll">
+              <table class="admin-booking-table admin-booking-table-clean">
+                <thead>
+                  <tr>
+                    <th>Booking</th>
+                    <th>Customer</th>
+                    <th>Vehicle</th>
+                    <th>Parking Lot</th>
+                    <th>Check in / out</th>
+                    <th>Status</th>
+                    <th>Payment</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="adminBookingList"></tbody>
+              </table>
+            </div>
+
+            <div class="admin-booking-pagination">
+              <span id="adminBookingPagination">Showing bookings</span>
+            </div>
+          </section>
+
+          <section class="admin-booking-detail-modal hidden" id="adminBookingDetailModal" aria-hidden="true">
+            <div class="admin-booking-detail-card" role="dialog" aria-modal="true" aria-labelledby="adminBookingDetailTitle">
+              <div class="admin-booking-detail-head">
+                <div>
+                  <p>Booking Detail</p>
+                  <h2 id="adminBookingDetailTitle">Booking</h2>
+                  <span id="adminBookingDetailMeta">-</span>
+                </div>
+                <button type="button" data-admin-close-booking-detail aria-label="Close booking detail">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m6.4 5 12.6 12.6-1.4 1.4L5 6.4 6.4 5Zm12.6 1.4L6.4 19 5 17.6 17.6 5 19 6.4Z" />
+                  </svg>
+                </button>
+              </div>
+
+              <div class="admin-booking-detail-grid">
+                <article><span>Customer</span><strong id="adminBookingDetailCustomer">-</strong><small id="adminBookingDetailCustomerMeta">-</small></article>
+                <article><span>Vehicle</span><strong id="adminBookingDetailVehicle">-</strong><small id="adminBookingDetailVehicleMeta">-</small></article>
+                <article><span>Parking Lot</span><strong id="adminBookingDetailLot">-</strong><small id="adminBookingDetailLotMeta">-</small></article>
+                <article><span>Total</span><strong id="adminBookingDetailTotal">-</strong><small id="adminBookingDetailPayment">-</small></article>
+              </div>
+
+              <div class="admin-booking-detail-timeline admin-booking-detail-session">
+                <div><span>Check in</span><strong id="adminBookingDetailCheckIn">-</strong></div>
+                <div><span>Check out</span><strong id="adminBookingDetailCheckOut">-</strong></div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  `,
 };
 
 export function AdminBookings() {

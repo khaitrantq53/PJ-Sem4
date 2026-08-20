@@ -86,6 +86,8 @@ smart-parking:
     default-hourly-rate: ${DEFAULT_HOURLY_RATE:0.00}
   payment:
     webhook-secret: ${PAYMENT_WEBHOOK_SECRET:change-this-payment-webhook-secret}
+  commission:
+    staff-rate: ${STAFF_COMMISSION_RATE:0.10}
   otp:
     ttl-minutes: ${OTP_TTL_MINUTES:5}
     length: ${OTP_LENGTH:6}

@@ -59,4 +59,6 @@ public interface AdminService {
                                                                       AdminDtos.ResolveBookingExceptionRequest request);
 
     AdminDtos.SystemDashboardSummaryResponse dashboardSummary();
+
+    AdminDtos.PerformanceResponse dashboardPerformance(String metric, String range);
 }

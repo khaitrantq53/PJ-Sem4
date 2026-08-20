@@ -17,11 +17,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
 public class StaffDashboardServiceImpl implements StaffDashboardService {
+    private static final DateTimeFormatter DAY_LABEL_FORMAT = DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH);
+
     private final ParkingLotStaffRepository staffRepository;
     private final ParkingVehicleCapacityRepository capacityRepository;
     private final ParkingCapacityBlockRepository blockRepository;
@@ -61,8 +66,8 @@ public class StaffDashboardServiceImpl implements StaffDashboardService {
         long available = 0;
         for (ParkingVehicleCapacity capacity : capacities) {
             UUID lotId = capacity.getParkingLot().getId();
-            long occupiedForCapacity = bookingRepository.countActiveReservations(lotId, capacity.getVehicleType(),
-                    List.of(BookingStatus.CHECKED_IN), now, instantEnd);
+            long occupiedForCapacity = bookingRepository.countCurrentCheckedInCapacity(lotId, capacity.getVehicleType(),
+                    List.of(BookingStatus.CHECKED_IN));
             long reservedForCapacity = bookingRepository.countActiveReservations(lotId, capacity.getVehicleType(),
                     List.of(BookingStatus.PENDING_APPROVAL, BookingStatus.CONFIRMED), now, instantEnd);
             long blockedForCapacity = blockRepository.countBlocked(lotId, capacity.getVehicleType(), now, instantEnd);
@@ -86,5 +91,69 @@ public class StaffDashboardServiceImpl implements StaffDashboardService {
                 properties.pricing().currency(),
                 deviceRepository.countOfflineForStaff(currentUser.id(), parkingLotId)
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public StaffDtos.PerformanceResponse performance(CurrentUser currentUser, UUID parkingLotId, String metric, String range) {
+        if (parkingLotId != null && !staffRepository.existsByParkingLotIdAndStaffId(parkingLotId, currentUser.id())) {
+            throw new BusinessException(ErrorCode.PARKING_LOT_ACCESS_DENIED, "Staff không được phân công bãi xe này");
+        }
+
+        String normalizedMetric = normalizeMetric(metric);
+        String normalizedRange = normalizeRange(range);
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime todayStart = now.toLocalDate().atStartOfDay().atOffset(now.getOffset());
+        List<StaffDtos.PerformanceBucketResponse> buckets = new ArrayList<>();
+
+        if ("today".equals(normalizedRange)) {
+            for (int hour = 0; hour < 24; hour += 4) {
+                OffsetDateTime startTime = todayStart.plusHours(hour);
+                OffsetDateTime endTime = startTime.plusHours(4);
+                String label = "%02d-%02d".formatted(hour, Math.min(hour + 3, 23));
+                buckets.add(new StaffDtos.PerformanceBucketResponse(
+                        label,
+                        startTime,
+                        endTime,
+                        performanceValue(currentUser.id(), parkingLotId, normalizedMetric, startTime, endTime)
+                ));
+            }
+        } else {
+            int days = Integer.parseInt(normalizedRange);
+            OffsetDateTime firstDay = todayStart.minusDays(days - 1L);
+            for (int index = 0; index < days; index++) {
+                OffsetDateTime startTime = firstDay.plusDays(index);
+                OffsetDateTime endTime = startTime.plusDays(1);
+                buckets.add(new StaffDtos.PerformanceBucketResponse(
+                        startTime.format(DAY_LABEL_FORMAT),
+                        startTime,
+                        endTime,
+                        performanceValue(currentUser.id(), parkingLotId, normalizedMetric, startTime, endTime)
+                ));
+            }
+        }
+
+        return new StaffDtos.PerformanceResponse(normalizedMetric, normalizedRange, properties.pricing().currency(), buckets);
+    }
+
+    private String normalizeMetric(String metric) {
+        String normalized = metric == null ? "bookings" : metric.trim().toLowerCase(Locale.ROOT);
+        return "revenue".equals(normalized) ? "revenue" : "bookings";
+    }
+
+    private String normalizeRange(String range) {
+        String normalized = range == null ? "today" : range.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "7", "30" -> normalized;
+            default -> "today";
+        };
+    }
+
+    private BigDecimal performanceValue(UUID staffId, UUID parkingLotId, String metric, OffsetDateTime startTime, OffsetDateTime endTime) {
+        if ("revenue".equals(metric)) {
+            return paymentRepository.revenueForStaffBetween(staffId, parkingLotId, startTime, endTime);
+        }
+
+        return BigDecimal.valueOf(bookingRepository.countForStaffBetween(staffId, parkingLotId, startTime, endTime));
     }
 }

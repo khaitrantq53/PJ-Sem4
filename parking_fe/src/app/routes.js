@@ -10,6 +10,7 @@ export const runtimeLoaders = {
   'staff.html': staffRuntime,
   'staff-parking-lots.html': staffRuntime,
   'staff-bookings.html': staffRuntime,
+  'staff-commissions.html': staffRuntime,
 };
 
 export function getCurrentPageName() {

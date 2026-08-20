@@ -37,9 +37,30 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     @Query("""
             select coalesce(sum(p.amount), 0)
             from Payment p
+            join ParkingLotStaff s on s.parkingLot.id = p.booking.parkingLot.id
+            where s.staff.id = :staffId
+              and (:parkingLotId is null or p.booking.parkingLot.id = :parkingLotId)
+              and p.status = com.smartparking.common.PaymentStatus.PAID
+              and p.createdAt >= :startTime
+              and p.createdAt < :endTime
+            """)
+    BigDecimal revenueForStaffBetween(UUID staffId, UUID parkingLotId, OffsetDateTime startTime, OffsetDateTime endTime);
+
+    @Query("""
+            select coalesce(sum(p.amount), 0)
+            from Payment p
             where p.status = com.smartparking.common.PaymentStatus.PAID
               and p.createdAt >= :startOfDay
               and p.createdAt < :nextDay
             """)
     BigDecimal revenueTodayAll(OffsetDateTime startOfDay, OffsetDateTime nextDay);
+
+    @Query("""
+            select coalesce(sum(p.amount), 0)
+            from Payment p
+            where p.status = com.smartparking.common.PaymentStatus.PAID
+              and p.createdAt >= :startTime
+              and p.createdAt < :endTime
+            """)
+    BigDecimal revenueAllBetween(OffsetDateTime startTime, OffsetDateTime endTime);
 }

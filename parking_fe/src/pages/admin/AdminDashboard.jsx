@@ -72,11 +72,6 @@ const adminPage = {
               <strong id="adminDashTotalUsers">0</strong>
               <small>All roles in system</small>
             </article>
-            <article class="dashboard-kpi-card k-green">
-              <span>Active Customers</span>
-              <strong id="adminDashActiveCustomers">0</strong>
-              <small>Approved customer accounts</small>
-            </article>
             <article class="dashboard-kpi-card k-indigo">
               <span>Active Staff</span>
               <strong id="adminDashActiveStaff">0</strong>
@@ -102,32 +97,27 @@ const adminPage = {
               <strong id="adminDashRevenue">0</strong>
               <small>Completed payment value</small>
             </article>
-            <article class="dashboard-kpi-card k-red">
-              <span>Refund Today</span>
-              <strong id="adminDashRefund">0</strong>
-              <small>Refunds issued today</small>
-            </article>
           </section>
 
-          <div class="dashboard-grid two">
-            <section class="dashboard-panel" id="adminActions">
-              <div class="dashboard-panel-head">
-                <div>
-                  <p>Operations</p>
-                  <h2>Needs Admin Attention</h2>
-                </div>
-                <a href="/admin-requests.html">Open requests</a>
-              </div>
-              <div class="dashboard-ops-list" id="adminOpsList"></div>
-            </section>
-
+          <div class="dashboard-grid admin-performance-grid">
             <section class="dashboard-panel">
               <div class="dashboard-panel-head">
                 <div>
-                  <p>Today</p>
+                  <p id="adminPerformanceRangeLabel">Today</p>
                   <h2>Platform Performance</h2>
                 </div>
-                <a href="/admin-bookings.html">View bookings</a>
+                <div class="staff-performance-filters admin-performance-filters">
+                  <div class="dashboard-tabs compact" id="adminPerformanceMetricTabs" aria-label="Platform performance metric">
+                    <button class="active" type="button" data-admin-performance-metric="bookings">Bookings</button>
+                    <button type="button" data-admin-performance-metric="revenue">Revenue</button>
+                  </div>
+                  <div class="dashboard-tabs compact" id="adminPerformanceRangeTabs" aria-label="Platform performance range">
+                    <button class="active" type="button" data-admin-performance-range="today">Today</button>
+                    <button type="button" data-admin-performance-range="7">7 days</button>
+                    <button type="button" data-admin-performance-range="30">30 days</button>
+                  </div>
+                  <a href="/admin-bookings.html">View bookings</a>
+                </div>
               </div>
               <div class="dashboard-performance-cards">
                 <article>

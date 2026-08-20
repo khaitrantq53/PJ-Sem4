@@ -16,7 +16,7 @@ const navItems = [
   { href: '/admin-lots.html', label: 'Parking Lots', icon: icons.lots },
   { href: '/admin-requests.html', label: 'Requests', icon: icons.requests },
   { href: '/admin-bookings.html', label: 'Bookings', icon: icons.bookings },
-  { href: '/admin-refunds.html', label: 'Refunds', icon: icons.money },
+  { href: '/admin-finance.html', label: 'Finance', icon: icons.money },
   { href: '/admin-audit.html', label: 'Audit Logs', icon: icons.audit },
 ];
 

@@ -40,6 +40,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentMapper mapper;
     private final AuditService auditService;
     private final NotificationRepository notificationRepository;
+    private final CommissionService commissionService;
     private final SmartParkingProperties properties;
 
     public PaymentServiceImpl(PaymentRepository paymentRepository,
@@ -50,6 +51,7 @@ public class PaymentServiceImpl implements PaymentService {
                               PaymentMapper mapper,
                               AuditService auditService,
                               NotificationRepository notificationRepository,
+                              CommissionService commissionService,
                               SmartParkingProperties properties) {
         this.paymentRepository = paymentRepository;
         this.transactionRepository = transactionRepository;
@@ -59,6 +61,7 @@ public class PaymentServiceImpl implements PaymentService {
         this.mapper = mapper;
         this.auditService = auditService;
         this.notificationRepository = notificationRepository;
+        this.commissionService = commissionService;
         this.properties = properties;
     }
 
@@ -159,6 +162,7 @@ public class PaymentServiceImpl implements PaymentService {
             payment.setStatus(PaymentStatus.PAID);
             booking.setPaymentStatus(PaymentStatus.PAID);
             booking.setStatus(nextStatus);
+            commissionService.recordPaidPayment(payment);
             history(booking, previous, nextStatus, "Payment callback success");
             auditService.record(null, null, "PAYMENT_SUCCESS", "BOOKING", booking.getId().toString(), previous.name(), nextStatus.name(), provider);
             notifyCustomer(booking, "PAYMENT_SUCCESS", "Thanh toán thành công", "Booking " + booking.getBookingCode() + " đã thanh toán thành công");

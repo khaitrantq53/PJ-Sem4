@@ -25,4 +25,12 @@ public class StaffDashboardController {
     ApiResponse<StaffDtos.DashboardSummaryResponse> summary(@RequestParam(required = false) UUID parkingLotId) {
         return ApiResponse.ok(dashboardService.summary(SecurityUtils.currentUser(), parkingLotId), RequestContext.requestId());
     }
+
+    @GetMapping("/performance")
+    ApiResponse<StaffDtos.PerformanceResponse> performance(@RequestParam(required = false) UUID parkingLotId,
+                                                           @RequestParam(defaultValue = "bookings") String metric,
+                                                           @RequestParam(defaultValue = "today") String range) {
+        return ApiResponse.ok(dashboardService.performance(SecurityUtils.currentUser(), parkingLotId, metric, range),
+                RequestContext.requestId());
+    }
 }

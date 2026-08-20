@@ -2,14 +2,19 @@ package com.smartparking.controller;
 
 import com.smartparking.booking.BookingService;
 import com.smartparking.booking.dto.BookingDtos;
+import com.smartparking.common.RequestStatus;
 import com.smartparking.common.dto.ApiResponse;
+import com.smartparking.common.dto.PageResponse;
 import com.smartparking.common.security.RequestContext;
 import com.smartparking.common.security.SecurityUtils;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -21,6 +26,18 @@ public class StaffBookingRequestController {
 
     public StaffBookingRequestController(BookingService bookingService) {
         this.bookingService = bookingService;
+    }
+
+    @GetMapping("/booking-change-requests")
+    PageResponse<BookingDtos.BookingRequestResponse> changeRequests(@RequestParam(required = false) RequestStatus status,
+                                                                    Pageable pageable) {
+        return PageResponse.of(bookingService.staffChangeRequests(SecurityUtils.currentUser(), status, pageable), RequestContext.requestId());
+    }
+
+    @GetMapping("/booking-extension-requests")
+    PageResponse<BookingDtos.BookingRequestResponse> extensionRequests(@RequestParam(required = false) RequestStatus status,
+                                                                       Pageable pageable) {
+        return PageResponse.of(bookingService.staffExtensionRequests(SecurityUtils.currentUser(), status, pageable), RequestContext.requestId());
     }
 
     @PostMapping("/booking-change-requests/{requestId}/approve")

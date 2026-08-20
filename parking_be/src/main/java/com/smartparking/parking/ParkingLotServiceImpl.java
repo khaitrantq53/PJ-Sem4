@@ -687,7 +687,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
 
     private ParkingDtos.CapacityResponse capacityResponse(ParkingVehicleCapacity capacity, OffsetDateTime startTime, OffsetDateTime endTime) {
         long reserved = bookingRepository.countActiveReservations(capacity.getParkingLot().getId(), capacity.getVehicleType(), reservedStatuses(), startTime, endTime);
-        long checkedIn = bookingRepository.countActiveReservations(capacity.getParkingLot().getId(), capacity.getVehicleType(), occupiedStatuses(), startTime, endTime);
+        long checkedIn = bookingRepository.countCurrentCheckedInCapacity(capacity.getParkingLot().getId(), capacity.getVehicleType(), occupiedStatuses());
         long blocked = blockRepository.countBlocked(capacity.getParkingLot().getId(), capacity.getVehicleType(), startTime, endTime);
         long available = Math.max(0, capacity.getTotalCapacity() - reserved - checkedIn - blocked);
         return new ParkingDtos.CapacityResponse(capacity.getParkingLot().getId(), capacity.getVehicleType(), capacity.getTotalCapacity(),

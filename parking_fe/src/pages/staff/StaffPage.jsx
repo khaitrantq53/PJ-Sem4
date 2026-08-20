@@ -30,16 +30,6 @@ const dashboardContent = `
       <strong id="staffOccupied">0</strong>
       <small>Checked-in vehicles</small>
     </article>
-    <article class="dashboard-kpi-card k-ochre">
-      <span>Reserved</span>
-      <strong id="staffReserved">0</strong>
-      <small>Approved bookings</small>
-    </article>
-    <article class="dashboard-kpi-card k-pink">
-      <span>Blocked</span>
-      <strong id="staffBlocked">0</strong>
-      <small>Unavailable slots</small>
-    </article>
     <article class="dashboard-kpi-card dark staff-occupancy-card">
       <span>Occupancy Rate</span>
       <strong id="staffOccupancyRate">0%</strong>
@@ -64,8 +54,7 @@ const dashboardContent = `
       <div class="dashboard-legend">
         <span><i class="available"></i>Available</span>
         <span><i class="occupied"></i>Checked-in</span>
-        <span><i class="reserved"></i>Reserved</span>
-        <span><i class="blocked"></i>Blocked</span>
+        <span><i class="pending"></i>Pending approvals</span>
       </div>
     </section>
 
@@ -75,7 +64,18 @@ const dashboardContent = `
           <p>Today</p>
           <h2>Performance</h2>
         </div>
-        <a href="/staff-bookings.html">View bookings</a>
+        <div class="staff-performance-filters">
+          <div class="dashboard-tabs compact" id="staffPerformanceMetricTabs" aria-label="Performance metric">
+            <button class="active" type="button" data-staff-performance-metric="bookings">Bookings</button>
+            <button type="button" data-staff-performance-metric="revenue">Revenue</button>
+          </div>
+          <div class="dashboard-tabs compact" id="staffPerformanceRangeTabs" aria-label="Performance range">
+            <button class="active" type="button" data-staff-performance-range="today">Today</button>
+            <button type="button" data-staff-performance-range="7">7 days</button>
+            <button type="button" data-staff-performance-range="30">30 days</button>
+          </div>
+          <a href="/staff-bookings.html">View bookings</a>
+        </div>
       </div>
       <div class="dashboard-performance-cards">
         <article>
@@ -103,29 +103,22 @@ const dashboardContent = `
       <div class="dashboard-ops-list" id="staffOpsList"></div>
     </section>
 
-    <section class="dashboard-panel">
+    <section class="dashboard-panel staff-review-panel">
       <div class="dashboard-panel-head">
         <div>
-          <p>Location</p>
-          <h2>My Parking Lot</h2>
+          <p>Reviews</p>
+          <h2>Customer Reviews</h2>
         </div>
-        <span id="staffManagedLots">No lot yet</span>
+        <span id="staffReviewSummary">No reviews yet</span>
       </div>
-      <article class="staff-lot-dashboard-card">
-        <div class="staff-lot-status-row">
-          <span class="dashboard-status-pill" id="staffLotStatus">UNKNOWN</span>
-          <a href="/staff-parking-lots.html" aria-label="Edit parking lot">
-            <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
-          </a>
+      <article class="staff-review-score-card">
+        <div>
+          <strong id="staffReviewAverage">0.0</strong>
+          <span id="staffReviewStars" aria-label="Average rating">★★★★★</span>
         </div>
-        <h3 id="staffLotName">No assigned parking lot</h3>
-        <p id="staffLotAddress">Create or update your parking lot details.</p>
-        <div class="staff-lot-dashboard-metrics">
-          <span><strong id="staffLotLowestRate">0</strong><small>Lowest hourly price</small></span>
-          <span><strong id="staffLotServices">0</strong><small>Services</small></span>
-          <span><strong id="staffLotPromotions">0</strong><small>Promotions</small></span>
-        </div>
+        <small id="staffReviewCount">0 completed booking reviews</small>
       </article>
+      <div class="staff-review-list" id="staffReviewList"></div>
     </section>
   </div>
 
@@ -142,7 +135,6 @@ const dashboardContent = `
         <button class="active" type="button" data-staff-dashboard-booking-filter="">All</button>
         <button type="button" data-staff-dashboard-booking-filter="PENDING_APPROVAL">Pending</button>
         <button type="button" data-staff-dashboard-booking-filter="CHECKED_IN">Checked in</button>
-        <button type="button" data-staff-dashboard-booking-filter="OVERDUE">Overdue</button>
       </div>
       <div class="dashboard-data-list" id="staffBookingList"></div>
     </section>

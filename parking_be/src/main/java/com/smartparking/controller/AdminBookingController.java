@@ -39,12 +39,16 @@ public class AdminBookingController {
                                                        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startFrom,
                                                        @RequestParam(required = false)
                                                        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endTo,
+                                                       @RequestParam(required = false)
+                                                       @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime createdFrom,
+                                                       @RequestParam(required = false)
+                                                       @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime createdTo,
                                                        @RequestParam(required = false) VehicleType vehicleType,
                                                        @RequestParam(required = false) String bookingCode,
                                                        @RequestParam(required = false) String plateNumber,
                                                        Pageable pageable) {
         AdminDtos.AdminBookingFilter filter = new AdminDtos.AdminBookingFilter(parkingLotId, status, startFrom, endTo,
-                vehicleType, bookingCode, plateNumber);
+                createdFrom, createdTo, vehicleType, bookingCode, plateNumber);
         return PageResponse.of(adminService.bookings(filter, pageable), RequestContext.requestId());
     }
 

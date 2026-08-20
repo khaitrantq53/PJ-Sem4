@@ -2,6 +2,7 @@ package com.smartparking.booking;
 
 import com.smartparking.booking.dto.BookingDtos;
 import com.smartparking.common.BookingStatus;
+import com.smartparking.common.RequestStatus;
 import com.smartparking.common.VehicleType;
 import com.smartparking.common.security.CurrentUser;
 import org.springframework.data.domain.Page;
@@ -43,6 +44,10 @@ public interface BookingService {
     BookingDtos.BookingRequestResponse approveExtensionRequest(CurrentUser currentUser, UUID requestId);
 
     BookingDtos.BookingRequestResponse rejectExtensionRequest(CurrentUser currentUser, UUID requestId, String reason);
+
+    Page<BookingDtos.BookingRequestResponse> staffChangeRequests(CurrentUser currentUser, RequestStatus status, Pageable pageable);
+
+    Page<BookingDtos.BookingRequestResponse> staffExtensionRequests(CurrentUser currentUser, RequestStatus status, Pageable pageable);
 
     BookingDtos.VerifyQrResponse verifyQr(CurrentUser currentUser, UUID bookingId, BookingDtos.VerifyQrRequest request);
 

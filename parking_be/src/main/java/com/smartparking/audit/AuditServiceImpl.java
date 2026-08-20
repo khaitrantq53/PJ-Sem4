@@ -6,11 +6,15 @@ import com.smartparking.common.exception.ErrorCode;
 import com.smartparking.common.security.RequestContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.criteria.Predicate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -47,8 +51,8 @@ public class AuditServiceImpl implements AuditService {
     public Page<AuditDtos.AuditLogResponse> list(UUID actorId, Role actorRole, String action, String entityType,
                                                  String entityId, OffsetDateTime from, OffsetDateTime to,
                                                  String requestId, Pageable pageable) {
-        return auditLogRepository.search(actorId, actorRole, blankToNull(action), blankToNull(entityType),
-                blankToNull(entityId), from, to, blankToNull(requestId), pageable).map(auditMapper::toResponse);
+        return auditLogRepository.findAll(auditSpecification(actorId, actorRole, action, entityType,
+                entityId, from, to, requestId), pageable).map(auditMapper::toResponse);
     }
 
     @Override
@@ -61,5 +65,47 @@ public class AuditServiceImpl implements AuditService {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    private Specification<AuditLog> auditSpecification(UUID actorId, Role actorRole, String action, String entityType,
+                                                       String entityId, OffsetDateTime from, OffsetDateTime to,
+                                                       String requestId) {
+        return (root, query, builder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (actorId != null) {
+                predicates.add(builder.equal(root.get("actorId"), actorId));
+            }
+            if (actorRole != null) {
+                predicates.add(builder.equal(root.get("actorRole"), actorRole));
+            }
+
+            String normalizedAction = blankToNull(action);
+            if (normalizedAction != null) {
+                predicates.add(builder.like(builder.lower(root.get("action")), "%" + normalizedAction.toLowerCase() + "%"));
+            }
+
+            String normalizedEntityType = blankToNull(entityType);
+            if (normalizedEntityType != null) {
+                predicates.add(builder.equal(builder.lower(root.get("entityType")), normalizedEntityType.toLowerCase()));
+            }
+
+            String normalizedEntityId = blankToNull(entityId);
+            if (normalizedEntityId != null) {
+                predicates.add(builder.equal(root.get("entityId"), normalizedEntityId));
+            }
+            if (from != null) {
+                predicates.add(builder.greaterThanOrEqualTo(root.get("createdAt"), from));
+            }
+            if (to != null) {
+                predicates.add(builder.lessThanOrEqualTo(root.get("createdAt"), to));
+            }
+
+            String normalizedRequestId = blankToNull(requestId);
+            if (normalizedRequestId != null) {
+                predicates.add(builder.equal(root.get("requestId"), normalizedRequestId));
+            }
+
+            return builder.and(predicates.toArray(Predicate[]::new));
+        };
     }
 }

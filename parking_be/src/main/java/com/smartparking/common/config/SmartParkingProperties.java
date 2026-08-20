@@ -13,6 +13,7 @@ public record SmartParkingProperties(
         Booking booking,
         Pricing pricing,
         Payment payment,
+        Commission commission,
         Otp otp,
         Operation operation,
         Jobs jobs,
@@ -30,6 +31,9 @@ public record SmartParkingProperties(
     }
 
     public record Payment(String webhookSecret) {
+    }
+
+    public record Commission(BigDecimal staffRate) {
     }
 
     public record Otp(long ttlMinutes, int length) {

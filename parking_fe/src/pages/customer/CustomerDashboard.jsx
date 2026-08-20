@@ -93,6 +93,10 @@ function statusText(value) {
   return String(value || '-').replaceAll('_', ' ');
 }
 
+function isOnlinePaymentMethod(method) {
+  return ['QR', 'CARD'].includes(String(method || '').toUpperCase());
+}
+
 function vehicleTypeText(value) {
   if (!value) {
     return '';
@@ -856,7 +860,9 @@ export function CustomerDashboard() {
     const displayServiceFee = previewBreakdown?.serviceFee || savedBreakdown?.serviceFee || null;
     const displayTax = previewBreakdown?.tax || savedBreakdown?.tax || null;
     const displayTotal = hasBillableParking ? syncedBreakdown?.total || null : null;
-    const showPaymentQr = ['CHECKED_OUT', 'PENDING_PAYMENT'].includes(booking.status) && !isPaidBooking(booking);
+    const requiresPayment = ['CHECKED_OUT', 'PENDING_PAYMENT'].includes(booking.status) && !isPaidBooking(booking);
+    const showPaymentQr = requiresPayment && isOnlinePaymentMethod(booking.paymentMethod);
+    const showDirectPaymentNote = requiresPayment && !isOnlinePaymentMethod(booking.paymentMethod);
     const showCancelBooking = canCustomerCancelBooking(booking);
     const paymentQr = paymentQrPayload(booking, displayTotal || total);
     const pageHeading = booking.status === 'CHECKED_OUT'
@@ -1025,6 +1031,12 @@ export function CustomerDashboard() {
                     <strong>{formatMoney(displayTotal || total)}</strong>
                     <small>{booking.bookingCode || booking.id}</small>
                   </div>
+                </div>
+              ) : null}
+              {showDirectPaymentNote ? (
+                <div className="active-booking-payment-note">
+                  <strong>{statusText(booking.paymentMethod)}</strong>
+                  <small>Please settle this payment directly with the parking lot staff.</small>
                 </div>
               ) : null}
             </section>

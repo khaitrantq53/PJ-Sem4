@@ -130,6 +130,53 @@ const confirmBookingPage = {
             </section>
 
             <section class="checkout-options-card">
+              <div class="checkout-section-heading">
+                <h3>Payment Method</h3>
+                <span id="selectedPaymentLabel">Bank transfer</span>
+              </div>
+              <select class="checkout-native-select" id="paymentMethod" name="paymentMethod" required>
+                <option value="BANK_TRANSFER" selected>Bank transfer</option>
+                <option value="CASH">Cash</option>
+                <option value="QR">QR</option>
+                <option value="CARD">Card</option>
+              </select>
+              <div class="checkout-payment-grid" data-checkout-payment-options>
+                <label class="checkout-payment-card active">
+                  <input type="radio" name="paymentMethodChoice" value="BANK_TRANSFER" checked />
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 6h18v12H3V6Zm2 2v8h14V8H5Zm2 2h5v2H7v-2Zm0 3h8v1.5H7V13Zm10-3h1.5v1.5H17V10Zm0 3h1.5v1.5H17V13Z" />
+                  </svg>
+                  <strong>Bank transfer</strong>
+                  <small>Paid to parking lot</small>
+                </label>
+                <label class="checkout-payment-card">
+                  <input type="radio" name="paymentMethodChoice" value="CASH" />
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 7h18v10H3V7Zm2 2v6h14V9H5Zm7 1a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-5 1h2v2H7v-2Zm8 0h2v2h-2v-2Z" />
+                  </svg>
+                  <strong>Cash</strong>
+                  <small>Paid at checkout</small>
+                </label>
+                <label class="checkout-payment-card">
+                  <input type="radio" name="paymentMethodChoice" value="QR" />
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 4h7v7H4V4Zm2 2v3h3V6H6Zm7-2h7v7h-7V4Zm2 2v3h3V6h-3ZM4 13h7v7H4v-7Zm2 2v3h3v-3H6Zm9-2h2v2h-2v-2Zm3 0h2v4h-4v-2h2v-2Zm-5 4h2v3h-2v-3Zm4 1h3v2h-3v-2Z" />
+                  </svg>
+                  <strong>QR</strong>
+                  <small>Online payment</small>
+                </label>
+                <label class="checkout-payment-card">
+                  <input type="radio" name="paymentMethodChoice" value="CARD" />
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 6h18v12H3V6Zm2 3h14V8H5v1Zm0 3v4h14v-4H5Zm2 2h5v1.5H7V14Z" />
+                  </svg>
+                  <strong>Card</strong>
+                  <small>Admin collected</small>
+                </label>
+              </div>
+            </section>
+
+            <section class="checkout-options-card">
               <h3>Additional Services</h3>
               <div class="checkout-extra-grid" id="additionalServicesGrid">
                 <div class="checkout-empty-services">Loading additional services...</div>
@@ -154,8 +201,6 @@ const confirmBookingPage = {
                 <input id="promotionCode" name="promotionCode" placeholder="Promo code" />
                 <button type="button">Apply</button>
               </div>
-
-              <input id="paymentMethod" name="paymentMethod" type="hidden" value="QR" />
 
               <button class="checkout-confirm-button" id="confirmButton" type="submit">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
