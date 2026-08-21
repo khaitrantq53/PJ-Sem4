@@ -14,6 +14,40 @@ const TOKEN_KEY = 'parkingAccessToken';
 const REFRESH_TOKEN_KEY = 'parkingRefreshToken';
 const ACCOUNT_KEY = 'parkingAccount';
 
+export function resolveAssetUrl(url) {
+  if (!url || typeof url !== 'string') {
+    return url;
+  }
+
+  if (/^(https?:|data:|blob:)/i.test(url) || url.startsWith('/assets/')) {
+    return url;
+  }
+
+  if (!url.startsWith('/api/v1/public/files')) {
+    return url;
+  }
+
+  if (API_BASE.startsWith('/')) {
+    return url;
+  }
+
+  return `${API_BASE.replace(/\/api\/v1$/, '')}${url}`;
+}
+
+function normalizeAssetUrls(value) {
+  if (Array.isArray(value)) {
+    return value.map(normalizeAssetUrls);
+  }
+
+  if (!value || typeof value !== 'object') {
+    return resolveAssetUrl(value);
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, nestedValue]) => [key, normalizeAssetUrls(nestedValue)])
+  );
+}
+
 function toQuery(params) {
   const search = new URLSearchParams();
 
@@ -32,7 +66,7 @@ function normalizePage(payload) {
   }
 
   return {
-    items: Array.isArray(payload.data) ? payload.data : [],
+    items: Array.isArray(payload.data) ? normalizeAssetUrls(payload.data) : [],
     pagination: payload.pagination || {
       page: 0,
       size: 0,
@@ -132,7 +166,7 @@ function normalizeResult(payload) {
     throw new Error(getErrorMessage(payload, 'Invalid API response'));
   }
 
-  return payload.data ?? payload;
+  return normalizeAssetUrls(payload.data ?? payload);
 }
 
 export function getStoredAccount() {
@@ -262,7 +296,7 @@ export async function getParkingAvailability(parkingLotId, params) {
     throw new Error(getErrorMessage(payload, 'Cannot load availability'));
   }
 
-  return payload.data;
+  return normalizeAssetUrls(payload.data);
 }
 
 export async function getParkingLotDetail(parkingLotId) {
@@ -273,7 +307,7 @@ export async function getParkingLotDetail(parkingLotId) {
     throw new Error(getErrorMessage(payload, 'Cannot load parking lot detail'));
   }
 
-  return payload.data;
+  return normalizeAssetUrls(payload.data);
 }
 
 async function getParkingLotPublicCollection(parkingLotId, resource, fallbackMessage) {
@@ -284,7 +318,7 @@ async function getParkingLotPublicCollection(parkingLotId, resource, fallbackMes
     throw new Error(getErrorMessage(payload, fallbackMessage));
   }
 
-  return Array.isArray(payload.data) ? payload.data : [];
+  return Array.isArray(payload.data) ? normalizeAssetUrls(payload.data) : [];
 }
 
 export function getParkingLotCapacities(parkingLotId) {
