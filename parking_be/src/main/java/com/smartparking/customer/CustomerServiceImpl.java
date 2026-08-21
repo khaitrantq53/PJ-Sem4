@@ -4,6 +4,7 @@ import com.smartparking.account.Account;
 import com.smartparking.account.AccountRepository;
 import com.smartparking.account.CustomerProfile;
 import com.smartparking.account.CustomerProfileRepository;
+import com.smartparking.common.AccountStatus;
 import com.smartparking.common.StoredFile;
 import com.smartparking.common.exception.BusinessException;
 import com.smartparking.common.exception.ErrorCode;
@@ -26,7 +27,7 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public CustomerDtos.ProfileResponse me(CurrentUser currentUser) {
         return response(profile(currentUser));
     }
@@ -54,7 +55,32 @@ public class CustomerServiceImpl implements CustomerService {
 
     private CustomerProfile profile(CurrentUser currentUser) {
         return customerProfileRepository.findByAccountId(currentUser.id())
-                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Customer profile không tồn tại"));
+                .orElseGet(() -> createMissingProfile(currentUser));
+    }
+
+    private CustomerProfile createMissingProfile(CurrentUser currentUser) {
+        Account account = accountRepository.findById(currentUser.id())
+                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Customer account không tồn tại"));
+        CustomerProfile profile = new CustomerProfile();
+        profile.setAccount(account);
+        profile.setFullName(defaultFullName(account));
+        return customerProfileRepository.save(profile);
+    }
+
+    private String defaultFullName(Account account) {
+        if (account.getEmail() != null && !account.getEmail().isBlank()) {
+            String localPart = account.getEmail().split("@", 2)[0];
+            String normalized = localPart.replaceAll("[._-]+", " ").trim();
+            if (!normalized.isBlank()) {
+                return normalized;
+            }
+        }
+
+        if (account.getPhone() != null && !account.getPhone().isBlank()) {
+            return account.getPhone();
+        }
+
+        return "Customer";
     }
 
     private void updateAccountContact(Account account, CustomerDtos.ProfileUpdateRequest request) {
@@ -94,12 +120,20 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     private CustomerDtos.ProfileResponse response(CustomerProfile profile) {
+        Account account = profile.getAccount();
+        String avatarFileId = profile.getAvatarFileId();
+        boolean emailVerified = account.getEmail() != null && account.getStatus() == AccountStatus.ACTIVE;
+        boolean phoneVerified = account.getPhone() != null && !account.getPhone().isBlank();
         return new CustomerDtos.ProfileResponse(
-                profile.getAccount().getId(),
-                profile.getAccount().getEmail(),
-                profile.getAccount().getPhone(),
+                account.getId(),
+                account.getEmail(),
+                account.getPhone(),
                 profile.getFullName(),
-                profile.getAvatarFileId(),
+                avatarFileId,
+                avatarFileId == null || avatarFileId.isBlank() ? null : "/api/v1/public/files/customer-avatars/" + avatarFileId,
+                account.getStatus(),
+                emailVerified,
+                phoneVerified,
                 profile.getVersion(),
                 profile.getCreatedAt(),
                 profile.getUpdatedAt()

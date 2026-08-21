@@ -15,7 +15,7 @@ function isUnauthorized(error) {
 }
 
 function profileName(profile, account) {
-  return profile?.fullName || account?.email || account?.phone || 'Customer';
+  return profile?.fullName || account?.fullName || account?.email || account?.phone || 'Customer';
 }
 
 function formatDate(value) {
@@ -92,10 +92,13 @@ export function CustomerProfile() {
   const initials = initialsFor(name);
   const displayEmail = form.email || profile?.email || account?.email || '';
   const displayPhone = form.phone || profile?.phone || account?.phone || '';
+  const avatarUrl = avatarPreviewUrl || profile?.avatarUrl || '';
+  const emailVerified = profile?.emailVerified ?? (Boolean(displayEmail) && (profile?.status || account?.status) === 'ACTIVE');
+  const phoneVerified = profile?.phoneVerified ?? Boolean(displayPhone);
   const defaultVehicle = vehicles.find((vehicle) => vehicle.defaultVehicle) || vehicles[0] || null;
   const activeBookings = bookings.filter((booking) => activeBookingStatuses.includes(booking.status));
   const completedBookings = bookings.filter((booking) => finishedBookingStatuses.includes(booking.status));
-  const accountStatus = statusText(account?.status || 'ACTIVE');
+  const accountStatus = statusText(profile?.status || account?.status || 'ACTIVE');
 
   const overviewCards = useMemo(() => [
     ['Vehicles', vehicles.length, 'Registered vehicles', 'car'],
@@ -114,9 +117,9 @@ export function CustomerProfile() {
         return;
       }
 
+      setAccount(currentAccount);
       const profileResponse = await apiRequest('/customers/me');
 
-      setAccount(currentAccount);
       setProfile(profileResponse);
       setForm({
         email: profileResponse.email || currentAccount.email || '',
@@ -222,6 +225,7 @@ export function CustomerProfile() {
         ...current,
         email: updated.email,
         phone: updated.phone,
+        status: updated.status || current?.status,
       }));
       setForm({
         email: updated.email || '',
@@ -344,7 +348,7 @@ export function CustomerProfile() {
 
           <section className="profile-hero-card">
             <div className="profile-avatar-block">
-              <AvatarPreview className="profile-avatar-large" initials={initials} previewUrl={avatarPreviewUrl} />
+              <AvatarPreview className="profile-avatar-large" initials={initials} previewUrl={avatarUrl} />
               <button type="button" aria-label="Edit avatar" onClick={openProfileModal}>
                 <Icon type="edit" />
               </button>
@@ -411,14 +415,14 @@ export function CustomerProfile() {
                   <span><Icon type="mail" /></span>
                   <div>
                     <strong>Email Verification</strong>
-                    <small>{displayEmail ? 'Verified' : 'Not connected'}</small>
+                    <small>{emailVerified ? 'Verified' : (displayEmail ? 'Not verified' : 'Not connected')}</small>
                   </div>
                 </article>
                 <article>
                   <span><Icon type="phone" /></span>
                   <div>
                     <strong>Phone Verification</strong>
-                    <small>{displayPhone ? 'Verified' : 'Not connected'}</small>
+                    <small>{phoneVerified ? 'Verified' : (displayPhone ? 'Connected' : 'Not connected')}</small>
                   </div>
                 </article>
               </div>
@@ -492,7 +496,7 @@ export function CustomerProfile() {
                   type="button"
                   onClick={openAvatarPicker}
                 >
-                  <AvatarPreview className="profile-dialog-avatar" initials={initials} previewUrl={avatarPreviewUrl} />
+                  <AvatarPreview className="profile-dialog-avatar" initials={initials} previewUrl={avatarUrl} />
                   <span>
                     <Icon type="image" />
                     Choose avatar

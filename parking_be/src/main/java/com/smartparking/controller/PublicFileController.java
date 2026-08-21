@@ -2,6 +2,8 @@ package com.smartparking.controller;
 
 import com.smartparking.common.exception.BusinessException;
 import com.smartparking.common.exception.ErrorCode;
+import com.smartparking.common.StoredFile;
+import com.smartparking.common.StoredFileRepository;
 import com.smartparking.parking.ParkingLotImage;
 import com.smartparking.parking.ParkingLotImageRepository;
 import com.smartparking.parking.ParkingLotUpdateImage;
@@ -29,16 +31,29 @@ public class PublicFileController {
     private final VehicleImageRepository vehicleImageRepository;
     private final ParkingLotImageRepository parkingLotImageRepository;
     private final ParkingLotUpdateImageRepository parkingLotUpdateImageRepository;
+    private final StoredFileRepository storedFileRepository;
     private final MinioClient minioClient;
 
     public PublicFileController(VehicleImageRepository vehicleImageRepository,
                                 ParkingLotImageRepository parkingLotImageRepository,
                                 ParkingLotUpdateImageRepository parkingLotUpdateImageRepository,
+                                StoredFileRepository storedFileRepository,
                                 MinioClient minioClient) {
         this.vehicleImageRepository = vehicleImageRepository;
         this.parkingLotImageRepository = parkingLotImageRepository;
         this.parkingLotUpdateImageRepository = parkingLotUpdateImageRepository;
+        this.storedFileRepository = storedFileRepository;
         this.minioClient = minioClient;
+    }
+
+    @GetMapping("/customer-avatars/{fileId}")
+    ResponseEntity<InputStreamResource> customerAvatar(@PathVariable UUID fileId) {
+        StoredFile file = storedFileRepository.findById(fileId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Customer avatar không tồn tại"));
+        if (!file.getObjectKey().startsWith("customers/")) {
+            throw new BusinessException(ErrorCode.ACCESS_DENIED, "Không có quyền đọc file này");
+        }
+        return fileResponse(file.getBucket(), file.getObjectKey(), file.getContentType(), file.getFileSize(), "Không đọc được ảnh đại diện");
     }
 
     @GetMapping("/vehicle-images/{imageId}")

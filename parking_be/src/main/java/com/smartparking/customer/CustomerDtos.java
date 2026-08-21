@@ -1,5 +1,6 @@
 package com.smartparking.customer;
 
+import com.smartparking.common.AccountStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
@@ -19,7 +20,9 @@ public final class CustomerDtos {
     ) {
     }
 
-    public record ProfileResponse(UUID accountId, String email, String phone, String fullName, String avatarFileId,
+    public record ProfileResponse(UUID accountId, String email, String phone, String fullName,
+                                  String avatarFileId, String avatarUrl,
+                                  AccountStatus status, boolean emailVerified, boolean phoneVerified,
                                   Long version, OffsetDateTime createdAt, OffsetDateTime updatedAt) {
     }
 }
