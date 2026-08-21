@@ -10,7 +10,7 @@ const distDir = resolve(sourceDir, 'dist');
 const rootDir = existsSync(distDir) ? distDir : sourceDir;
 const backendUrl = new URL(process.env.BACKEND_URL || 'http://127.0.0.1:8080');
 const preferredPort = Number(process.env.PORT || 5173);
-const host = process.env.HOST || '127.0.0.1';
+const host = process.env.HOST || '0.0.0.0';
 const defaultMapCenter = {
   lat: Number(process.env.DEFAULT_MAP_LAT || 21.0278),
   lng: Number(process.env.DEFAULT_MAP_LNG || 105.8342),

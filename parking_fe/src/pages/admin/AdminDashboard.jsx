@@ -6,6 +6,7 @@ const icons = {
   dashboard: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h7V4H4v9Zm0 7h7v-5H4v5Zm9 0h7v-9h-7v9Zm0-16v5h7V4h-7Z" /></svg>',
   lots: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm-1 14-3.3-3.3 1.4-1.4 1.9 1.9 4.6-4.6 1.4 1.4-6 6Z" /></svg>',
   money: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4V6Zm2 2v8h12V8H6Zm6 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" /></svg>',
+  requests: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h10l4 4v14H5V3Zm9 2v4h4l-4-4ZM8 11h8v2H8v-2Zm0 4h8v2H8v-2Zm0-8h4v2H8V7Z" /></svg>',
   staff: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm6 1a3 3 0 1 0-3-3 3 3 0 0 0 3 3ZM9 13c-3.9 0-7 1.9-7 4.2V20h14v-2.8C16 14.9 12.9 13 9 13Zm6.3 1c1.7.8 2.7 1.9 2.7 3.2V20h4v-2.4c0-1.9-2.7-3.4-6.7-3.6Z" /></svg>',
   users: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.4 0-8 2.1-8 5v1h16v-1c0-2.9-3.6-5-8-5Z" /></svg>',
 };
@@ -29,9 +30,9 @@ const adminPage = {
           <a class="active" href="/admin.html">${icons.dashboard}Dashboard</a>
           <a href="/admin-users.html">${icons.users}Customers</a>
           <a href="/admin-staff.html">${icons.staff}Staff</a>
-          <a href="/admin-lots.html">${icons.lots}Parking Lots</a>
+          <a href="/admin-requests.html">${icons.requests}Requests</a>
           <a href="/admin-bookings.html">${icons.bookings}Bookings</a>
-          <a href="/admin-refunds.html">${icons.money}Refunds</a>
+          <a href="/admin-finance.html">${icons.money}Finance</a>
           <a href="/admin-audit.html">${icons.audit}Audit Logs</a>
         </nav>
 
@@ -53,7 +54,7 @@ const adminPage = {
             <div>
               <p data-account-role>Admin · SmartPark</p>
               <h1>Dashboard</h1>
-              <span>Monitor accounts, parking lots, booking exceptions, refunds, and audit activity across the system.</span>
+              <span>Monitor accounts, parking lots, booking exceptions, commission, and audit activity across the system.</span>
             </div>
             <div class="dashboard-hero-actions">
               <span class="dashboard-live-pill" id="adminLiveTime">Syncing backend...</span>
@@ -149,9 +150,9 @@ const adminPage = {
               <div class="dashboard-panel-head">
                 <div>
                   <p>Parking Lots</p>
-                  <h2>Approval Queue</h2>
+                  <h2>Change Requests</h2>
                 </div>
-                <a href="/admin-lots.html">Review lots</a>
+                <a href="/admin-requests.html">Review requests</a>
               </div>
               <div class="dashboard-data-list" id="adminLotQueue"></div>
             </section>

@@ -2,14 +2,13 @@ import { AdminAudit } from '../pages/admin/AdminAudit.jsx';
 import { AdminBookings } from '../pages/admin/AdminBookings.jsx';
 import { AdminDashboard } from '../pages/admin/AdminDashboard.jsx';
 import { AdminFinance } from '../pages/admin/AdminFinance.jsx';
-import { AdminLots } from '../pages/admin/AdminLots.jsx';
 import { AdminRequests } from '../pages/admin/AdminRequests.jsx';
 import { AdminStaff } from '../pages/admin/AdminStaff.jsx';
 import { AdminUsers } from '../pages/admin/AdminUsers.jsx';
 import { AuthPage } from '../pages/auth/AuthPage.jsx';
 import { ConfirmRegistrationPage } from '../pages/auth/ConfirmRegistrationPage.jsx';
 import { ConfirmBookingPage } from '../pages/booking/ConfirmBookingPage.jsx';
-import { CustomerDashboard } from '../pages/customer/CustomerDashboard.jsx';
+import { CustomerDashboard, CustomerRecentBookings } from '../pages/customer/CustomerDashboard.jsx';
 import { CustomerPayments } from '../pages/customer/CustomerPayments.jsx';
 import { CustomerProfile } from '../pages/customer/CustomerProfile.jsx';
 import { CustomerSupport } from '../pages/customer/CustomerSupport.jsx';
@@ -20,13 +19,14 @@ import { StaffBookingsPage } from '../pages/staff/StaffBookingsPage.jsx';
 import { StaffCommissionsPage } from '../pages/staff/StaffCommissionsPage.jsx';
 import { StaffPage } from '../pages/staff/StaffPage.jsx';
 import { StaffParkingLotsPage } from '../pages/staff/StaffParkingLotsPage.jsx';
+import { StaffReviewsPage } from '../pages/staff/StaffReviewsPage.jsx';
 import { getCurrentPageName, runtimeLoaders } from './routes.js';
 
 const adminComponents = {
   'admin.html': AdminDashboard,
   'admin-users.html': AdminUsers,
   'admin-staff.html': AdminStaff,
-  'admin-lots.html': AdminLots,
+  'admin-lots.html': AdminRequests,
   'admin-requests.html': AdminRequests,
   'admin-finance.html': AdminFinance,
   'admin-refunds.html': AdminFinance,
@@ -42,6 +42,7 @@ const pageComponents = {
   'staff-parking-lots.html': StaffParkingLotsPage,
   'staff-bookings.html': StaffBookingsPage,
   'staff-commissions.html': StaffCommissionsPage,
+  'staff-reviews.html': StaffReviewsPage,
   'parking-detail.html': ParkingDetailPage,
   'confirm-booking.html': ConfirmBookingPage,
 };
@@ -85,6 +86,10 @@ export default function App() {
 
   if (pageName === 'customer.html') {
     return <CustomerDashboard />;
+  }
+
+  if (pageName === 'customer-recent.html') {
+    return <CustomerRecentBookings />;
   }
 
   if (pageName === 'customer-support.html') {

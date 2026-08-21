@@ -15,13 +15,15 @@ import com.smartparking.common.exception.BusinessException;
 import com.smartparking.common.exception.ErrorCode;
 import com.smartparking.common.security.CurrentUser;
 import com.smartparking.common.security.JwtService;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.mail.MailException;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -29,10 +31,14 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.OffsetDateTime;
 import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class AuthServiceImpl implements AuthService {
+    private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
+
     private final AccountRepository accountRepository;
     private final AccountCredentialRepository credentialRepository;
     private final CustomerProfileRepository customerProfileRepository;
@@ -41,7 +47,11 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final SmartParkingProperties properties;
-    private final ObjectProvider<JavaMailSender> mailSenderProvider;
+    private final RestClient emailClient;
+    private final String brevoApiKey;
+    private final String brevoFromEmail;
+    private final String brevoFromName;
+    private final String brevoApiUrl;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public AuthServiceImpl(AccountRepository accountRepository,
@@ -52,7 +62,11 @@ public class AuthServiceImpl implements AuthService {
                            PasswordEncoder passwordEncoder,
                            JwtService jwtService,
                            SmartParkingProperties properties,
-                           ObjectProvider<JavaMailSender> mailSenderProvider) {
+                           RestClient.Builder restClientBuilder,
+                           @Value("${smart-parking.email.brevo.api-key:}") String brevoApiKey,
+                           @Value("${smart-parking.email.brevo.from-email:}") String brevoFromEmail,
+                           @Value("${smart-parking.email.brevo.from-name:Smart Parking}") String brevoFromName,
+                           @Value("${smart-parking.email.brevo.api-url:https://api.brevo.com/v3/smtp/email}") String brevoApiUrl) {
         this.accountRepository = accountRepository;
         this.credentialRepository = credentialRepository;
         this.customerProfileRepository = customerProfileRepository;
@@ -61,7 +75,11 @@ public class AuthServiceImpl implements AuthService {
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.properties = properties;
-        this.mailSenderProvider = mailSenderProvider;
+        this.emailClient = restClientBuilder.build();
+        this.brevoApiKey = blankToEmpty(brevoApiKey);
+        this.brevoFromEmail = blankToEmpty(brevoFromEmail);
+        this.brevoFromName = blankToEmpty(brevoFromName);
+        this.brevoApiUrl = blankToEmpty(brevoApiUrl);
     }
 
     @Override
@@ -326,19 +344,65 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private void sendOtpEmail(String destination, OtpPurpose purpose, String otp) {
-        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
-        if (mailSender == null) {
-            throw new BusinessException(ErrorCode.OTP_DELIVERY_UNAVAILABLE, "Chưa cấu hình SMTP để gửi OTP");
+        if (brevoApiKey.isBlank() || brevoFromEmail.isBlank() || brevoApiUrl.isBlank()) {
+            throw new BusinessException(ErrorCode.OTP_DELIVERY_UNAVAILABLE, "Chưa cấu hình Brevo để gửi OTP");
         }
+
+        String text = "Mã OTP của bạn là " + otp + ". Mã hết hạn sau " + properties.otp().ttlMinutes() + " phút.";
+        Map<String, Object> payload = Map.of(
+                "sender", Map.of(
+                        "name", brevoFromName.isBlank() ? "Smart Parking" : brevoFromName,
+                        "email", brevoFromEmail
+                ),
+                "to", List.of(Map.of("email", destination)),
+                "subject", subject(purpose),
+                "textContent", text,
+                "htmlContent", otpEmailHtml(purpose, otp)
+        );
+
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(destination);
-            message.setSubject(subject(purpose));
-            message.setText("Mã OTP của bạn là " + otp + ". Mã hết hạn sau " + properties.otp().ttlMinutes() + " phút.");
-            mailSender.send(message);
-        } catch (MailException exception) {
+            emailClient.post()
+                    .uri(brevoApiUrl)
+                    .header("api-key", brevoApiKey)
+                    .header("User-Agent", "smart-parking-backend/1.0")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(payload)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException exception) {
+            log.warn("Cannot send OTP email to {} via Brevo: HTTP {} {}",
+                    maskDestination(destination),
+                    exception.getStatusCode().value(),
+                    exception.getResponseBodyAsString());
+            throw new BusinessException(ErrorCode.OTP_DELIVERY_UNAVAILABLE, "Không gửi được OTP");
+        } catch (RuntimeException exception) {
+            log.warn("Cannot send OTP email to {} via Brevo: {}", maskDestination(destination), exception.getMessage());
             throw new BusinessException(ErrorCode.OTP_DELIVERY_UNAVAILABLE, "Không gửi được OTP");
         }
+    }
+
+    private String otpEmailHtml(OtpPurpose purpose, String otp) {
+        return """
+                <div style="font-family:Arial,sans-serif;line-height:1.55;color:#111827">
+                  <h2 style="margin:0 0 12px">Smart Parking</h2>
+                  <p style="margin:0 0 16px">%s</p>
+                  <div style="display:inline-block;padding:14px 18px;border-radius:12px;background:#111827;color:#ffffff;font-size:28px;font-weight:700;letter-spacing:6px">%s</div>
+                  <p style="margin:16px 0 0;color:#6b7280">Mã hết hạn sau %d phút. Nếu bạn không yêu cầu mã này, hãy bỏ qua email.</p>
+                </div>
+                """.formatted(subject(purpose), otp, properties.otp().ttlMinutes());
+    }
+
+    private String maskDestination(String destination) {
+        if (destination == null || destination.isBlank()) {
+            return "-";
+        }
+
+        int atIndex = destination.indexOf('@');
+        if (atIndex <= 1) {
+            return "***";
+        }
+
+        return destination.charAt(0) + "***" + destination.substring(atIndex);
     }
 
     private String subject(OtpPurpose purpose) {
@@ -366,6 +430,10 @@ public class AuthServiceImpl implements AuthService {
 
     private String normalizeDestination(String destination) {
         return destination == null ? null : destination.trim().toLowerCase();
+    }
+
+    private String blankToEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private boolean isEmail(String destination) {

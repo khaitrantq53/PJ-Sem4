@@ -15,9 +15,9 @@ public interface CommissionService {
 
     Page<CommissionDtos.CommissionResponse> staffCommissions(CurrentUser currentUser, CommissionStatus status, String period, Pageable pageable);
 
-    CommissionDtos.CommissionSummaryResponse adminSummary();
+    CommissionDtos.CommissionSummaryResponse adminSummary(String period);
 
-    Page<CommissionDtos.CommissionResponse> adminCommissions(CommissionStatus status, Pageable pageable);
+    Page<CommissionDtos.CommissionResponse> adminCommissions(CommissionStatus status, String period, Pageable pageable);
 
     CommissionDtos.CommissionResponse markCollected(CurrentUser currentUser, UUID commissionId);
 }

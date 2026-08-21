@@ -115,7 +115,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
         parkingLot.setLatitude(request.latitude());
         parkingLot.setLongitude(request.longitude());
         parkingLot.setDescription(request.description());
-        parkingLot.setStatus(ParkingLotStatus.ACTIVE);
+        parkingLot.setStatus(ParkingLotStatus.PENDING_APPROVAL);
         parkingLot = parkingLotRepository.save(parkingLot);
 
         ParkingLotStaff assignment = new ParkingLotStaff();
@@ -275,7 +275,7 @@ public class ParkingLotServiceImpl implements ParkingLotService {
     @Override
     @Transactional
     public ParkingDtos.ParkingLotResponse submitApproval(CurrentUser currentUser, UUID parkingLotId) {
-        return transitionStaff(currentUser, parkingLotId, ParkingLotStatus.DRAFT, ParkingLotStatus.ACTIVE, "AUTO_ACTIVATE", "Temporary staff self-activation");
+        return transitionStaff(currentUser, parkingLotId, ParkingLotStatus.DRAFT, ParkingLotStatus.PENDING_APPROVAL, "SUBMIT_APPROVAL", "Submitted for admin approval");
     }
 
     @Override

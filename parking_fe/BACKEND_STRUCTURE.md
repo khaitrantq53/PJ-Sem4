@@ -116,8 +116,8 @@ File: `src/main/resources/application.yml`
 
 File: `docker-compose.yml`
 
-- App mặc định dùng PostgreSQL local đang quản lý bằng pgAdmin: database `postgres`, user `postgres`, password `12131415`, schema `smart_parking`.
-- `postgres`: `postgres:16-alpine`, DB `smart_parking`, user `postgres`, password `12131415`, host port `5433` -> container port `5432` dùng làm môi trường phụ nếu không dùng PostgreSQL local.
+- App mặc định dùng PostgreSQL local đang quản lý bằng pgAdmin: database `postgres`, user `postgres`, password lấy từ `DB_PASSWORD`, schema `smart_parking`.
+- `postgres`: `postgres:16-alpine`, DB `smart_parking`, user `postgres`, password lấy từ `POSTGRES_PASSWORD`, host port `5433` -> container port `5432` dùng làm môi trường phụ nếu không dùng PostgreSQL local.
 - `redis`: `redis:7-alpine`, port `6379`.
 - `minio`: `minio/minio:RELEASE.2024-10-13T13-34-11Z`, API `9000`, console `9001`.
 

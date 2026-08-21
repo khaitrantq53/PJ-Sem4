@@ -404,6 +404,12 @@ public class AdminServiceImpl implements AdminService {
         parkingLot.setLongitude(request.getLongitude());
         parkingLot.setDescription(request.getDescription());
 
+        ParkingLotStatus previousStatus = parkingLot.getStatus();
+        if (previousStatus == ParkingLotStatus.PENDING_APPROVAL) {
+            parkingLot.setStatus(ParkingLotStatus.ACTIVE);
+            parkingHistory(parkingLot, previousStatus, ParkingLotStatus.ACTIVE, currentUser, "Approved initial parking lot details");
+        }
+
         UUID parkingLotId = parkingLot.getId();
         List<ParkingLotUpdateCapacity> capacities = updateCapacityRepository.findByRequestId(requestId);
         for (ParkingLotUpdateCapacity capacityRequest : capacities) {

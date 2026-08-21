@@ -12,12 +12,9 @@ const parkingLotsContent = `
         <span id="staffLotSelectedId">ID: -</span>
       </div>
       <h1 id="staffLotSelectedName">My Parking Lot</h1>
-      <p id="staffLotSelectedDescription">Manage the parking facility assigned to this staff account.</p>
     </div>
     <button class="staff-lots-edit-button" type="button" data-action="open-staff-lot-modal">${editIcon}<span>Edit Details</span></button>
   </header>
-
-  <span class="status-line staff-status-line" id="staffLotsStatus"></span>
 
   <div class="staff-lot-overview-layout">
     <div class="staff-lot-overview-main">

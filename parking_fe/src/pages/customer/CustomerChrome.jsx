@@ -12,6 +12,7 @@ function NavIcon({ type }) {
     dashboard: 'M7 2h2v2h6V2h2v2h3v18H4V4h3V2Zm11 8H6v10h12V10ZM6 8h12V6H6v2Z',
     logo: 'M7 20V4h7.1c3.4 0 5.9 2.3 5.9 5.6s-2.5 5.7-5.9 5.7h-3.7V20H7Zm3.4-7.8h3.4c1.6 0 2.8-1 2.8-2.6S15.4 7 13.8 7h-3.4v5.2Z',
     profile: 'M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.4 0-8 2.1-8 5v1h16v-1c0-2.9-3.6-5-8-5Z',
+    recent: 'M13 3a9 9 0 1 0 8.9 10H20a7 7 0 1 1-7-8V3Zm-1 4h2v6h5v2h-7V7Z',
     vehicles: 'M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h1a2 2 0 0 1 2 2v5h-2v-2H4v2H2v-5a2 2 0 0 1 2-2h1Zm2.1 0h9.8l-1.1-3.2a.8.8 0 0 0-.8-.6H9a.8.8 0 0 0-.8.6L7.1 11ZM6 14a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm12 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z',
   };
 
@@ -24,6 +25,7 @@ function NavIcon({ type }) {
 
 const navItems = [
   { key: 'dashboard', label: 'Active Bookings', href: '/customer.html' },
+  { key: 'recent', label: 'Recent Booking', href: '/customer-recent.html' },
   { key: 'vehicles', label: 'Vehicles', href: '/customer-vehicles.html' },
   { key: 'profile', label: 'My Profile', href: '/customer-profile.html' },
 ];

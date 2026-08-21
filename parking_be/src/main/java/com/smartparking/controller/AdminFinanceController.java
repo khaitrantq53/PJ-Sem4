@@ -27,14 +27,15 @@ public class AdminFinanceController {
     }
 
     @GetMapping("/commissions/summary")
-    ApiResponse<CommissionDtos.CommissionSummaryResponse> commissionSummary() {
-        return ApiResponse.ok(commissionService.adminSummary(), RequestContext.requestId());
+    ApiResponse<CommissionDtos.CommissionSummaryResponse> commissionSummary(@RequestParam(required = false) String period) {
+        return ApiResponse.ok(commissionService.adminSummary(period), RequestContext.requestId());
     }
 
     @GetMapping("/commissions")
     PageResponse<CommissionDtos.CommissionResponse> commissions(@RequestParam(required = false) CommissionStatus status,
+                                                                @RequestParam(required = false) String period,
                                                                 Pageable pageable) {
-        return PageResponse.of(commissionService.adminCommissions(status, pageable), RequestContext.requestId());
+        return PageResponse.of(commissionService.adminCommissions(status, period, pageable), RequestContext.requestId());
     }
 
     @PostMapping("/commissions/{commissionId}/mark-collected")

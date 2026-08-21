@@ -46,13 +46,20 @@ const adminFinancePage = {
             <div class="admin-finance-table-head">
               <div>
                 <h2>Admin Commission</h2>
-                <span>Today totals by staff.</span>
+                <span id="adminCommissionRangeLabel">Today totals by staff.</span>
               </div>
-              <select id="adminCommissionStatusFilter" aria-label="Commission status">
-                <option value="">All Status</option>
-                <option value="COLLECTED">Collected</option>
-                <option value="UNCOLLECTED">Uncollected</option>
-              </select>
+              <div class="staff-commission-filters admin-finance-filters">
+                <div class="staff-commission-periods" aria-label="Admin commission period">
+                  <button class="active" type="button" data-admin-commission-period="today">Today</button>
+                  <button type="button" data-admin-commission-period="7days">7 days</button>
+                  <button type="button" data-admin-commission-period="30days">30 days</button>
+                </div>
+                <select id="adminCommissionStatusFilter" aria-label="Commission status">
+                  <option value="">All Status</option>
+                  <option value="COLLECTED">Collected</option>
+                  <option value="UNCOLLECTED">Uncollected</option>
+                </select>
+              </div>
             </div>
 
             <div class="admin-refund-table-scroll">

@@ -508,7 +508,7 @@ function paymentQrImageUrl(payload) {
   }).toString()}`;
 }
 
-export function CustomerDashboard() {
+export function CustomerDashboard({ view = 'active' } = {}) {
   const [account, setAccount] = useState(null);
   const [profile, setProfile] = useState(emptyProfile);
   const [vehicles, setVehicles] = useState([]);
@@ -550,13 +550,15 @@ export function CustomerDashboard() {
     [bookingsWithDetails],
   );
 
+  const isRecentPage = view === 'recent';
+
   const recentBookings = useMemo(() => {
     return bookingsWithDetails
       .filter(isRecentCompletedBooking)
       .slice()
       .sort((left, right) => bookingSortDate(right) - bookingSortDate(left))
-      .slice(0, 4);
-  }, [bookingsWithDetails]);
+      .slice(0, isRecentPage ? 50 : 4);
+  }, [bookingsWithDetails, isRecentPage]);
 
   const reviewByBookingId = useMemo(() => {
     return new Map(reviews.map((review) => [String(review.bookingId), review]));
@@ -774,9 +776,9 @@ export function CustomerDashboard() {
   }
 
   useEffect(() => {
-    document.title = 'ParkFinder | Active Booking';
+    document.title = isRecentPage ? 'ParkFinder | Recent Booking' : 'ParkFinder | Active Booking';
     document.body.className = 'customer-dashboard-page';
-    document.body.dataset.page = 'customer-active-booking';
+    document.body.dataset.page = isRecentPage ? 'customer-recent-booking' : 'customer-active-booking';
     loadDashboard();
 
     const refreshTimer = window.setInterval(() => {
@@ -784,7 +786,7 @@ export function CustomerDashboard() {
     }, 5000);
 
     return () => window.clearInterval(refreshTimer);
-  }, []);
+  }, [isRecentPage]);
 
   useEffect(() => {
     const previewBookings = activeBookings.filter((booking) => (
@@ -1058,20 +1060,80 @@ export function CustomerDashboard() {
     );
   }
 
+  function renderRecentBookingSection() {
+    return (
+      <section className="active-booking-recent customer-recent-booking-page">
+        <div className="active-booking-section-head">
+          <h2>Recent Booking</h2>
+          <span>{recentBookings.length} completed</span>
+        </div>
+
+        {recentBookings.length ? (
+          <div className="active-booking-recent-list">
+            {recentBookings.map((booking) => {
+              const vehicle = vehicles.find((item) => String(item.id) === String(booking.vehicleId));
+              const lot = lots.find((item) => item.id === booking.parkingLotId);
+              const isPaid = String(booking.paymentStatus || '').toUpperCase() === 'PAID';
+              const amount = formatMoney(bookingTotal(booking));
+              const paidAmount = isPaid ? amount : `${amount} due`;
+              const review = reviewByBookingId.get(String(booking.id));
+
+              return (
+                <article className="active-booking-recent-card" key={booking.id}>
+                  <div>
+                    <span>Vehicle</span>
+                    <strong>{vehicle?.plateNumber || booking.plateNumber || 'Vehicle pending'}</strong>
+                  </div>
+                  <div>
+                    <span>Parking Lot</span>
+                    <strong>{lot?.name || booking.parkingLotName || booking.parkingLot?.name || booking.parkingLotId || 'Parking lot pending'}</strong>
+                  </div>
+                  <div>
+                    <span>Amount</span>
+                    <strong>{paidAmount}</strong>
+                  </div>
+                  <div>
+                    <span>Parked Time</span>
+                    <strong>{formatParkingDuration(booking, now)}</strong>
+                  </div>
+                  <div className="active-booking-review-cell">
+                    {review ? (
+                      <strong className="active-booking-reviewed">{reviewStars(review.rating)}</strong>
+                    ) : (
+                      <button
+                        className="active-booking-review-button"
+                        onClick={() => openReviewDialog(booking)}
+                        type="button"
+                      >
+                        Review
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="active-booking-recent-empty">No completed bookings yet.</div>
+        )}
+      </section>
+    );
+  }
+
   return (
     <div className="customer-dashboard">
-      <CustomerSidebar active="dashboard" initials={initials} name={name} />
+      <CustomerSidebar active={isRecentPage ? 'recent' : 'dashboard'} initials={initials} name={name} />
 
       <main className="customer-main active-booking-main">
         <header className="customer-top-nav">
           <div className="customer-mobile-title">
             <strong>ParkFinder</strong>
-            <span>Active Booking</span>
+            <span>{isRecentPage ? 'Recent Booking' : 'Active Booking'}</span>
           </div>
         </header>
 
         <section className="customer-content active-booking-content" id="active-booking">
-          {activeBookings.length ? (
+          {!isRecentPage && activeBookings.length ? (
             <section className="active-booking-list">
               <div className="active-booking-section-head">
                 <h2>Active Booking</h2>
@@ -1079,67 +1141,15 @@ export function CustomerDashboard() {
               </div>
               {activeBookings.map((booking) => renderActiveBookingPanel(booking))}
             </section>
+          ) : !isRecentPage ? (
+            <section className="active-booking-recent-empty">No active booking right now.</section>
           ) : null}
 
-          <section className="active-booking-recent">
-            <div className="active-booking-section-head">
-              <h2>Recent Booking</h2>
-              <span>{recentBookings.length} completed</span>
-            </div>
-
-            {recentBookings.length ? (
-              <div className="active-booking-recent-list">
-                {recentBookings.map((booking) => {
-                  const vehicle = vehicles.find((item) => String(item.id) === String(booking.vehicleId));
-                  const lot = lots.find((item) => item.id === booking.parkingLotId);
-                  const isPaid = String(booking.paymentStatus || '').toUpperCase() === 'PAID';
-                  const amount = formatMoney(bookingTotal(booking));
-                  const paidAmount = isPaid ? amount : `${amount} due`;
-                  const review = reviewByBookingId.get(String(booking.id));
-
-                  return (
-                    <article className="active-booking-recent-card" key={booking.id}>
-                      <div>
-                        <span>Vehicle</span>
-                        <strong>{vehicle?.plateNumber || booking.plateNumber || 'Vehicle pending'}</strong>
-                      </div>
-                      <div>
-                        <span>Parking Lot</span>
-                        <strong>{lot?.name || booking.parkingLotName || booking.parkingLot?.name || booking.parkingLotId || 'Parking lot pending'}</strong>
-                      </div>
-                      <div>
-                        <span>Amount</span>
-                        <strong>{paidAmount}</strong>
-                      </div>
-                      <div>
-                        <span>Parked Time</span>
-                        <strong>{formatParkingDuration(booking, now)}</strong>
-                      </div>
-                      <div className="active-booking-review-cell">
-                        {review ? (
-                          <strong className="active-booking-reviewed">{reviewStars(review.rating)}</strong>
-                        ) : (
-                          <button
-                            className="active-booking-review-button"
-                            onClick={() => openReviewDialog(booking)}
-                            type="button"
-                          >
-                            Review
-                          </button>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="active-booking-recent-empty">No completed bookings yet.</div>
-            )}
-          </section>
+          {isRecentPage ? renderRecentBookingSection() : null}
         </section>
       </main>
 
-      <CustomerMobileNav active="dashboard" />
+      <CustomerMobileNav active={isRecentPage ? 'recent' : 'dashboard'} />
 
       {reviewDialog ? (
         <section
@@ -1209,4 +1219,8 @@ export function CustomerDashboard() {
       ) : null}
     </div>
   );
+}
+
+export function CustomerRecentBookings() {
+  return <CustomerDashboard view="recent" />;
 }

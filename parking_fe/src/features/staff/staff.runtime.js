@@ -8,6 +8,26 @@ import {
 } from '../../services/api.js';
 
 const page = document.body.dataset.page;
+const STAFF_LOT_RATE_REQUIREMENTS = [
+  {
+    capacityField: 'capacity_car',
+    label: 'Car',
+    rates: [
+      ['price_car_day', 'Day (07:00-17:00)'],
+      ['price_car_evening', 'Evening (17:00-22:00)'],
+      ['price_car_night', 'Night (22:00-07:00)'],
+    ],
+  },
+  {
+    capacityField: 'capacity_motorbike',
+    label: 'Motorbike',
+    rates: [
+      ['price_motorbike_day', 'Day (07:00-17:00)'],
+      ['price_motorbike_evening', 'Evening (17:00-22:00)'],
+      ['price_motorbike_night', 'Night (22:00-07:00)'],
+    ],
+  },
+];
 
 function $(selector) {
   return document.querySelector(selector);
@@ -42,6 +62,15 @@ function formData(form) {
     }
   });
   return data;
+}
+
+function numericInputValue(input) {
+  if (!input || input.value === '') {
+    return null;
+  }
+
+  const value = Number(input.value);
+  return Number.isFinite(value) ? value : null;
 }
 
 function money(value, currency = 'VND') {
@@ -500,6 +529,116 @@ function renderStaffDashboardReviews(lot, reviewPage = { items: [], pagination: 
   `, lot ? 'No customer reviews for this parking lot yet.' : 'Create or assign a parking lot to view reviews.');
 }
 
+function initialsFromName(value) {
+  const text = String(value || 'Customer').trim();
+  const parts = text.split(/\s+/).filter(Boolean);
+  if (!parts.length) {
+    return 'CU';
+  }
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+function staffReviewSearchText(review) {
+  return normalizeFilterValue([
+    review.customerName,
+    review.bookingCode,
+    review.bookingId,
+    review.content,
+    review.rating,
+  ].join(' '));
+}
+
+function filteredStaffReviews() {
+  const search = normalizeFilterValue($('#staffReviewSearch')?.value);
+  const rating = $('#staffReviewRatingFilter')?.value || '';
+
+  return staffReviewsCache.filter((review) => {
+    const matchesSearch = !search || staffReviewSearchText(review).includes(search);
+    const matchesRating = !rating || String(review.rating) === rating;
+    return matchesSearch && matchesRating;
+  });
+}
+
+function renderStaffReviewsPage() {
+  const reviews = filteredStaffReviews();
+  const totalReviews = numberValue(staffReviewsPageTotal || staffReviewsCache.length);
+  const average = reviewAverage(staffReviewsLot, staffReviewsCache);
+  const fiveStarCount = staffReviewsCache.filter((review) => numberValue(review.rating) === 5).length;
+  const latestReview = [...staffReviewsCache].sort((a, b) => (
+    (parseBookingDate(b.createdAt)?.getTime() || 0) - (parseBookingDate(a.createdAt)?.getTime() || 0)
+  ))[0];
+
+  setText('#staffReviewsLotName', staffReviewsLot
+    ? `${staffReviewsLot.name || 'Your parking lot'} · ${staffReviewsLot.address || 'No address yet'}`
+    : 'Create or assign a parking lot to view customer reviews.');
+  setText('#staffReviewsAverage', average ? average.toFixed(1) : '0.0');
+  setText('#staffReviewsAverageStars', reviewStars(average));
+  setText('#staffReviewsTotal', formatCount(totalReviews));
+  setText('#staffReviewsFiveStar', formatCount(fiveStarCount));
+  setText('#staffReviewsLatest', latestReview ? formatDate(latestReview.createdAt) : '-');
+  setText('#staffReviewsCountLabel', staffReviewsLot
+    ? `${formatCount(reviews.length)} of ${formatCount(totalReviews)} reviews shown`
+    : 'No assigned parking lot yet.');
+
+  renderList('#staffAllReviewList', reviews, (review) => `
+    <article class="staff-review-page-row">
+      <div class="staff-review-page-row-head">
+        <span class="staff-review-customer-avatar">${escapeHtml(initialsFromName(review.customerName))}</span>
+        <div>
+          <strong>${escapeHtml(review.customerName || 'Customer')}</strong>
+          <small>${escapeHtml(formatDate(review.createdAt))} · ${escapeHtml(review.bookingCode || shortId(review.bookingId))}</small>
+        </div>
+        <b aria-label="${escapeHtml(`${numberValue(review.rating)} star review`)}">${escapeHtml(reviewStars(review.rating))}</b>
+      </div>
+      <p>${escapeHtml(review.content || 'No written comment was added for this review.')}</p>
+    </article>
+  `, staffReviewsLot ? 'No reviews match this filter.' : 'Create or assign a parking lot to view reviews.');
+}
+
+async function loadStaffReviewsPage() {
+  const current = await requireStaff();
+  if (!current) {
+    return;
+  }
+
+  setStatus('#staffReviewsStatus', 'Loading reviews...');
+
+  try {
+    const lots = await apiPage('/staff/parking-lots', { size: 50 });
+    const assignedLots = lots.items || [];
+    staffReviewsLot = assignedLots[0] || null;
+
+    if (!staffReviewsLot) {
+      staffReviewsCache = [];
+      staffReviewsPageTotal = 0;
+      renderStaffReviewsPage();
+      setStatus('#staffReviewsStatus', '');
+      return;
+    }
+
+    const reviewPage = await apiPage(`/staff/parking-lots/${staffReviewsLot.id}/reviews`, {
+      size: 200,
+      sort: 'createdAt,desc',
+    });
+    staffReviewsCache = reviewPage.items || [];
+    staffReviewsPageTotal = numberValue(reviewPage.pagination?.totalElements ?? staffReviewsCache.length);
+    renderStaffReviewsPage();
+    setStatus('#staffReviewsStatus', '');
+  } catch (error) {
+    setStatus('#staffReviewsStatus', error.message, true);
+  }
+}
+
+function bindStaffReviewsPage() {
+  $('#staffReviewSearch')?.addEventListener('input', renderStaffReviewsPage);
+  $('#staffReviewRatingFilter')?.addEventListener('change', renderStaffReviewsPage);
+}
+
 function renderStaffDashboardBookings(bookings = []) {
   const filteredBookings = staffDashboardBookingFilter
     ? bookings.filter((booking) => booking.status === staffDashboardBookingFilter)
@@ -689,6 +828,9 @@ let staffDashboardControlsBound = false;
 let staffDashboardBookingsCache = [];
 let staffDashboardSummaryCache = {};
 let staffDashboardSelectedLotId = null;
+let staffReviewsCache = [];
+let staffReviewsLot = null;
+let staffReviewsPageTotal = 0;
 let staffCommissionPeriod = 'today';
 const STAFF_ACTIVE_BOOKING_STATUSES = ['PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN'];
 const staffLotIcons = {
@@ -1005,7 +1147,6 @@ function renderParkingLotDetail(lot) {
   setText('#staffLotSelectedStatus', lot?.status || '-');
   setText('#staffLotSelectedId', lot?.id ? `ID: ${lot.id}` : 'ID: -');
   setText('#staffLotSelectedName', lot?.name ? `${lot.name} - Facility Overview` : 'My Parking Lot');
-  setText('#staffLotSelectedDescription', lot?.description || 'Overview of facility details, pricing tiers, slot capacity, and available amenities for this parking location.');
   setText('#staffLotHourlyRate', lot?.hourlyRate != null ? `${money(lot.hourlyRate, 'VND')}/hr` : '-');
   setText('#staffLotUpdatedAt', formatDate(lot?.updatedAt));
   setText('#staffLotVersion', lot?.version != null ? `v${lot.version}` : '-');
@@ -1164,6 +1305,7 @@ function openStaffLotModal() {
     return;
   }
   syncStaffParkingLotForm(selectedParkingLot());
+  refreshStaffLotRateRequirements($('#staffParkingLotForm'));
   clearSelectedStaffLotImages();
   modal.classList.remove('hidden');
   modal.setAttribute('aria-hidden', 'false');
@@ -1177,6 +1319,85 @@ function closeStaffLotModal() {
   }
   modal.classList.add('hidden');
   modal.setAttribute('aria-hidden', 'true');
+}
+
+function setStaffLotFieldInvalid(input, message = '') {
+  if (!input) {
+    return;
+  }
+
+  input.setCustomValidity(message);
+  input.closest('.staff-popup-field')?.classList.toggle('is-invalid', Boolean(message));
+}
+
+function refreshStaffLotRateRequirements(form) {
+  if (!form) {
+    return;
+  }
+
+  STAFF_LOT_RATE_REQUIREMENTS.forEach((group) => {
+    const capacityInput = form.elements.namedItem(group.capacityField);
+    const hasSlots = (numericInputValue(capacityInput) || 0) > 0;
+
+    group.rates.forEach(([fieldName, label]) => {
+      const input = form.elements.namedItem(fieldName);
+      if (!input) {
+        return;
+      }
+
+      setStaffLotFieldInvalid(input, '');
+      input.required = hasSlots;
+      input.disabled = !hasSlots;
+      input.placeholder = hasSlots ? '' : 'Set slots first';
+      input.toggleAttribute('aria-required', hasSlots);
+      if (!hasSlots && input.value !== '') {
+        input.value = '';
+      }
+    });
+  });
+}
+
+function validateStaffLotRateCoverage(form) {
+  refreshStaffLotRateRequirements(form);
+
+  let firstInvalidInput = null;
+  const missingLabels = [];
+
+  STAFF_LOT_RATE_REQUIREMENTS.forEach((group) => {
+    const capacityInput = form.elements.namedItem(group.capacityField);
+    const hasSlots = (numericInputValue(capacityInput) || 0) > 0;
+
+    if (!hasSlots) {
+      group.rates.forEach(([fieldName]) => {
+        const input = form.elements.namedItem(fieldName);
+        if (input?.value) {
+          input.value = '';
+        }
+      });
+      return;
+    }
+
+    group.rates.forEach(([fieldName, label]) => {
+      const input = form.elements.namedItem(fieldName);
+      const rate = numericInputValue(input);
+      const isMissing = input?.value === '' || rate === null || rate <= 0;
+      const message = isMissing
+        ? `Please enter ${group.label} ${label} hourly rate.`
+        : '';
+
+      setStaffLotFieldInvalid(input, message);
+      if (isMissing) {
+        firstInvalidInput = firstInvalidInput || input;
+        missingLabels.push(`${group.label} ${label}`);
+      }
+    });
+  });
+
+  if (firstInvalidInput) {
+    firstInvalidInput.focus();
+    firstInvalidInput.reportValidity();
+    throw new Error(`Please fill all hourly rate time slots for: ${missingLabels.join(', ')}.`);
+  }
 }
 
 async function saveStaffLotCapacity(parkingLotId, data) {
@@ -1330,19 +1551,17 @@ async function saveStaffParkingLotDetails(form) {
     });
     selectedLotId = selectedLot.id;
     upsertParkingLot(selectedLot);
-    await saveStaffLotCapacity(selectedLot.id, data);
-    await saveStaffLotPricing(selectedLot.id, data);
-    await saveStaffLotServices(selectedLot.id, data);
-    return 'Parking lot details saved.';
-  } else {
-    const request = await apiRequest(`/staff/parking-lots/${selectedLot.id}/update-requests`, {
-      method: 'POST',
-      body: jsonBody(buildStaffLotReviewPayload(data, selectedLot)),
-    });
-    await uploadStaffLotRequestImages(selectedLot.id, request.id, selectedStaffLotImageFiles);
-    clearSelectedStaffLotImages();
-    return 'Parking lot changes sent for admin approval.';
   }
+
+  const request = await apiRequest(`/staff/parking-lots/${selectedLot.id}/update-requests`, {
+    method: 'POST',
+    body: jsonBody(buildStaffLotReviewPayload(data, selectedLot)),
+  });
+  await uploadStaffLotRequestImages(selectedLot.id, request.id, selectedStaffLotImageFiles);
+  clearSelectedStaffLotImages();
+  return selectedLot.status === 'PENDING_APPROVAL'
+    ? 'Parking lot details sent for admin approval.'
+    : 'Parking lot changes sent for admin approval.';
 }
 
 function bindStaffParkingLotsPage() {
@@ -1365,14 +1584,42 @@ function bindStaffParkingLotsPage() {
     setSelectedStaffLotImages([...event.currentTarget.files]);
   });
 
+  const parkingLotForm = $('#staffParkingLotForm');
+  if (parkingLotForm) {
+    STAFF_LOT_RATE_REQUIREMENTS.forEach((group) => {
+      const capacityInput = parkingLotForm.elements.namedItem(group.capacityField);
+      capacityInput?.addEventListener('input', () => {
+        refreshStaffLotRateRequirements(parkingLotForm);
+      });
+
+      group.rates.forEach(([fieldName]) => {
+        const input = parkingLotForm.elements.namedItem(fieldName);
+        input?.addEventListener('input', () => {
+          setStaffLotFieldInvalid(input, '');
+          refreshStaffLotRateRequirements(parkingLotForm);
+        });
+      });
+    });
+  }
+
   $('#staffLotEditModal')?.addEventListener('click', (event) => {
     if (event.target === event.currentTarget) {
       closeStaffLotModal();
     }
   });
 
-  $('#staffParkingLotForm')?.addEventListener('submit', async (event) => {
+  parkingLotForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    try {
+      validateStaffLotRateCoverage(event.currentTarget);
+    } catch (error) {
+      setStatus('#staffLotsStatus', error.message, true);
+      return;
+    }
+    if (!event.currentTarget.checkValidity()) {
+      event.currentTarget.reportValidity();
+      return;
+    }
     setStatus('#staffLotsStatus', 'Submitting parking lot changes...');
     try {
       const message = await saveStaffParkingLotDetails(event.currentTarget);
@@ -2610,6 +2857,11 @@ if (page === 'staff-lots') {
 if (page === 'staff-bookings') {
   bindStaffBookingsPage();
   loadStaffBookings();
+}
+
+if (page === 'staff-reviews') {
+  bindStaffReviewsPage();
+  loadStaffReviewsPage();
 }
 
 if (page === 'staff-commissions') {

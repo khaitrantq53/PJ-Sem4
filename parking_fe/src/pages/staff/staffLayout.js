@@ -9,12 +9,14 @@ const icons = {
   lots: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Zm-1 14-3.3-3.3 1.4-1.4 1.9 1.9 4.6-4.6 1.4 1.4-6 6Z" /></svg>',
   menu: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4V6Zm0 5h16v2H4v-2Zm0 5h16v2H4v-2Z" /></svg>',
   reports: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16v2H4v-2Zm2-8h3v6H6v-6Zm5-6h3v12h-3V5Zm5 3h3v9h-3V8Z" /></svg>',
+  reviews: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 2.8 6 6.5.8-4.8 4.4 1.3 6.4L12 16.3l-5.8 3.3 1.3-6.4-4.8-4.4 6.5-.8L12 2Z" /></svg>',
 };
 
 const navItems = [
   { key: 'dashboard', href: '/staff.html', icon: icons.dashboard, label: 'Dashboard' },
   { key: 'lots', href: '/staff-parking-lots.html', icon: icons.lots, label: 'My Parking Lot' },
   { key: 'bookings', href: '/staff-bookings.html', icon: icons.bookings, label: 'Bookings' },
+  { key: 'reviews', href: '/staff-reviews.html', icon: icons.reviews, label: 'Reviews' },
   { key: 'commissions', href: '/staff-commissions.html', icon: icons.earnings, label: 'Commission' },
 ];
 

@@ -4,7 +4,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/postgres?currentSchema=smart_parking}
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:12131415}
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
     hikari:
       pool-name: SmartParkingHikariPool
@@ -42,20 +42,6 @@ spring:
       charset: UTF-8
       enabled: true
       force: true
-  mail:
-    host: smtp.gmail.com
-    port: 587
-    username: coonmake094269@gmail.com
-    password: kcuz nfrj pzzw fbkg
-    protocol: smtp
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-    default-encoding: UTF-8
-
 server:
   port: ${SERVER_PORT:8080}
 
@@ -68,7 +54,7 @@ springdoc:
 smart-parking:
   jwt:
     issuer: ${JWT_ISSUER:smart-parking}
-    secret: ${JWT_SECRET:change-this-secret-to-at-least-32-characters}
+    secret: ${JWT_SECRET:replace-with-a-long-random-secret-at-least-32-chars}
     access-token-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:30}
     refresh-token-ttl-days: ${JWT_REFRESH_TTL_DAYS:30}
   booking:
@@ -85,12 +71,18 @@ smart-parking:
     tax-rate: ${TAX_RATE:0.00}
     default-hourly-rate: ${DEFAULT_HOURLY_RATE:0.00}
   payment:
-    webhook-secret: ${PAYMENT_WEBHOOK_SECRET:change-this-payment-webhook-secret}
+    webhook-secret: ${PAYMENT_WEBHOOK_SECRET:replace-with-a-long-random-payment-secret}
   commission:
     staff-rate: ${STAFF_COMMISSION_RATE:0.10}
   otp:
     ttl-minutes: ${OTP_TTL_MINUTES:5}
     length: ${OTP_LENGTH:6}
+  email:
+    brevo:
+      api-key: ${BREVO_API_KEY:}
+      from-email: ${BREVO_FROM_EMAIL:}
+      from-name: ${BREVO_FROM_NAME:Smart Parking}
+      api-url: ${BREVO_API_URL:https://api.brevo.com/v3/smtp/email}
   operation:
     check-in-early-minutes: ${CHECK_IN_EARLY_MINUTES:30}
     check-in-late-minutes: ${CHECK_IN_LATE_MINUTES:30}
@@ -106,8 +98,8 @@ smart-parking:
     expire-promotion-cron: "${EXPIRE_PROMOTION_CRON:0 */10 * * * *}"
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
-    access-key: ${MINIO_ACCESS_KEY:minioadmin}
-    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    access-key: ${MINIO_ACCESS_KEY:}
+    secret-key: ${MINIO_SECRET_KEY:}
     bucket: ${MINIO_BUCKET:smart-parking}
   upload:
     max-avatar-bytes: ${MAX_AVATAR_BYTES:5242880}

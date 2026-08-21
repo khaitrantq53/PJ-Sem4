@@ -11,6 +11,7 @@ export const runtimeLoaders = {
   'staff-parking-lots.html': staffRuntime,
   'staff-bookings.html': staffRuntime,
   'staff-commissions.html': staffRuntime,
+  'staff-reviews.html': staffRuntime,
 };
 
 export function getCurrentPageName() {

@@ -13,7 +13,6 @@ const navItems = [
   { href: '/admin.html', label: 'Dashboard', icon: icons.dashboard },
   { href: '/admin-users.html', label: 'Customers', icon: icons.users },
   { href: '/admin-staff.html', label: 'Staff', icon: icons.staff },
-  { href: '/admin-lots.html', label: 'Parking Lots', icon: icons.lots },
   { href: '/admin-requests.html', label: 'Requests', icon: icons.requests },
   { href: '/admin-bookings.html', label: 'Bookings', icon: icons.bookings },
   { href: '/admin-finance.html', label: 'Finance', icon: icons.money },

@@ -2,3 +2,11 @@ parking_be/target/
 parking_be/scripts/.geocode-cache.json
 parking_fe/node_modules/
 parking_fe/dist/
+.DS_Store
+**/.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+parking_be/.tools/
+parking_fe/.vite/

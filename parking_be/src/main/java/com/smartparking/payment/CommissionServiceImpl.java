@@ -87,16 +87,15 @@ public class CommissionServiceImpl implements CommissionService {
 
     @Override
     @Transactional(readOnly = true)
-    public CommissionDtos.CommissionSummaryResponse adminSummary() {
-        return summary(null, true, null, null);
+    public CommissionDtos.CommissionSummaryResponse adminSummary(String period) {
+        return summary(null, true, null, period);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Page<CommissionDtos.CommissionResponse> adminCommissions(CommissionStatus status, Pageable pageable) {
-        Page<StaffCommission> page = status == null
-                ? commissionRepository.findAll(pageable)
-                : commissionRepository.findByStatus(status, pageable);
+    public Page<CommissionDtos.CommissionResponse> adminCommissions(CommissionStatus status, String period, Pageable pageable) {
+        DateWindow window = dateWindow(period);
+        Page<StaffCommission> page = commissionRepository.findFiltered(null, status, window.startTime(), window.endTime(), pageable);
         return page.map(commission -> mapper.toResponse(commission, true));
     }
 

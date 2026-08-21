@@ -171,12 +171,7 @@ function ensureAdminRequestNavLink() {
       Requests
     `;
 
-    const lotLink = nav.querySelector('a[href="/admin-lots.html"]');
-    if (lotLink?.nextSibling) {
-      nav.insertBefore(link, lotLink.nextSibling);
-    } else {
-      nav.appendChild(link);
-    }
+    nav.appendChild(link);
   }
 }
 
@@ -528,6 +523,7 @@ let adminRequestsCache = [];
 let adminRequestsPagination = null;
 let activeAdminRequest = null;
 let adminFinanceCommissionItems = [];
+let adminFinanceCommissionPeriod = 'today';
 let adminCommissionModalContext = null;
 let adminCommissionModalPeriod = 'today';
 let adminBookingsCache = [];
@@ -1678,6 +1674,11 @@ async function openAdminRequestDetailModal(requestId) {
     approveButton.dataset.requestId = requestId;
     approveButton.disabled = false;
   }
+  const rejectButton = $('#rejectRequestButton');
+  if (rejectButton) {
+    rejectButton.dataset.requestId = requestId;
+    rejectButton.disabled = false;
+  }
 
   const content = $('#requestDetailContent');
   if (content) {
@@ -1735,6 +1736,41 @@ async function approveAdminRequest(requestId) {
   }
 }
 
+async function rejectAdminRequest(requestId) {
+  if (!requestId) {
+    return;
+  }
+
+  const reason = window.prompt('Reject reason', 'Parking lot detail request rejected by admin');
+  if (reason === null) {
+    return;
+  }
+
+  const rejectButton = $('#rejectRequestButton');
+  if (rejectButton) {
+    rejectButton.disabled = true;
+  }
+
+  setStatus('#adminStatus', 'Rejecting parking lot change request...');
+  try {
+    await apiRequest(`/admin/parking-lots/update-requests/${requestId}/reject`, {
+      method: 'POST',
+      body: jsonBody({
+        reason: reason || 'Parking lot detail request rejected by admin',
+      }),
+    });
+    closeAdminRequestDetailModal();
+    setStatus('#adminStatus', 'Parking lot change request has been rejected.');
+    await reloadAdminPage();
+  } catch (error) {
+    setStatus('#adminStatus', error.message, true);
+  } finally {
+    if (rejectButton) {
+      rejectButton.disabled = false;
+    }
+  }
+}
+
 function bindAdminRequestControls() {
   $all('[data-admin-close-request-detail]').forEach((button) => {
     button.addEventListener('click', closeAdminRequestDetailModal);
@@ -1748,6 +1784,10 @@ function bindAdminRequestControls() {
 
   $('#approveRequestButton')?.addEventListener('click', (event) => {
     approveAdminRequest(event.currentTarget.dataset.requestId || activeAdminRequest?.id);
+  });
+
+  $('#rejectRequestButton')?.addEventListener('click', (event) => {
+    rejectAdminRequest(event.currentTarget.dataset.requestId || activeAdminRequest?.id);
   });
 
   $('[data-admin-refresh-requests]')?.addEventListener('click', () => {
@@ -1899,15 +1939,6 @@ function commissionRateLabel(commission) {
   return Number.isFinite(rate) ? `${Math.round(rate * 100)}%` : '10%';
 }
 
-function commissionDateKey(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return 'unknown';
-  }
-
-  return date.toLocaleDateString('en-CA');
-}
-
 function adminCommissionStaffKey(commission) {
   return String(commission.staffId || commission.staffEmail || 'staff');
 }
@@ -1916,8 +1947,14 @@ function adminCommissionLotKey(commission) {
   return String(commission.parkingLotId || 'lot');
 }
 
-function isTodayDateKey(key) {
-  return key === new Date().toLocaleDateString('en-CA');
+function adminCommissionPeriodLabel(period) {
+  if (period === '7days') {
+    return 'Last 7 days';
+  }
+  if (period === '30days') {
+    return 'Last 30 days';
+  }
+  return 'Today';
 }
 
 function adminCommissionPeriodRange(period) {
@@ -1961,14 +1998,13 @@ function groupedAdminCommissions(items = []) {
   const groups = new Map();
 
   items.forEach((commission) => {
-    const dateKey = commissionDateKey(commission.createdAt);
-    if (!isTodayDateKey(dateKey)) {
+    if (!isWithinAdminCommissionPeriod(commission.createdAt, adminFinanceCommissionPeriod)) {
       return;
     }
 
     const staffKey = adminCommissionStaffKey(commission);
     const parkingLotKey = adminCommissionLotKey(commission);
-    const key = [staffKey, parkingLotKey, dateKey].join('|');
+    const key = [staffKey, parkingLotKey].join('|');
     const existing = groups.get(key) || {
       staffKey,
       staffId: commission.staffId,
@@ -1977,7 +2013,6 @@ function groupedAdminCommissions(items = []) {
       parkingLotKey,
       parkingLotId: commission.parkingLotId,
       parkingLotName: commission.parkingLotName || '-',
-      dateKey,
       grossAmount: 0,
       commissionAmount: 0,
       staffNetAmount: 0,
@@ -2020,12 +2055,17 @@ function renderAdminCommissions(items = []) {
   }
 
   const groups = groupedAdminCommissions(items);
+  const periodLabel = adminCommissionPeriodLabel(adminFinanceCommissionPeriod);
+  setText('#adminCommissionRangeLabel', `${periodLabel} totals by staff.`);
+  $all('[data-admin-commission-period]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.adminCommissionPeriod === adminFinanceCommissionPeriod);
+  });
 
   if (!groups.length) {
     element.innerHTML = `
       <tr>
         <td colspan="7">
-          <div class="empty-state">No commission totals found for today.</div>
+          <div class="empty-state">No commission totals found for ${escapeHtml(periodLabel.toLowerCase())}.</div>
         </td>
       </tr>
     `;
@@ -2265,6 +2305,12 @@ function bindAdminCommissionDetailModal() {
 
 function bindAdminFinanceControls() {
   $('#adminCommissionStatusFilter')?.addEventListener('change', loadAdminFinance);
+  $all('[data-admin-commission-period]').forEach((button) => {
+    button.addEventListener('click', () => {
+      adminFinanceCommissionPeriod = button.dataset.adminCommissionPeriod || 'today';
+      loadAdminFinance();
+    });
+  });
 }
 
 function renderAdminLots(items = []) {
@@ -2724,9 +2770,14 @@ async function loadAdminFinance() {
   }
 
   try {
+    const summaryQuery = new URLSearchParams({ period: adminFinanceCommissionPeriod }).toString();
     const [summary, commissions] = await Promise.all([
-      apiRequest('/admin/finance/commissions/summary'),
-      apiPage('/admin/finance/commissions', { size: 500, sort: 'createdAt,desc' }),
+      apiRequest(`/admin/finance/commissions/summary?${summaryQuery}`),
+      apiPage('/admin/finance/commissions', {
+        period: adminFinanceCommissionPeriod,
+        size: 500,
+        sort: 'createdAt,desc',
+      }),
     ]);
 
     setText('#adminFinanceGross', money(summary.grossAmount, summary.currency || 'VND'));
@@ -2969,23 +3020,20 @@ function renderAdminDashboardStaffQueue(staffPending = []) {
   `, 'No staff accounts are waiting for approval.');
 }
 
-function renderAdminDashboardLotQueue(pendingLots = []) {
-  renderList('#adminLotQueue', pendingLots.slice(0, 5), (lot) => `
+function renderAdminDashboardLotQueue(requests = []) {
+  renderList('#adminLotQueue', requests.slice(0, 5), (request) => `
     <article class="dashboard-lot-row">
       <div>
-        <strong>${escapeHtml(lot.name || 'Unnamed parking lot')}</strong>
-        <small>${escapeHtml(lot.address || 'No address')}</small>
+        <strong>${escapeHtml(request.name || request.parkingLotName || 'Unnamed parking lot')}</strong>
+        <small>${escapeHtml(request.requestedByEmail || requestStaffName(request))} · ${escapeHtml(formatDateTime(request.createdAt))}</small>
       </div>
       <span class="dashboard-row-actions">
-        <button type="button" class="success" title="Approve parking lot" data-admin-parking-command="approve" data-parking-lot-id="${escapeHtml(lot.id)}">
-          <span class="material-symbols-outlined" aria-hidden="true">check</span>
-        </button>
-        <button type="button" class="danger" title="Reject parking lot" data-admin-parking-command="reject" data-parking-lot-id="${escapeHtml(lot.id)}">
-          <span class="material-symbols-outlined" aria-hidden="true">close</span>
-        </button>
+        <a href="/admin-requests.html" title="Review request">
+          <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+        </a>
       </span>
     </article>
-  `, 'No parking lots are waiting for approval.');
+  `, 'No parking lot change requests are waiting for review.');
 }
 
 function bookingExceptionLabel(booking) {
@@ -3038,7 +3086,7 @@ function renderAdminDashboardAudit(logs = []) {
 
 function bindAdminDashboardActions() {
   bindAdminStaffActions();
-  bindAdminApprovalActions();
+  bindAdminRequestActions();
 }
 
 function bindAdminDashboardControls() {
@@ -3082,20 +3130,20 @@ async function loadAdminDashboard() {
     const [
       summary,
       users,
-      pendingLots,
+      pendingRequests,
       exceptionBookings,
       audits,
     ] = await Promise.all([
       apiRequest('/admin/dashboard/summary'),
       apiPage('/admin/users', { size: 100, sort: 'createdAt,desc' }),
-      safeAdminPage('/admin/parking-lots/pending', { size: 20, sort: 'updatedAt,desc' }),
+      safeAdminPage('/admin/parking-lots/update-requests', { size: 20, sort: 'createdAt,desc' }),
       loadAdminDashboardBookingExceptions(),
       safeAdminPage('/admin/audit-logs', { size: 6, sort: 'createdAt,desc' }),
     ]);
 
     const userItems = users.items || [];
     const pendingStaff = userItems.filter((user) => user.role === 'STAFF' && statusClass(user.status) === 'pending');
-    const pendingLotItems = pendingLots.items || [];
+    const pendingLotItems = pendingRequests.items || [];
     adminDashboardSummaryCache = summary;
 
     setText('#adminLiveTime', `Synced · ${formatTime(new Date())}`);
@@ -3135,7 +3183,7 @@ async function reloadAdminPage() {
   }
 
   if (page === 'admin-lots') {
-    await loadAdminLots();
+    window.location.href = '/admin-requests.html';
     return;
   }
 

@@ -1,4 +1,15 @@
-const API_BASE = '/api/v1';
+function resolveApiBase() {
+  const configuredBase = import.meta.env.VITE_API_BASE_URL;
+
+  if (!configuredBase) {
+    return '/api/v1';
+  }
+
+  const normalizedBase = configuredBase.replace(/\/+$/, '');
+  return normalizedBase.endsWith('/api/v1') ? normalizedBase : `${normalizedBase}/api/v1`;
+}
+
+const API_BASE = resolveApiBase();
 const TOKEN_KEY = 'parkingAccessToken';
 const REFRESH_TOKEN_KEY = 'parkingRefreshToken';
 const ACCOUNT_KEY = 'parkingAccount';

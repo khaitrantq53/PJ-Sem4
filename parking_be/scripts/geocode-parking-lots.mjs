@@ -18,7 +18,7 @@ const config = {
   port: Number(env.DB_PORT || 5432),
   database: env.DB_NAME || 'postgres',
   user: env.DB_USERNAME || 'postgres',
-  password: env.DB_PASSWORD || '12131415',
+  password: env.DB_PASSWORD || '',
   schema: env.DB_SCHEMA || 'smart_parking',
   limit: Number(env.GEOCODE_LIMIT || 50),
   delayMs: Number(env.GEOCODE_DELAY_MS || 1100),
